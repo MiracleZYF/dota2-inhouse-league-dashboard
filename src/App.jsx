@@ -13,6 +13,7 @@ import {
   Database,
   Download,
   Eye,
+  ExternalLink,
   FileDown,
   Filter,
   Gamepad2,
@@ -479,19 +480,179 @@ function buildStandingsFromConfirmedMatches(players, matches, settings) {
     .sort((a, b) => b.points - a.points || b.wins - a.wins || b.played - a.played);
 }
 
+const PLAYER_PROFILE_FIXTURES = {
+  79759941: {
+    gameName: "ChaiBot★",
+    profileUrl: "https://steamcommunity.com/id/stormchai/",
+    avatarUrl: "https://avatars.steamstatic.com/8f67304c9e5e8d5d63d3ae468abe4966c3225479_full.jpg",
+  },
+  133666698: {
+    gameName: "能帮我弄干净吗",
+    profileUrl: "https://steamcommunity.com/profiles/76561198093932426/",
+    avatarUrl: "https://avatars.steamstatic.com/198cc4ad9a2c31ad45c4d83d54498df854aedcf4_full.jpg",
+  },
+  139135702: {
+    gameName: "别问！学就行",
+    profileUrl: "https://steamcommunity.com/profiles/76561198099401430/",
+    avatarUrl: "https://avatars.steamstatic.com/355575d8bb0d2ec52ee18a112212a6fcc929d833_full.jpg",
+  },
+  139203171: {
+    gameName: "全自动立功",
+    profileUrl: "https://steamcommunity.com/profiles/76561198099468899/",
+    avatarUrl: "https://avatars.steamstatic.com/9561d6d2da2e4805bc0bc74f88d7856950412c47_full.jpg",
+  },
+  139291120: {
+    gameName: "钢琴家睿达",
+    profileUrl: "https://steamcommunity.com/id/GunyumL/",
+    avatarUrl: "https://avatars.steamstatic.com/bc55afd6180a0aebd83a33fc36da2d534370498e_full.jpg",
+  },
+  139595295: {
+    gameName: "Kano",
+    profileUrl: "https://steamcommunity.com/profiles/76561198099861023/",
+    avatarUrl: "https://avatars.steamstatic.com/80f218cad570a586adf3990d20ca8ab664b2e88f_full.jpg",
+  },
+  155292084: {
+    gameName: "我要玩旮旯给木",
+    profileUrl: "https://steamcommunity.com/profiles/76561198115557812/",
+    avatarUrl: "https://avatars.steamstatic.com/43b37b323147bfd12f7ef41a8a9f40cfa384f57e_full.jpg",
+  },
+  155361267: {
+    gameName: "卷毛&吉米.Bilibili",
+    profileUrl: "https://steamcommunity.com/profiles/76561198115626995/",
+    avatarUrl: "https://avatars.steamstatic.com/b118287d839980d742303cee50f726d6d39b1917_full.jpg",
+  },
+  161822486: {
+    gameName: "茶酒",
+    profileUrl: "https://steamcommunity.com/profiles/76561198122088214/",
+    avatarUrl: "https://avatars.steamstatic.com/4b0a7d7b987e9878d82900f8c150ab1b9b7a849f_full.jpg",
+  },
+  175928804: {
+    gameName: "Zsso_zao",
+    profileUrl: "https://steamcommunity.com/profiles/76561198136194532/",
+    avatarUrl: "https://avatars.steamstatic.com/e1edeeccc8320a26774cfabd63467ab9f0a5a6d8_full.jpg",
+  },
+  201599278: {
+    gameName: "牢焖",
+    profileUrl: "https://steamcommunity.com/profiles/76561198161865006/",
+    avatarUrl: "https://avatars.steamstatic.com/44aa729ce88eed142dc9877b2a10bcf561b1e785_full.jpg",
+  },
+  237169385: {
+    gameName: "Pupa",
+    profileUrl: "https://steamcommunity.com/profiles/76561198197435113/",
+    avatarUrl: "https://avatars.steamstatic.com/be65902c43f582d8c064c0fed73dceaf885b6455_full.jpg",
+  },
+  253121211: {
+    gameName: "天下伍酒（red card）",
+    profileUrl: "https://steamcommunity.com/profiles/76561198213386939/",
+    avatarUrl: "https://avatars.steamstatic.com/8734c268db82dab0d602b9be87c985ba15a03610_full.jpg",
+  },
+  338957505: {
+    gameName: "暴鲤龙的大爷爷",
+    profileUrl: "https://steamcommunity.com/profiles/76561198299223233/",
+    avatarUrl: "https://avatars.steamstatic.com/764f5bf486117c83ed29e5f29e33cd69e583dc29_full.jpg",
+  },
+  339743252: {
+    gameName: "等我上个马",
+    profileUrl: "https://steamcommunity.com/profiles/76561198300008980/",
+    avatarUrl: "https://avatars.steamstatic.com/752eb38c3b0bc6f74708ec2c3d44d00bda41edde_full.jpg",
+  },
+  399825811: {
+    gameName: "1ndulge",
+    profileUrl: "https://steamcommunity.com/profiles/76561198360091539/",
+    avatarUrl: "https://avatars.steamstatic.com/182257a09582c4814f37652e387861dd2ac67cc9_full.jpg",
+  },
+  403665770: {
+    gameName: "李斯",
+    profileUrl: "https://steamcommunity.com/id/798780530/",
+    avatarUrl: "https://avatars.steamstatic.com/af339fcac970b1098c7f3c3bd0107af2645fad59_full.jpg",
+  },
+  409431719: {
+    gameName: "正高",
+    profileUrl: "https://steamcommunity.com/profiles/76561198369697447/",
+    avatarUrl: "https://avatars.steamstatic.com/9369852486ef1143d9453f0164c8ef35a7103a48_full.jpg",
+  },
+  448417036: {
+    gameName: "cheaterbush",
+    profileUrl: "https://steamcommunity.com/profiles/76561198408682764/",
+    avatarUrl: "https://avatars.steamstatic.com/f9e7e02b28bf8f1f18c07a5e95cb714b795195fd_full.jpg",
+  },
+  456880925: {
+    gameName: "Inmost",
+    profileUrl: "https://steamcommunity.com/profiles/76561198417146653/",
+    avatarUrl: "https://avatars.steamstatic.com/5fea668694c95ff82c2d9cc2b2afdb06a9d2bbb4_full.jpg",
+  },
+  880277674: {
+    gameName: 'American "Free Speech"',
+    profileUrl: "https://steamcommunity.com/profiles/76561198840543402/",
+    avatarUrl: "https://avatars.steamstatic.com/cf514dcf1a4e826e61988ab052f820c3abf3c4e3_full.jpg",
+  },
+  948306561: {
+    gameName: "0v0",
+    profileUrl: "https://steamcommunity.com/profiles/76561198908572289/",
+    avatarUrl: "https://avatars.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_full.jpg",
+  },
+  1041606597: {
+    gameName: "GHzQcE",
+    profileUrl: "https://steamcommunity.com/profiles/76561199001872325/",
+    avatarUrl: "https://avatars.steamstatic.com/c0aa7c6eca1b76156941959e3d8ff50efb0cf191_full.jpg",
+  },
+  1045578592: {
+    gameName: "酒蒙子黄毛体育生卡提",
+    profileUrl: "https://steamcommunity.com/id/tipsong/",
+    avatarUrl: "https://avatars.steamstatic.com/088d1a708489f77ae2a59d4e2c5335d5f45cffae_full.jpg",
+  },
+  1206359917: {
+    gameName: "ico",
+    profileUrl: "https://steamcommunity.com/id/qiubo666/",
+    avatarUrl: "https://avatars.steamstatic.com/b5984ec17651d765dce7eaf215ae6ec9cec268d2_full.jpg",
+  },
+  1241554543: {
+    gameName: "雨",
+    profileUrl: "https://steamcommunity.com/profiles/76561199201820271/",
+    avatarUrl: "https://avatars.steamstatic.com/58bd67cf047436f84c8a308c31be95e1e23a809b_full.jpg",
+  },
+  1255889937: {
+    gameName: "pluviophile",
+    profileUrl: "https://steamcommunity.com/profiles/76561199216155665/",
+    avatarUrl: "https://avatars.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_full.jpg",
+  },
+  1512446117: {
+    gameName: "Af Am",
+    profileUrl: "https://steamcommunity.com/profiles/76561199472711845/",
+    avatarUrl: "https://avatars.steamstatic.com/c0b7310b0c3568616a989161b86de33d940f37ad_full.jpg",
+  },
+  1742683220: {
+    gameName: "Artol",
+    profileUrl: "https://steamcommunity.com/profiles/76561199702948948/",
+    avatarUrl: "https://avatars.steamstatic.com/48b8d8cd5cd35b94299f7951a118f6fff33f891b_full.jpg",
+  },
+  1765455118: {
+    gameName: "Cherry",
+    profileUrl: "https://steamcommunity.com/profiles/76561199725720846/",
+    avatarUrl: "https://avatars.steamstatic.com/774151f6a68b1a9c34b5248a92b7e842a3fcf3b4_full.jpg",
+  },
+};
+
 function rosterPlayer(id, name, dotaId, role) {
+  const profile = PLAYER_PROFILE_FIXTURES[String(dotaId)] || {};
+  const displayName = isPlaceholderPlayerName(name) && profile.gameName ? profile.gameName : name;
   return {
     id,
-    name,
+    name: displayName,
     dotaId,
     role,
+    gameName: profile.gameName || "",
+    avatarUrl: profile.avatarUrl || "",
+    profileUrl: profile.profileUrl || "",
+    profileSyncedAt: "",
+    profileError: "",
     played: 0,
     wins: 0,
     points: 0,
     captain: false,
-    publicData: false,
+    publicData: Boolean(profile.gameName),
     form: ["-", "-", "-", "-", "-"],
-    status: "待内战统计",
+    status: profile.gameName ? "资料已同步" : "待内战统计",
   };
 }
 
@@ -540,8 +701,35 @@ const navItems = [
   { id: "rules", label: "规则", icon: ScrollText },
 ];
 
-function avatarUrl(name) {
-  return `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(name)}&backgroundColor=0f172a,1f2937,2f1f19`;
+function isPlaceholderPlayerName(name) {
+  return !name || /^待补昵称\d*$/i.test(name) || /^新玩家\s*\d+$/i.test(name);
+}
+
+function playerDisplayName(player) {
+  return player?.name || player?.gameName || `玩家 ${player?.dotaId || ""}`.trim();
+}
+
+function avatarUrl(playerOrName) {
+  if (playerOrName && typeof playerOrName === "object") {
+    if (playerOrName.avatarUrl) return playerOrName.avatarUrl;
+    const seed = playerOrName.name || playerOrName.gameName || playerOrName.dotaId || "player";
+    return `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(seed)}&backgroundColor=0f172a,1f2937,2f1f19`;
+  }
+
+  const seed = playerOrName || "player";
+  return `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(seed)}&backgroundColor=0f172a,1f2937,2f1f19`;
+}
+
+function formatProfileSyncTime(date = new Date()) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+    .format(date)
+    .replace(/\//g, "-");
 }
 
 function statusClass(status) {
@@ -627,7 +815,7 @@ function LeaderboardTable({ players, limit, compact = false }) {
               </td>
               <td>
                 <div className="player-cell">
-                  <img src={avatarUrl(player.name)} alt="" />
+                  <img src={avatarUrl(player)} alt="" />
                   <div>
                     <strong>{player.name}</strong>
                     {!compact && <span>DOTA2 ID {player.dotaId}</span>}
@@ -741,7 +929,7 @@ function CaptainPreview({ captains }) {
       {captains.map((player, index) => (
         <article className={`captain-card captain-${index + 1}`} key={player.id}>
           <span>{index + 1}号队长</span>
-          <img src={avatarUrl(player.name)} alt="" />
+          <img src={avatarUrl(player)} alt="" />
           <strong>{player.name}</strong>
           <small>总积分 {player.points}</small>
         </article>
@@ -787,19 +975,7 @@ function ImportModal({ onClose, onImport }) {
       .filter(Boolean)
       .map((line, index) => {
         const [name, dotaId, role] = line.split(",").map((value) => value?.trim());
-        return {
-          id: Date.now() + index,
-          name: name || `新玩家 ${index + 1}`,
-          dotaId: dotaId || "待补充",
-          role: role || "全能",
-          played: 0,
-          wins: 0,
-          points: 0,
-          captain: false,
-          publicData: false,
-          form: ["-", "-", "-", "-", "-"],
-          status: "待内战统计",
-        };
+        return rosterPlayer(Date.now() + index, name || `新玩家 ${index + 1}`, dotaId || "待补充", role || "全能");
       });
     onImport(parsed);
     onClose();
@@ -1153,11 +1329,11 @@ function Overview({ players, matches, captains, onNavigate, onConfirm, onReject,
   );
 }
 
-function PlayersView({ players, openImport, isAdmin = false }) {
+function PlayersView({ players, openImport, onSyncProfiles, profileSyncing = false, profileSyncMessage = "", isAdmin = false }) {
   const [query, setQuery] = useState("");
   const [role, setRole] = useState("全部");
   const filtered = players.filter((player) => {
-    const matchQuery = `${player.name}${player.dotaId}`.toLowerCase().includes(query.toLowerCase());
+    const matchQuery = `${player.name}${player.gameName}${player.dotaId}`.toLowerCase().includes(query.toLowerCase());
     const matchRole = role === "全部" || player.role.includes(role);
     return matchQuery && matchRole;
   });
@@ -1168,10 +1344,16 @@ function PlayersView({ players, openImport, isAdmin = false }) {
         title="玩家库"
         action={
           isAdmin ? (
-          <button className="primary-button" type="button" onClick={openImport}>
-            <UserPlus size={16} />
-            导入玩家
-          </button>
+            <div className="panel-actions">
+              <button className="ghost-button" type="button" onClick={onSyncProfiles} disabled={profileSyncing}>
+                <RefreshCw size={16} />
+                {profileSyncing ? "同步昵称中" : "同步游戏昵称"}
+              </button>
+              <button className="primary-button" type="button" onClick={openImport}>
+                <UserPlus size={16} />
+                导入玩家
+              </button>
+            </div>
           ) : (
             <span className="status-pill status-muted">公开名单</span>
           )
@@ -1196,6 +1378,7 @@ function PlayersView({ players, openImport, isAdmin = false }) {
             </button>
           )}
         </div>
+        {profileSyncMessage && <p className="inline-message">{profileSyncMessage}</p>}
         <div className="table-wrap">
           <table className="data-table players-table">
             <thead>
@@ -1204,6 +1387,7 @@ function PlayersView({ players, openImport, isAdmin = false }) {
                 <th>DOTA2 ID</th>
                 <th>常用位置</th>
                 <th>名单用途</th>
+                <th>Steam 主页</th>
                 <th>OpenDota 状态</th>
                 <th>状态</th>
               </tr>
@@ -1213,8 +1397,11 @@ function PlayersView({ players, openImport, isAdmin = false }) {
                 <tr key={player.id}>
                   <td>
                     <div className="player-cell">
-                      <img src={avatarUrl(player.name)} alt="" />
-                      <strong>{player.name}</strong>
+                      <img src={avatarUrl(player)} alt="" />
+                      <div>
+                        <strong>{playerDisplayName(player)}</strong>
+                        <span>{player.gameName ? `游戏昵称：${player.gameName}` : "游戏昵称待同步"}</span>
+                      </div>
                     </div>
                   </td>
                   <td>{player.dotaId}</td>
@@ -1223,19 +1410,29 @@ function PlayersView({ players, openImport, isAdmin = false }) {
                     <span className="status-pill status-muted">内战识别名单</span>
                   </td>
                   <td>
-                    <span className={`status-pill ${player.publicData ? "status-success" : "status-muted"}`}>
-                      {player.publicData ? "可读取" : "待检测"}
+                    {player.profileUrl ? (
+                      <a className="steam-link" href={player.profileUrl} target="_blank" rel="noreferrer">
+                        <ExternalLink size={14} />
+                        Steam
+                      </a>
+                    ) : (
+                      <span className="status-pill status-muted">待同步</span>
+                    )}
+                  </td>
+                  <td>
+                    <span className={`status-pill ${player.profileError ? "status-warning" : player.publicData ? "status-success" : "status-muted"}`}>
+                      {player.profileError ? "同步失败" : player.publicData ? "已同步" : "待检测"}
                     </span>
                   </td>
                   <td>
-                    <span className="status-pill status-muted">{player.status}</span>
+                    <span className="status-pill status-muted">{player.profileSyncedAt ? `${player.status} ${player.profileSyncedAt}` : player.status}</span>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p className="footnote">玩家库只维护昵称和 DOTA2 ID，不直接存放积分；场次、积分、队长资格只由已确认内战生成，OpenDota 状态需同步验证。</p>
+        <p className="footnote">玩家库会保留群内显示名，并可从 OpenDota 同步游戏昵称、Steam 头像和主页；场次、积分、队长资格仍只由已确认内战生成。</p>
       </Panel>
     </div>
   );
@@ -1469,7 +1666,7 @@ function DraftView({ players, captains, isAdmin = false }) {
             {pool.map((player) =>
               isAdmin ? (
                 <button key={player.id} className={`pool-row ${selected === player.id ? "selected" : ""}`} type="button" onClick={() => setSelected(player.id)}>
-                  <img src={avatarUrl(player.name)} alt="" />
+                  <img src={avatarUrl(player)} alt="" />
                   <span>
                     <strong>{player.name}</strong>
                     <small>{player.role} 号位 · {player.points} 分</small>
@@ -1477,7 +1674,7 @@ function DraftView({ players, captains, isAdmin = false }) {
                 </button>
               ) : (
                 <div key={player.id} className="pool-row readonly-row">
-                  <img src={avatarUrl(player.name)} alt="" />
+                  <img src={avatarUrl(player)} alt="" />
                   <span>
                     <strong>{player.name}</strong>
                     <small>{player.role} 号位 · {player.points} 分</small>
@@ -1502,7 +1699,7 @@ function DraftView({ players, captains, isAdmin = false }) {
                         <span>{slotIndex + 1}</span>
                         {player ? (
                           <>
-                            <img src={avatarUrl(player.name)} alt="" />
+                            <img src={avatarUrl(player)} alt="" />
                             <strong>{player.name}</strong>
                             <small>{player.role}</small>
                           </>
@@ -1794,6 +1991,8 @@ export function App() {
   });
   const [lastSync, setLastSync] = useState("刚刚更新");
   const [syncing, setSyncing] = useState(false);
+  const [profileSyncing, setProfileSyncing] = useState(false);
+  const [profileSyncMessage, setProfileSyncMessage] = useState("");
   const [matchDetails, setMatchDetails] = useState({});
   const [matchDetailLoading, setMatchDetailLoading] = useState(false);
   const [matchDetailError, setMatchDetailError] = useState("");
@@ -1837,6 +2036,99 @@ export function App() {
 
   function importPlayers(importedPlayers) {
     setPlayers((current) => [...current, ...importedPlayers]);
+  }
+
+  async function syncPlayerProfiles() {
+    if (profileSyncing) return;
+
+    setProfileSyncing(true);
+    setProfileSyncMessage("正在从 OpenDota 同步游戏昵称、头像和 Steam 主页...");
+
+    const rosterSnapshot = players;
+    const results = [];
+
+    for (const player of rosterSnapshot) {
+      const dotaId = String(player.dotaId || "").trim();
+      if (!/^\d+$/.test(dotaId)) {
+        results.push({ id: player.id, ok: false, error: "DOTA2 ID 无效" });
+        continue;
+      }
+
+      try {
+        const response = await fetch(`${OPENDOTA_BASE_URL}/players/${dotaId}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const profile = data?.profile || {};
+        const gameName = String(profile.personaname || "").trim();
+        if (!gameName) throw new Error("未返回游戏昵称");
+
+        results.push({
+          id: player.id,
+          ok: true,
+          profile: {
+            gameName,
+            avatarUrl: profile.avatarfull || profile.avatarmedium || profile.avatar || "",
+            profileUrl: profile.profileurl || "",
+          },
+        });
+      } catch (error) {
+        results.push({
+          id: player.id,
+          ok: false,
+          error: error instanceof Error ? error.message : "请求失败",
+        });
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    }
+
+    const syncedAt = formatProfileSyncTime();
+    const resultById = new Map(results.map((result) => [result.id, result]));
+    const successCount = results.filter((result) => result.ok).length;
+    const failedCount = results.length - successCount;
+
+    setPlayers((current) =>
+      current.map((player) => {
+        const result = resultById.get(player.id);
+        if (!result) return player;
+
+        if (!result.ok) {
+          return {
+            ...player,
+            profileError: result.error,
+            status: player.publicData ? "资料保留，重试失败" : "资料同步失败",
+          };
+        }
+
+        const shouldUseGameName = isPlaceholderPlayerName(player.name);
+        return {
+          ...player,
+          name: shouldUseGameName ? result.profile.gameName : player.name,
+          gameName: result.profile.gameName,
+          avatarUrl: result.profile.avatarUrl,
+          profileUrl: result.profile.profileUrl,
+          profileSyncedAt: syncedAt,
+          profileError: "",
+          publicData: true,
+          status: "资料已同步",
+        };
+      }),
+    );
+
+    const message = `同步完成：${successCount} 个成功，${failedCount} 个失败。已有群昵称已保留，占位昵称已用游戏昵称补齐。`;
+    setProfileSyncMessage(message);
+    setNotifications((current) => [
+      {
+        id: `profile-sync-${Date.now()}`,
+        title: "玩家昵称同步完成",
+        body: message,
+        time: "刚刚",
+        read: false,
+        action: "players",
+      },
+      ...current.slice(0, 5),
+    ]);
+    setProfileSyncing(false);
   }
 
   async function loadHeroNames() {
@@ -2142,7 +2434,16 @@ export function App() {
             isAdmin={isAdmin}
           />
         )}
-        {activeView === "players" && <PlayersView players={players} openImport={() => setShowImport(true)} isAdmin={isAdmin} />}
+        {activeView === "players" && (
+          <PlayersView
+            players={players}
+            openImport={() => setShowImport(true)}
+            onSyncProfiles={syncPlayerProfiles}
+            profileSyncing={profileSyncing}
+            profileSyncMessage={profileSyncMessage}
+            isAdmin={isAdmin}
+          />
+        )}
         {activeView === "matches" && (
           <MatchesView
             matches={visibleMatches}

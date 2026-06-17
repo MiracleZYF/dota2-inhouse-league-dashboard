@@ -598,6 +598,13 @@ button:disabled {
   padding: 14px 18px 10px;
 }
 
+.panel-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .panel h2 {
   display: flex;
   align-items: center;
@@ -1103,7 +1110,27 @@ button:disabled {
 }
 
 .players-table {
-  min-width: 760px;
+  min-width: 980px;
+}
+
+.steam-link {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid rgba(96, 165, 250, 0.42);
+  border-radius: 5px;
+  color: var(--blue);
+  background: rgba(96, 165, 250, 0.08);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.steam-link:hover {
+  border-color: rgba(96, 165, 250, 0.72);
+  background: rgba(96, 165, 250, 0.14);
 }
 
 .toggle-chip {
@@ -2239,6 +2266,11 @@ input[type="range"] {
   .toolbar,
   .manual-add {
     display: grid;
+  }
+
+  .panel-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .search-field,
