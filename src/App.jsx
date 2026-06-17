@@ -34,7 +34,15 @@ import {
 } from "lucide-react";
 
 const OPENDOTA_BASE_URL = "https://api.opendota.com/api";
-const DEFAULT_DATE_RANGE = { start: "2026-06-01", end: "2026-06-21" };
+const DEFAULT_DATE_RANGE = { start: "2026-06-01T00:00", end: "2026-06-21T23:59", preset: "season" };
+const DATE_RANGE_PRESETS = [
+  { id: "season", label: "本周期" },
+  { id: "lastNight", label: "昨晚" },
+  { id: "today", label: "今天" },
+  { id: "last24h", label: "近 24 小时" },
+  { id: "last7d", label: "近 7 天" },
+  { id: "custom", label: "自定义" },
+];
 const HERO_CN_NAMES = {
   1: "敌法师",
   2: "斧王",
@@ -170,6 +178,78 @@ function dateBoundarySeconds(date, endOfDay = false) {
   return Math.floor(new Date(`${date}${suffix}`).getTime() / 1000);
 }
 
+function padTimeUnit(value) {
+  return String(value).padStart(2, "0");
+}
+
+function formatDateTimeInput(date) {
+  return `${date.getFullYear()}-${padTimeUnit(date.getMonth() + 1)}-${padTimeUnit(date.getDate())}T${padTimeUnit(date.getHours())}:${padTimeUnit(date.getMinutes())}`;
+}
+
+function normalizeDateTimeValue(value, endOfDay = false) {
+  if (!value) return "";
+  if (String(value).includes("T")) return value;
+  return `${value}T${endOfDay ? "23:59" : "00:00"}`;
+}
+
+function dateTimeValueToSeconds(value, endOfDay = false) {
+  const normalized = normalizeDateTimeValue(value, endOfDay);
+  const time = new Date(normalized).getTime();
+  if (!Number.isFinite(time)) return NaN;
+  return Math.floor(time / 1000);
+}
+
+function getDateRangeSeconds(dateRange) {
+  const startSeconds = dateTimeValueToSeconds(dateRange.start);
+  const endSeconds = dateTimeValueToSeconds(dateRange.end, true);
+  return {
+    startSeconds,
+    endSeconds,
+    valid: Number.isFinite(startSeconds) && Number.isFinite(endSeconds) && startSeconds <= endSeconds,
+  };
+}
+
+function formatDateRangeLabel(dateRange) {
+  const start = normalizeDateTimeValue(dateRange.start);
+  const end = normalizeDateTimeValue(dateRange.end, true);
+  if (!start || !end) return "未设置";
+  return `${start.replace("T", " ")} ~ ${end.replace("T", " ")}`;
+}
+
+function makeDateRangePreset(preset) {
+  const now = new Date();
+  if (preset === "season") return DEFAULT_DATE_RANGE;
+
+  if (preset === "today") {
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    return { start: formatDateTimeInput(start), end: formatDateTimeInput(now), preset };
+  }
+
+  if (preset === "lastNight") {
+    const end = new Date(now);
+    end.setHours(6, 0, 0, 0);
+    const start = new Date(end);
+    start.setDate(start.getDate() - 1);
+    start.setHours(18, 0, 0, 0);
+    return { start: formatDateTimeInput(start), end: formatDateTimeInput(end), preset };
+  }
+
+  if (preset === "last24h") {
+    const start = new Date(now);
+    start.setHours(start.getHours() - 24);
+    return { start: formatDateTimeInput(start), end: formatDateTimeInput(now), preset };
+  }
+
+  if (preset === "last7d") {
+    const start = new Date(now);
+    start.setDate(start.getDate() - 7);
+    return { start: formatDateTimeInput(start), end: formatDateTimeInput(now), preset };
+  }
+
+  return { start: normalizeDateTimeValue(DEFAULT_DATE_RANGE.start), end: normalizeDateTimeValue(DEFAULT_DATE_RANGE.end, true), preset: "custom" };
+}
+
 function formatMatchTime(startTime) {
   if (!startTime) return "时间未知";
   return new Intl.DateTimeFormat("zh-CN", {
@@ -290,8 +370,8 @@ function resolveMatchPlayers(match, detail, players, heroNames = {}) {
 }
 
 function buildCandidatesFromRecentMatches(players, recentRows, dateRange, settings) {
-  const startSeconds = dateBoundarySeconds(dateRange.start);
-  const endSeconds = dateBoundarySeconds(dateRange.end, true);
+  const { startSeconds, endSeconds, valid } = getDateRangeSeconds(dateRange);
+  if (!valid) return [];
   const grouped = new Map();
   const playerByAccount = new Map(players.map((player) => [String(player.dotaId), player]));
 
@@ -1161,7 +1241,7 @@ function PlayersView({ players, openImport, isAdmin = false }) {
   );
 }
 
-function MatchesView({ matches, setMatches, onConfirm, onReject, onView, dateRange, settings, onOpenSettings, isAdmin = false }) {
+function MatchesView({ matches, setMatches, onConfirm, onReject, onView, dateRange, dateRangeLabel, dateRangeValid, settings, onOpenSettings, isAdmin = false }) {
   const [matchId, setMatchId] = useState("");
   const [threshold, setThreshold] = useState(settings.minRegisteredPlayers);
   const [manualMessage, setManualMessage] = useState("");
@@ -1214,10 +1294,9 @@ function MatchesView({ matches, setMatches, onConfirm, onReject, onView, dateRan
             </div>
             <div className="rail-section">
               <span className="rail-label">当前日期范围</span>
-              <div className="date-readout">
-                {dateRange.start} ~ {dateRange.end}
-              </div>
+              <div className="date-readout">{dateRangeLabel}</div>
               <small>由顶部日期输入控制，同步时按此范围过滤。</small>
+              {!dateRangeValid && <small className="range-error">开始时间需要早于结束时间。</small>}
             </div>
             <div className="rail-section">
               <span className="rail-label">识别来源</span>
@@ -1244,9 +1323,8 @@ function MatchesView({ matches, setMatches, onConfirm, onReject, onView, dateRan
             </div>
             <div className="rail-section">
               <span className="rail-label">当前日期范围</span>
-              <div className="date-readout">
-                {dateRange.start} ~ {dateRange.end}
-              </div>
+              <div className="date-readout">{dateRangeLabel}</div>
+              {!dateRangeValid && <small className="range-error">开始时间需要早于结束时间。</small>}
             </div>
           </>
         )}
@@ -1727,6 +1805,20 @@ export function App() {
   const activeNav = navItems.find((item) => item.id === activeView) || navItems[0];
   const selectedMatch = matches.find((match) => match.id === selectedMatchId);
   const unreadCount = notifications.filter((item) => !item.read).length;
+  const dateRangeStatus = useMemo(() => getDateRangeSeconds(dateRange), [dateRange]);
+  const dateRangeLabel = useMemo(() => formatDateRangeLabel(dateRange), [dateRange]);
+
+  function updateDateRangeField(field, value) {
+    setDateRange((current) => ({ ...current, [field]: value, preset: "custom" }));
+  }
+
+  function applyDateRangePreset(preset) {
+    if (preset === "custom") {
+      setDateRange((current) => ({ ...current, preset: "custom" }));
+      return;
+    }
+    setDateRange(makeDateRangePreset(preset));
+  }
 
   function confirmMatch(matchId) {
     setMatches((current) =>
@@ -1765,6 +1857,21 @@ export function App() {
 
   async function syncNow() {
     if (syncing) return;
+    if (!dateRangeStatus.valid) {
+      setLastSync("时间范围无效");
+      setNotifications((current) => [
+        {
+          id: `sync-range-error-${Date.now()}`,
+          title: "时间范围无效",
+          body: "开始时间需要早于结束时间，请调整检索时间段后再同步。",
+          time: "刚刚",
+          read: false,
+          action: "matches",
+        },
+        ...current.slice(0, 5),
+      ]);
+      return;
+    }
     setSyncing(true);
     setLastSync("正在拉取 OpenDota");
     try {
@@ -1788,7 +1895,7 @@ export function App() {
         {
           id: `sync-${Date.now()}`,
           title: `同步完成：${newCandidates.length} 场新增`,
-          body: `${dateRange.start} ~ ${dateRange.end}，${duplicatedCount} 场重复已跳过，${failedCount} 个账号拉取失败。`,
+          body: `${dateRangeLabel}，${duplicatedCount} 场重复已跳过，${failedCount} 个账号拉取失败。`,
           time: "刚刚",
           read: false,
           action: "matches",
@@ -1954,19 +2061,28 @@ export function App() {
             <strong>{settings.seasonName}</strong>
             <ChevronDown size={16} />
           </div>
-          <div className="date-range">
+          <div className={`date-range ${dateRangeStatus.valid ? "" : "invalid"}`}>
+            <select aria-label="快捷时间段" value={dateRange.preset || "custom"} onChange={(event) => applyDateRangePreset(event.target.value)}>
+              {DATE_RANGE_PRESETS.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
             <input
-              type="date"
-              aria-label="开始日期"
-              value={dateRange.start}
-              onChange={(event) => setDateRange((current) => ({ ...current, start: event.target.value }))}
+              type="datetime-local"
+              aria-label="开始时间"
+              value={normalizeDateTimeValue(dateRange.start)}
+              onChange={(event) => updateDateRangeField("start", event.target.value)}
+              onInput={(event) => updateDateRangeField("start", event.target.value)}
             />
             <span>~</span>
             <input
-              type="date"
-              aria-label="结束日期"
-              value={dateRange.end}
-              onChange={(event) => setDateRange((current) => ({ ...current, end: event.target.value }))}
+              type="datetime-local"
+              aria-label="结束时间"
+              value={normalizeDateTimeValue(dateRange.end, true)}
+              onChange={(event) => updateDateRangeField("end", event.target.value)}
+              onInput={(event) => updateDateRangeField("end", event.target.value)}
             />
             <CalendarDays size={16} />
           </div>
@@ -1978,7 +2094,7 @@ export function App() {
           <div className="topbar-actions">
             {isAdmin ? (
               <>
-                <button className="ghost-button" type="button" onClick={syncNow} disabled={syncing}>
+                <button className="ghost-button" type="button" onClick={syncNow} disabled={syncing || !dateRangeStatus.valid}>
                   <RefreshCw size={16} />
                   {syncing ? "同步中" : "手动同步"}
                 </button>
@@ -2035,6 +2151,8 @@ export function App() {
             onReject={rejectMatch}
             onView={openMatch}
             dateRange={dateRange}
+            dateRangeLabel={dateRangeLabel}
+            dateRangeValid={dateRangeStatus.valid}
             settings={settings}
             onOpenSettings={() => setShowSettings(true)}
             isAdmin={isAdmin}

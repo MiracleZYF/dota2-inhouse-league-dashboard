@@ -272,12 +272,29 @@ button:disabled {
   color: #c3cfdd;
 }
 
+.date-range select,
 .date-range input {
-  width: 128px;
   border: 0;
   outline: 0;
   color: var(--text);
   background: transparent;
+}
+
+.date-range select {
+  width: 98px;
+}
+
+.date-range input {
+  width: 158px;
+}
+
+.date-range.invalid {
+  border-color: rgba(242, 91, 85, 0.82);
+  background: rgba(127, 36, 40, 0.24);
+}
+
+.date-range select option {
+  color: #0f172a;
 }
 
 .date-range input::-webkit-calendar-picker-indicator {
@@ -287,6 +304,10 @@ button:disabled {
 
 .sync-pill span {
   color: var(--green);
+}
+
+.range-error {
+  color: #ffc5c1;
 }
 
 .mode-pill {
@@ -2028,6 +2049,18 @@ input[type="range"] {
   padding: 14px 18px 18px;
   border-top: 1px solid var(--line);
   background: rgba(16, 27, 39, 0.96);
+}
+
+@media (max-width: 1360px) {
+  .topbar {
+    grid-template-columns: 1fr;
+  }
+
+  .date-range,
+  .topbar-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
 }
 
 @media (max-width: 1180px) {
