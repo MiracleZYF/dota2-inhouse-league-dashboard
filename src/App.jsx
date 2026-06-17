@@ -648,6 +648,89 @@ function buildScoreEntries(players, matches, settings) {
   );
 }
 
+function buildMatchScorePreview(displayedPlayers, settings = DEFAULT_SETTINGS) {
+  const entries = displayedPlayers
+    .filter((player) => player.isRegistered)
+    .map((player) => {
+      const won = Boolean(player.result);
+      return {
+        accountId: player.accountId || "-",
+        playerName: player.name,
+        side: player.side || "-",
+        heroName: player.heroName || "-",
+        kills: player.kills,
+        deaths: player.deaths,
+        assists: player.assists,
+        won,
+        result: won ? "胜" : "负",
+        points: won ? settings.winPoints : settings.lossPoints,
+      };
+    })
+    .sort((a, b) => {
+      const sideOrder = { 天辉: 0, 夜魇: 1 };
+      return (sideOrder[a.side] ?? 2) - (sideOrder[b.side] ?? 2) || Number(b.won) - Number(a.won) || a.playerName.localeCompare(b.playerName, "zh-CN");
+    });
+
+  const missingPlayers = displayedPlayers.filter((player) => !player.isRegistered);
+  const winners = entries.filter((entry) => entry.won);
+  const losers = entries.filter((entry) => !entry.won);
+
+  return {
+    entries,
+    missingPlayers,
+    totalPoints: entries.reduce((total, entry) => total + entry.points, 0),
+    winnerPoints: winners.reduce((total, entry) => total + entry.points, 0),
+    loserPoints: losers.reduce((total, entry) => total + entry.points, 0),
+    winnerCount: winners.length,
+    loserCount: losers.length,
+  };
+}
+
+function buildReviewSteps(recognition, status) {
+  const confirmed = status === "已确认" || status === "已入库";
+  const stored = status === "已入库";
+  const rejected = status === "已驳回" || recognition.rankedLadder;
+  return [
+    {
+      label: "解析对局",
+      text: recognition.parsed ? "已拿到模式、阵营和玩家记录" : "等待 OpenDota 返回详情",
+      state: recognition.parsed ? "done" : "current",
+    },
+    {
+      label: "人工复核",
+      text: rejected ? "当前不建议确认" : confirmed ? "已确认有效内战" : recognition.meetsThreshold ? "达到阈值，可人工确认" : "命中不足，建议补名单或驳回",
+      state: rejected ? "blocked" : confirmed ? "done" : recognition.parsed ? "current" : "pending",
+    },
+    {
+      label: "入库计分",
+      text: stored ? "积分流水已生成" : confirmed ? "下一步可入库计分" : "确认后才会开放入库",
+      state: stored ? "done" : confirmed ? "current" : "pending",
+    },
+  ];
+}
+
+function buildReviewWarnings(recognition, scorePreview, status) {
+  const warnings = [];
+  if (!recognition.parsed) warnings.push({ tone: "warning", title: "未拿到对局详情", body: "当前只能看到队列记录，建议等待解析成功后再确认。" });
+  if (recognition.rankedLadder) warnings.push({ tone: "muted", title: "疑似天梯对局", body: "房间类型命中天梯规则，不建议进入内战积分。" });
+  if (!recognition.meetsThreshold) warnings.push({ tone: "warning", title: "命中人数不足", body: `当前命中 ${recognition.registered}/${recognition.threshold}，未达到有效内战阈值。` });
+  if (recognition.meetsThreshold && !recognition.fullInhouse) warnings.push({ tone: "warning", title: "不是完整 10 人", body: "已达到阈值，但仍建议核对未匹配玩家是否为群友小号或未登记账号。" });
+  if (recognition.parsed && !recognition.balancedSides) warnings.push({ tone: "warning", title: "双方命中不均衡", body: `当前天辉 ${recognition.radiant} / 夜魇 ${recognition.dire}，可能存在缺失 ID。` });
+  if (scorePreview.missingPlayers.length) warnings.push({ tone: "info", title: "存在未匹配玩家", body: `${scorePreview.missingPlayers.length} 名玩家没有匹配到玩家库，入库后不会给他们计分。` });
+  if (status === "已入库") warnings.push({ tone: "success", title: "已入库", body: "这场比赛已经计入积分榜，后续重复确认不会新增计分流水。" });
+  return warnings;
+}
+
+function buildReviewActionHint(match, recognition) {
+  if (match.status === "已入库") return { tone: "success", title: "已完成", body: "已进入积分榜" };
+  if (match.status === "已确认") return { tone: "info", title: "待入库", body: "下一步入库计分" };
+  if (recognition.rankedLadder) return { tone: "muted", title: "建议驳回", body: "房间类型是天梯" };
+  if (!recognition.parsed) return { tone: "warning", title: "等待解析", body: "先查看或稍后重试" };
+  if (!recognition.meetsThreshold) return { tone: "warning", title: "补名单/驳回", body: `${recognition.registered}/${recognition.threshold} 未达标` };
+  if (recognition.fullInhouse) return { tone: "success", title: "可确认", body: "完整 10 人内战" };
+  return { tone: "warning", title: "人工复核", body: `${recognition.registered}/${recognition.total} 命中` };
+}
+
 function buildStandingsFromScoredMatches(players, scoreEntries, settings) {
   const standingById = new Map(
     players.map((player) => [
@@ -1058,6 +1141,7 @@ function MatchQueue({ matches, onConfirm, onReject, onView, compact = false, isA
             <th>状态</th>
             <th>Match ID</th>
             <th>识别结论</th>
+            <th>复核建议</th>
             <th>比赛时间</th>
             <th>命中人数</th>
             <th>双方命中</th>
@@ -1067,6 +1151,7 @@ function MatchQueue({ matches, onConfirm, onReject, onView, compact = false, isA
         <tbody>
           {matches.map((match) => {
             const recognition = buildMatchRecognition(match, settings);
+            const reviewHint = buildReviewActionHint(match, recognition);
             return (
               <tr key={match.id}>
                 <td>
@@ -1081,6 +1166,10 @@ function MatchQueue({ matches, onConfirm, onReject, onView, compact = false, isA
                 <td className="recognition-cell">
                   <span className={`status-pill status-${recognition.tone}`}>{recognition.label}</span>
                   {!compact && <small>{recognition.verdict}</small>}
+                </td>
+                <td className="review-hint-cell">
+                  <span className={`status-pill status-${reviewHint.tone}`}>{reviewHint.title}</span>
+                  {!compact && <small>{reviewHint.body}</small>}
                 </td>
                 <td>{match.time}</td>
                 <td className="match-hit-cell">
@@ -1332,6 +1421,9 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
     settings,
     detail,
   );
+  const scorePreview = buildMatchScorePreview(displayedPlayers, settings);
+  const reviewSteps = buildReviewSteps(recognition, match.status);
+  const reviewWarnings = buildReviewWarnings(recognition, scorePreview, match.status);
 
   function renderTeam(title, teamPlayers, won) {
     return (
@@ -1471,6 +1563,104 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="review-workbench">
+            <section className="review-flow-card">
+              <div className="review-card-head">
+                <span>复核流程</span>
+                <strong>{match.status}</strong>
+              </div>
+              <div className="review-step-list">
+                {reviewSteps.map((step, index) => (
+                  <div className={`review-step ${step.state}`} key={step.label}>
+                    <span>{index + 1}</span>
+                    <div>
+                      <strong>{step.label}</strong>
+                      <small>{step.text}</small>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="scoring-preview-card">
+              <div className="review-card-head">
+                <span>入库计分预览</span>
+                <strong>{scorePreview.entries.length} 人</strong>
+              </div>
+              <div className="score-preview-stats">
+                <div>
+                  <span>胜方</span>
+                  <strong>{scorePreview.winnerCount} 人</strong>
+                  <small>+{scorePreview.winnerPoints}</small>
+                </div>
+                <div>
+                  <span>负方</span>
+                  <strong>{scorePreview.loserCount} 人</strong>
+                  <small>+{scorePreview.loserPoints}</small>
+                </div>
+                <div>
+                  <span>合计</span>
+                  <strong>{scorePreview.totalPoints}</strong>
+                  <small>积分</small>
+                </div>
+              </div>
+              <div className="table-wrap score-preview-wrap">
+                <table className="data-table score-preview-table">
+                  <thead>
+                    <tr>
+                      <th>玩家</th>
+                      <th>阵营</th>
+                      <th>英雄</th>
+                      <th>结果</th>
+                      <th>积分</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scorePreview.entries.length ? (
+                      scorePreview.entries.map((entry) => (
+                        <tr key={`${entry.accountId}-${entry.side}-${entry.heroName}`}>
+                          <td>{entry.playerName}</td>
+                          <td>{entry.side}</td>
+                          <td>{entry.heroName}</td>
+                          <td>
+                            <span className={`result-pill ${entry.won ? "win" : "loss"}`}>{entry.result}</span>
+                          </td>
+                          <td className="score">+{entry.points}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="5" className="empty-cell">
+                          暂无可计分玩家
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section className="review-warning-list">
+              <div className="review-card-head">
+                <span>复核风险</span>
+                <strong>{reviewWarnings.length ? `${reviewWarnings.length} 项` : "无明显风险"}</strong>
+              </div>
+              {reviewWarnings.length ? (
+                reviewWarnings.map((warning) => (
+                  <article className={`review-warning status-${warning.tone}`} key={`${warning.title}-${warning.body}`}>
+                    <strong>{warning.title}</strong>
+                    <p>{warning.body}</p>
+                  </article>
+                ))
+              ) : (
+                <article className="review-warning status-success">
+                  <strong>可以入库</strong>
+                  <p>当前识别结果满足完整内战条件，入库后会按当前胜负基础分生成积分流水。</p>
+                </article>
+              )}
+            </section>
           </div>
 
           {error && (
@@ -1785,6 +1975,17 @@ function MatchesView({ matches, onAddMatch, onConfirm, onReject, onView, dateRan
   const [threshold, setThreshold] = useState(settings.minRegisteredPlayers);
   const [manualMessage, setManualMessage] = useState("");
   const [addingMatch, setAddingMatch] = useState(false);
+  const reviewCounts = matches.reduce(
+    (counts, match) => {
+      const recognition = buildMatchRecognition(match, settings);
+      if (match.status === "待确认") counts.pending += 1;
+      if (match.status === "已确认") counts.ready += 1;
+      if (match.status === "已入库") counts.stored += 1;
+      if (recognition.rankedLadder || !recognition.meetsThreshold || (recognition.meetsThreshold && !recognition.fullInhouse)) counts.needsReview += 1;
+      return counts;
+    },
+    { pending: 0, ready: 0, stored: 0, needsReview: 0 },
+  );
 
   async function addMatch() {
     const cleanId = matchId.trim();
@@ -1818,6 +2019,27 @@ function MatchesView({ matches, onAddMatch, onConfirm, onReject, onView, dateRan
                 <RefreshCw size={16} />
                 每日 03:00
               </button>
+            </div>
+            <div className="rail-section">
+              <span className="rail-label">复核概况</span>
+              <div className="review-rail-stats">
+                <div>
+                  <strong>{reviewCounts.pending}</strong>
+                  <span>待确认</span>
+                </div>
+                <div>
+                  <strong>{reviewCounts.ready}</strong>
+                  <span>待入库</span>
+                </div>
+                <div>
+                  <strong>{reviewCounts.stored}</strong>
+                  <span>已入库</span>
+                </div>
+                <div>
+                  <strong>{reviewCounts.needsReview}</strong>
+                  <span>需复核</span>
+                </div>
+              </div>
             </div>
             <div className="rail-section">
               <span className="rail-label">有效内战阈值</span>
@@ -1889,10 +2111,12 @@ function MatchesView({ matches, onAddMatch, onConfirm, onReject, onView, dateRan
         <div className="note-grid">
           {matches.slice(0, 3).map((match) => {
             const recognition = buildMatchRecognition(match, settings);
+            const reviewHint = buildReviewActionHint(match, recognition);
             return (
               <article className="review-note" key={`note-${match.id}`}>
                 <div>
                   <span className={`status-pill status-${recognition.tone}`}>{recognition.label}</span>
+                  <span className={`status-pill status-${reviewHint.tone}`}>{reviewHint.title}</span>
                   <strong>{match.id}</strong>
                 </div>
                 <p>{match.notes || recognition.verdict}</p>
