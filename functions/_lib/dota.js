@@ -231,6 +231,39 @@ export async function upsertPlayers(env, players) {
   return getPlayers(env);
 }
 
+export async function updatePlayer(env, dotaId, patch = {}) {
+  const current = await env.DB.prepare("SELECT * FROM players WHERE dota_id = ?").bind(String(dotaId)).first();
+  if (!current) return null;
+
+  const name = String(patch.name ?? current.name).trim() || current.name;
+  const role = String(patch.role ?? current.role).trim() || current.role;
+  const gameName = String(patch.gameName ?? patch.game_name ?? current.game_name ?? "").trim();
+  const avatarUrl = String(patch.avatarUrl ?? patch.avatar_url ?? current.avatar_url ?? "").trim();
+  const profileUrl = String(patch.profileUrl ?? patch.profile_url ?? current.profile_url ?? "").trim();
+  const status = String(patch.status ?? current.status ?? "资料已手动修正").trim() || "资料已手动修正";
+  const publicData = gameName || avatarUrl || profileUrl || current.public_data ? 1 : 0;
+  const profileSyncedAt = patch.profileSyncedAt ?? patch.profile_synced_at ?? current.profile_synced_at ?? "";
+  const profileError = patch.profileError ?? patch.profile_error ?? "";
+
+  await env.DB.prepare(`UPDATE players SET
+    name = ?,
+    role = ?,
+    game_name = ?,
+    avatar_url = ?,
+    profile_url = ?,
+    profile_synced_at = ?,
+    profile_error = ?,
+    public_data = ?,
+    status = ?,
+    updated_at = CURRENT_TIMESTAMP
+    WHERE dota_id = ?`)
+    .bind(name, role, gameName, avatarUrl, profileUrl, profileSyncedAt, profileError, publicData, status, String(dotaId))
+    .run();
+
+  const updated = await env.DB.prepare("SELECT * FROM players WHERE dota_id = ?").bind(String(dotaId)).first();
+  return rowToPlayer(updated);
+}
+
 function parseJson(value, fallback) {
   try {
     return value ? JSON.parse(value) : fallback;

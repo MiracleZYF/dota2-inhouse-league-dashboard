@@ -19,6 +19,7 @@ import {
   Gamepad2,
   Home,
   Medal,
+  Pencil,
   Plus,
   RefreshCw,
   ScrollText,
@@ -1217,6 +1218,94 @@ function ImportModal({ onClose, onImport }) {
   );
 }
 
+function PlayerEditModal({ player, onClose, onSave }) {
+  const [draft, setDraft] = useState({
+    name: player?.name || "",
+    role: player?.role || "",
+    gameName: player?.gameName || "",
+    profileUrl: player?.profileUrl || "",
+    avatarUrl: player?.avatarUrl || "",
+    status: player?.status || "资料已手动修正",
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  function updateField(field, value) {
+    setDraft((current) => ({ ...current, [field]: value }));
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+    try {
+      await onSave?.({ ...draft, dotaId: player.dotaId });
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "保存失败，请稍后重试。");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation">
+      <form className="modal settings-modal player-edit-modal" role="dialog" aria-modal="true" aria-label="编辑玩家资料" onSubmit={submit}>
+        <div className="modal-head">
+          <div>
+            <h2>编辑玩家资料</h2>
+            <p>DOTA2 ID 作为比赛识别主键，只读展示；昵称、位置和资料链接会写入 D1。</p>
+          </div>
+          <button className="icon-button" type="button" onClick={onClose} aria-label="关闭">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="settings-grid">
+          <label className="setting-field">
+            <span>DOTA2 ID</span>
+            <input className="readonly-input" type="text" value={player.dotaId} readOnly />
+          </label>
+          <label className="setting-field">
+            <span>群昵称</span>
+            <input type="text" value={draft.name} onChange={(event) => updateField("name", event.target.value)} required />
+          </label>
+          <label className="setting-field">
+            <span>常用位置</span>
+            <input type="text" value={draft.role} onChange={(event) => updateField("role", event.target.value)} placeholder="例如 1 / 3 或 全能" />
+          </label>
+          <label className="setting-field">
+            <span>游戏昵称</span>
+            <input type="text" value={draft.gameName} onChange={(event) => updateField("gameName", event.target.value)} placeholder="OpenDota 未同步时可手动填" />
+          </label>
+          <label className="setting-field full">
+            <span>Steam 主页</span>
+            <input type="text" value={draft.profileUrl} onChange={(event) => updateField("profileUrl", event.target.value)} placeholder="https://steamcommunity.com/..." />
+          </label>
+          <label className="setting-field full">
+            <span>头像链接</span>
+            <input type="text" value={draft.avatarUrl} onChange={(event) => updateField("avatarUrl", event.target.value)} placeholder="图片 URL，可留空使用默认头像" />
+          </label>
+          <label className="setting-field full">
+            <span>状态备注</span>
+            <input type="text" value={draft.status} onChange={(event) => updateField("status", event.target.value)} />
+          </label>
+        </div>
+
+        {error && <p className="inline-message modal-message">{error}</p>}
+
+        <div className="modal-actions">
+          <button className="ghost-button" type="button" onClick={onClose} disabled={saving}>
+            取消
+          </button>
+          <button className="primary-button" type="submit" disabled={saving}>
+            <Check size={16} />
+            {saving ? "保存中" : "保存资料"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function MatchDetailModal({ match, detail, loading, error, players, heroNames, onClose, onConfirm, onReject, settings = DEFAULT_SETTINGS, isAdmin = false }) {
   if (!match) return null;
 
@@ -1573,7 +1662,7 @@ function Overview({ players, matches, captains, onNavigate, onConfirm, onReject,
   );
 }
 
-function PlayersView({ players, openImport, onSyncProfiles, profileSyncing = false, profileSyncMessage = "", isAdmin = false }) {
+function PlayersView({ players, openImport, onEditPlayer, onSyncProfiles, profileSyncing = false, profileSyncMessage = "", isAdmin = false }) {
   const [query, setQuery] = useState("");
   const [role, setRole] = useState("全部");
   const filtered = players.filter((player) => {
@@ -1634,6 +1723,7 @@ function PlayersView({ players, openImport, onSyncProfiles, profileSyncing = fal
                 <th>Steam 主页</th>
                 <th>OpenDota 状态</th>
                 <th>状态</th>
+                {isAdmin && <th>操作</th>}
               </tr>
             </thead>
             <tbody>
@@ -1671,6 +1761,14 @@ function PlayersView({ players, openImport, onSyncProfiles, profileSyncing = fal
                   <td>
                     <span className="status-pill status-muted">{player.profileSyncedAt ? `${player.status} ${player.profileSyncedAt}` : player.status}</span>
                   </td>
+                  {isAdmin && (
+                    <td>
+                      <button className="ghost-button compact-button" type="button" onClick={() => onEditPlayer?.(player)}>
+                        <Pencil size={14} />
+                        编辑
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -2326,6 +2424,7 @@ export function App() {
   const [players, setPlayers] = useState(initialPlayers);
   const [matches, setMatches] = useState(initialMatches);
   const [showImport, setShowImport] = useState(false);
+  const [editingPlayer, setEditingPlayer] = useState(null);
   const [selectedMatchId, setSelectedMatchId] = useState(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -2475,6 +2574,25 @@ export function App() {
         ...current.slice(0, 5),
       ]);
     }
+  }
+
+  async function savePlayerEdit(playerDraft) {
+    const data = await apiRequest(`/api/players/${playerDraft.dotaId}`, { method: "PATCH", admin: true, body: playerDraft });
+    if (Array.isArray(data.players)) setPlayers(data.players);
+    setLastSync("玩家资料已保存");
+    setEditingPlayer(null);
+    setNotifications((current) => [
+      {
+        id: `player-edit-${Date.now()}`,
+        title: "玩家资料已保存",
+        body: data.message || `${playerDraft.name || playerDraft.dotaId} 的资料已写入 D1。`,
+        time: "刚刚",
+        read: false,
+        action: "players",
+      },
+      ...current.slice(0, 5),
+    ]);
+    return data;
   }
 
   async function addManualMatch(matchId) {
@@ -2894,6 +3012,7 @@ export function App() {
           <PlayersView
             players={players}
             openImport={() => setShowImport(true)}
+            onEditPlayer={setEditingPlayer}
             onSyncProfiles={syncPlayerProfiles}
             profileSyncing={profileSyncing}
             profileSyncMessage={profileSyncMessage}
@@ -2922,6 +3041,7 @@ export function App() {
       </main>
 
       {isAdmin && showImport && <ImportModal onClose={() => setShowImport(false)} onImport={importPlayers} />}
+      {isAdmin && editingPlayer && <PlayerEditModal player={editingPlayer} onClose={() => setEditingPlayer(null)} onSave={savePlayerEdit} />}
       {isAdmin && showSettings && <SettingsModal settings={settings} onChange={setSettings} onClose={saveSettingsAndClose} onReset={resetSettings} />}
       {selectedMatch && (
         <MatchDetailModal
