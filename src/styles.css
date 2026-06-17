@@ -289,6 +289,21 @@ button:disabled {
   color: var(--green);
 }
 
+.mode-pill {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1px solid rgba(148, 163, 184, 0.36);
+  border-radius: var(--radius);
+  color: #cbd5e1;
+  background: rgba(15, 27, 40, 0.82);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .topbar-actions {
   position: relative;
   display: flex;
@@ -1311,6 +1326,11 @@ input[type="range"] {
   background: rgba(242, 91, 85, 0.11);
 }
 
+.pool-row.readonly-row:hover {
+  border-color: transparent;
+  background: transparent;
+}
+
 .pool-row img {
   width: 38px;
   height: 38px;
@@ -1421,6 +1441,16 @@ input[type="range"] {
 
 .series-card:hover {
   border-color: rgba(242, 91, 85, 0.48);
+}
+
+.series-card.readonly-card,
+.series-card.readonly-card:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.series-card.readonly-card:hover {
+  border-color: var(--line);
 }
 
 .series-card strong {

@@ -22,3 +22,10 @@ The production output is generated in `dist`.
 - Framework preset: `Vite`
 - Build command: `npm run build`
 - Build output directory: `dist`
+
+## Access Modes
+
+- Public read-only view: `/`
+- Admin prototype view: `/?admin=1`
+
+The admin prototype view only hides or shows frontend controls. Use a real backend and authentication before relying on it for secure production administration.

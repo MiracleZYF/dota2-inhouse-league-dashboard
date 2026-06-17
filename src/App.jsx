@@ -209,6 +209,11 @@ function registeredAccountId(player) {
   return normalizeAccountId(player.accountId || player.dotaId);
 }
 
+function getInitialAdminMode() {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("admin") === "1";
+}
+
 function registeredSideSummary(players) {
   const registeredPlayers = players.filter((player) => player.isRegistered);
   const radiant = registeredPlayers.filter((player) => player.side === "天辉").length;
@@ -570,7 +575,7 @@ function LeaderboardTable({ players, limit, compact = false }) {
   );
 }
 
-function MatchQueue({ matches, onConfirm, onReject, onView, compact = false }) {
+function MatchQueue({ matches, onConfirm, onReject, onView, compact = false, isAdmin = false }) {
   if (!matches.length) {
     return (
       <EmptyState
@@ -617,7 +622,7 @@ function MatchQueue({ matches, onConfirm, onReject, onView, compact = false }) {
                     <Eye size={15} />
                     {!compact && "查看"}
                   </button>
-                  {match.status === "待确认" && !compact && (
+                  {isAdmin && match.status === "待确认" && !compact && (
                     <>
                       <button className="danger-button" type="button" onClick={() => onReject(match.id)}>
                         <X size={15} />
@@ -629,12 +634,12 @@ function MatchQueue({ matches, onConfirm, onReject, onView, compact = false }) {
                       </button>
                     </>
                   )}
-                  {match.status === "待确认" && compact && (
+                  {isAdmin && match.status === "待确认" && compact && (
                     <button className="primary-button compact-button icon-action" type="button" onClick={() => onConfirm(match.id)} title="确认">
                       <Check size={15} />
                     </button>
                   )}
-                  {match.status === "已确认" && (
+                  {isAdmin && match.status === "已确认" && (
                     <button className={`primary-button compact-button ${compact ? "icon-action" : ""}`} type="button" onClick={() => onConfirm(match.id)} title="入库">
                       <Database size={15} />
                       {!compact && "入库"}
@@ -747,11 +752,11 @@ function ImportModal({ onClose, onImport }) {
   );
 }
 
-function MatchDetailModal({ match, detail, loading, error, players, heroNames, onClose, onConfirm, onReject }) {
+function MatchDetailModal({ match, detail, loading, error, players, heroNames, onClose, onConfirm, onReject, isAdmin = false }) {
   if (!match) return null;
 
-  const canConfirm = match.status === "待确认";
-  const canStore = match.status === "已确认";
+  const canConfirm = isAdmin && match.status === "待确认";
+  const canStore = isAdmin && match.status === "已确认";
   const detailPlayers = detail?.players || [];
   const displayedPlayers = resolveMatchPlayers(match, detail, players, heroNames);
   const radiantPlayers = displayedPlayers.filter((player) => player.side === "天辉");
@@ -970,7 +975,7 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
   );
 }
 
-function Overview({ players, matches, captains, onNavigate, onConfirm, onReject, onView }) {
+function Overview({ players, matches, captains, onNavigate, onConfirm, onReject, onView, isAdmin = false }) {
   const pendingCount = matches.filter((match) => match.status === "待确认").length;
   const effectiveMatches = matches.filter(isConfirmedInhouseMatch);
   const effectiveCount = effectiveMatches.length;
@@ -1016,7 +1021,7 @@ function Overview({ players, matches, captains, onNavigate, onConfirm, onReject,
             </button>
           }
         >
-          <MatchQueue matches={matches} onConfirm={onConfirm} onReject={onReject} onView={onView} compact />
+          <MatchQueue matches={matches} onConfirm={onConfirm} onReject={onReject} onView={onView} compact isAdmin={isAdmin} />
           <button className="full-width-button" type="button" onClick={() => onNavigate("matches")}>
             前往比赛识别中心
             <ChevronRight size={16} />
@@ -1068,7 +1073,7 @@ function Overview({ players, matches, captains, onNavigate, onConfirm, onReject,
   );
 }
 
-function PlayersView({ players, openImport }) {
+function PlayersView({ players, openImport, isAdmin = false }) {
   const [query, setQuery] = useState("");
   const [role, setRole] = useState("全部");
   const filtered = players.filter((player) => {
@@ -1082,10 +1087,14 @@ function PlayersView({ players, openImport }) {
       <Panel
         title="玩家库"
         action={
+          isAdmin ? (
           <button className="primary-button" type="button" onClick={openImport}>
             <UserPlus size={16} />
             导入玩家
           </button>
+          ) : (
+            <span className="status-pill status-muted">公开名单</span>
+          )
         }
       >
         <div className="toolbar">
@@ -1100,10 +1109,12 @@ function PlayersView({ players, openImport }) {
               </button>
             ))}
           </div>
-          <button className="ghost-button" type="button">
-            <FileDown size={16} />
-            导出 CSV
-          </button>
+          {isAdmin && (
+            <button className="ghost-button" type="button">
+              <FileDown size={16} />
+              导出 CSV
+            </button>
+          )}
         </div>
         <div className="table-wrap">
           <table className="data-table players-table">
@@ -1150,7 +1161,7 @@ function PlayersView({ players, openImport }) {
   );
 }
 
-function MatchesView({ matches, setMatches, onConfirm, onReject, onView, dateRange, settings, onOpenSettings }) {
+function MatchesView({ matches, setMatches, onConfirm, onReject, onView, dateRange, settings, onOpenSettings, isAdmin = false }) {
   const [matchId, setMatchId] = useState("");
   const [threshold, setThreshold] = useState(settings.minRegisteredPlayers);
   const [manualMessage, setManualMessage] = useState("");
@@ -1187,60 +1198,82 @@ function MatchesView({ matches, setMatches, onConfirm, onReject, onView, dateRan
   return (
     <div className="match-layout">
       <aside className="filter-rail">
-        <div className="rail-section">
-          <span className="rail-label">自动同步</span>
-          <button className="sync-toggle active" type="button">
-            <RefreshCw size={16} />
-            每日 03:00
-          </button>
-        </div>
-        <div className="rail-section">
-          <span className="rail-label">有效内战阈值</span>
-          <div className="slider-readout">{threshold} / 10 人</div>
-          <input min="2" max="10" value={threshold} type="range" onChange={(event) => setThreshold(Number(event.target.value))} />
-        </div>
-        <div className="rail-section">
-          <span className="rail-label">当前日期范围</span>
-          <div className="date-readout">
-            {dateRange.start} ~ {dateRange.end}
-          </div>
-          <small>由顶部日期输入控制，同步时按此范围过滤。</small>
-        </div>
-        <div className="rail-section">
-          <span className="rail-label">识别来源</span>
-          <label className="check-row">
-            <input type="checkbox" defaultChecked />
-            OpenDota
-          </label>
-          <label className="check-row">
-            <input type="checkbox" defaultChecked />
-            Steam API
-          </label>
-          <label className="check-row">
-            <input type="checkbox" />
-            群截图佐证
-          </label>
-        </div>
+        {isAdmin ? (
+          <>
+            <div className="rail-section">
+              <span className="rail-label">自动同步</span>
+              <button className="sync-toggle active" type="button">
+                <RefreshCw size={16} />
+                每日 03:00
+              </button>
+            </div>
+            <div className="rail-section">
+              <span className="rail-label">有效内战阈值</span>
+              <div className="slider-readout">{threshold} / 10 人</div>
+              <input min="2" max="10" value={threshold} type="range" onChange={(event) => setThreshold(Number(event.target.value))} />
+            </div>
+            <div className="rail-section">
+              <span className="rail-label">当前日期范围</span>
+              <div className="date-readout">
+                {dateRange.start} ~ {dateRange.end}
+              </div>
+              <small>由顶部日期输入控制，同步时按此范围过滤。</small>
+            </div>
+            <div className="rail-section">
+              <span className="rail-label">识别来源</span>
+              <label className="check-row">
+                <input type="checkbox" defaultChecked />
+                OpenDota
+              </label>
+              <label className="check-row">
+                <input type="checkbox" defaultChecked />
+                Steam API
+              </label>
+              <label className="check-row">
+                <input type="checkbox" />
+                群截图佐证
+              </label>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="rail-section">
+              <span className="rail-label">访问模式</span>
+              <span className="status-pill status-muted">公开只读</span>
+              <small>这里只展示候选和已确认比赛，确认、驳回和同步由管理员处理。</small>
+            </div>
+            <div className="rail-section">
+              <span className="rail-label">当前日期范围</span>
+              <div className="date-readout">
+                {dateRange.start} ~ {dateRange.end}
+              </div>
+            </div>
+          </>
+        )}
       </aside>
 
       <div className="view-stack">
-        <Panel title="比赛识别" action={<span className="status-pill status-success">数据同步正常</span>}>
-          <div className="manual-add">
-            <label className="search-field">
-              <Gamepad2 size={16} />
-              <input value={matchId} onChange={(event) => setMatchId(event.target.value)} placeholder="输入 match_id 手动加入候选队列" />
-            </label>
-            <button className="primary-button" type="button" onClick={addMatch}>
-              <Plus size={16} />
-              加入队列
-            </button>
-            <button className="ghost-button" type="button" onClick={onOpenSettings}>
-              <SlidersHorizontal size={16} />
-              同步设置
-            </button>
-          </div>
-          {manualMessage && <p className="inline-message">{manualMessage}</p>}
-          <MatchQueue matches={matches} onConfirm={onConfirm} onReject={onReject} onView={onView} />
+        <Panel title="比赛识别" action={<span className={`status-pill ${isAdmin ? "status-success" : "status-muted"}`}>{isAdmin ? "数据同步正常" : "公开只读"}</span>}>
+          {isAdmin && (
+            <>
+              <div className="manual-add">
+                <label className="search-field">
+                  <Gamepad2 size={16} />
+                  <input value={matchId} onChange={(event) => setMatchId(event.target.value)} placeholder="输入 match_id 手动加入候选队列" />
+                </label>
+                <button className="primary-button" type="button" onClick={addMatch}>
+                  <Plus size={16} />
+                  加入队列
+                </button>
+                <button className="ghost-button" type="button" onClick={onOpenSettings}>
+                  <SlidersHorizontal size={16} />
+                  同步设置
+                </button>
+              </div>
+              {manualMessage && <p className="inline-message">{manualMessage}</p>}
+            </>
+          )}
+          <MatchQueue matches={matches} onConfirm={onConfirm} onReject={onReject} onView={onView} isAdmin={isAdmin} />
         </Panel>
 
         <div className="note-grid">
@@ -1293,7 +1326,7 @@ function LeaderboardView({ players, settings }) {
   );
 }
 
-function DraftView({ players, captains }) {
+function DraftView({ players, captains, isAdmin = false }) {
   const orderedCaptains = [captains[3], captains[2], captains[1], captains[0]].filter(Boolean);
   const draftOrder = [...orderedCaptains, ...orderedCaptains.slice().reverse(), ...orderedCaptains, ...orderedCaptains.slice().reverse()];
   const initialTeams = useMemo(() => Object.fromEntries(captains.map((captain) => [captain.id, [captain.id]])), [captains]);
@@ -1330,10 +1363,14 @@ function DraftView({ players, captains }) {
       <Panel
         title="队长选人"
         action={
+          isAdmin ? (
           <button className="primary-button" type="button" onClick={pickPlayer} disabled={!selected}>
             <ShieldCheck size={16} />
             为当前轮选人
           </button>
+          ) : (
+            <span className="status-pill status-muted">公开只读</span>
+          )
         }
       >
         <div className="draft-topline">
@@ -1351,15 +1388,25 @@ function DraftView({ players, captains }) {
         <div className="draft-board">
           <div className="player-pool">
             <h3>可选玩家池</h3>
-            {pool.map((player) => (
-              <button key={player.id} className={`pool-row ${selected === player.id ? "selected" : ""}`} type="button" onClick={() => setSelected(player.id)}>
-                <img src={avatarUrl(player.name)} alt="" />
-                <span>
-                  <strong>{player.name}</strong>
-                  <small>{player.role} 号位 · {player.points} 分</small>
-                </span>
-              </button>
-            ))}
+            {pool.map((player) =>
+              isAdmin ? (
+                <button key={player.id} className={`pool-row ${selected === player.id ? "selected" : ""}`} type="button" onClick={() => setSelected(player.id)}>
+                  <img src={avatarUrl(player.name)} alt="" />
+                  <span>
+                    <strong>{player.name}</strong>
+                    <small>{player.role} 号位 · {player.points} 分</small>
+                  </span>
+                </button>
+              ) : (
+                <div key={player.id} className="pool-row readonly-row">
+                  <img src={avatarUrl(player.name)} alt="" />
+                  <span>
+                    <strong>{player.name}</strong>
+                    <small>{player.role} 号位 · {player.points} 分</small>
+                  </span>
+                </div>
+              ),
+            )}
           </div>
           <div className="team-columns">
             {captains.map((captain, index) => {
@@ -1397,7 +1444,7 @@ function DraftView({ players, captains }) {
   );
 }
 
-function PlayoffView({ captains }) {
+function PlayoffView({ captains, isAdmin = false }) {
   const [scores, setScores] = useState({ a1: 0, a2: 0, b1: 0, b2: 0, f1: 0, f2: 0 });
   const teams = captains.map((captain) => `${captain.name}队`);
 
@@ -1421,30 +1468,30 @@ function PlayoffView({ captains }) {
         <div className="playoff-board">
           <div className="playoff-round">
             <h3>半决赛</h3>
-            <button className="series-card" type="button" onClick={() => bump("a1")}>
+            <button className={`series-card ${isAdmin ? "" : "readonly-card"}`} type="button" onClick={() => bump("a1")} disabled={!isAdmin}>
               <span>{teams[0] || "TBD"}</span>
               <strong>{scores.a1}</strong>
             </button>
-            <button className="series-card" type="button" onClick={() => bump("a2")}>
+            <button className={`series-card ${isAdmin ? "" : "readonly-card"}`} type="button" onClick={() => bump("a2")} disabled={!isAdmin}>
               <span>{teams[3] || "TBD"}</span>
               <strong>{scores.a2}</strong>
             </button>
-            <button className="series-card" type="button" onClick={() => bump("b1")}>
+            <button className={`series-card ${isAdmin ? "" : "readonly-card"}`} type="button" onClick={() => bump("b1")} disabled={!isAdmin}>
               <span>{teams[1] || "TBD"}</span>
               <strong>{scores.b1}</strong>
             </button>
-            <button className="series-card" type="button" onClick={() => bump("b2")}>
+            <button className={`series-card ${isAdmin ? "" : "readonly-card"}`} type="button" onClick={() => bump("b2")} disabled={!isAdmin}>
               <span>{teams[2] || "TBD"}</span>
               <strong>{scores.b2}</strong>
             </button>
           </div>
           <div className="playoff-round">
             <h3>决赛</h3>
-            <button className="series-card wide" type="button" onClick={() => bump("f1")}>
+            <button className={`series-card wide ${isAdmin ? "" : "readonly-card"}`} type="button" onClick={() => bump("f1")} disabled={!isAdmin}>
               <span>半决赛胜者 A</span>
               <strong>{scores.f1}</strong>
             </button>
-            <button className="series-card wide" type="button" onClick={() => bump("f2")}>
+            <button className={`series-card wide ${isAdmin ? "" : "readonly-card"}`} type="button" onClick={() => bump("f2")} disabled={!isAdmin}>
               <span>半决赛胜者 B</span>
               <strong>{scores.f2}</strong>
             </button>
@@ -1453,7 +1500,7 @@ function PlayoffView({ captains }) {
             <Trophy size={34} />
             <span>冠军</span>
             <strong>{scores.f1 >= 2 ? "胜者 A" : scores.f2 >= 2 ? "胜者 B" : "TBD"}</strong>
-            <small>点击比分卡可录入/循环比分</small>
+            <small>{isAdmin ? "点击比分卡可录入/循环比分" : "比分由管理员更新"}</small>
           </div>
         </div>
       </Panel>
@@ -1649,6 +1696,7 @@ function SettingsModal({ settings, onChange, onClose, onReset }) {
 
 export function App() {
   const [activeView, setActiveView] = useState("overview");
+  const [isAdmin] = useState(getInitialAdminMode);
   const [players, setPlayers] = useState(initialPlayers);
   const [matches, setMatches] = useState(initialMatches);
   const [showImport, setShowImport] = useState(false);
@@ -1884,10 +1932,10 @@ export function App() {
         </div>
 
         <div className="admin-card">
-          <img src={avatarUrl("Admin")} alt="" />
+          <img src={avatarUrl(isAdmin ? "Admin" : "Viewer")} alt="" />
           <div>
-            <strong>Admin</strong>
-            <span>在线</span>
+            <strong>{isAdmin ? "Admin" : "Viewer"}</strong>
+            <span>{isAdmin ? "管理模式" : "公开只读"}</span>
           </div>
           <ChevronDown size={16} />
         </div>
@@ -1928,34 +1976,40 @@ export function App() {
             <span>{lastSync}</span>
           </div>
           <div className="topbar-actions">
-            <button className="ghost-button" type="button" onClick={syncNow} disabled={syncing}>
-              <RefreshCw size={16} />
-              {syncing ? "同步中" : "手动同步"}
-            </button>
-            <button className="ghost-button" type="button">
-              <Download size={16} />
-              导出数据
-            </button>
-            <button
-              className={`icon-button notification-button ${showNotifications ? "active" : ""}`}
-              type="button"
-              aria-label="通知"
-              aria-expanded={showNotifications}
-              onClick={() => setShowNotifications((current) => !current)}
-            >
-              <Bell size={18} />
-              {unreadCount > 0 && <span>{unreadCount}</span>}
-            </button>
-            <button className={`icon-button ${showSettings ? "active" : ""}`} type="button" aria-label="设置" onClick={() => setShowSettings(true)}>
-              <Settings size={18} />
-            </button>
-            {showNotifications && (
-              <NotificationPanel
-                notifications={notifications}
-                onClose={() => setShowNotifications(false)}
-                onMarkAllRead={markAllNotificationsRead}
-                onOpenNotification={openNotification}
-              />
+            {isAdmin ? (
+              <>
+                <button className="ghost-button" type="button" onClick={syncNow} disabled={syncing}>
+                  <RefreshCw size={16} />
+                  {syncing ? "同步中" : "手动同步"}
+                </button>
+                <button className="ghost-button" type="button">
+                  <Download size={16} />
+                  导出数据
+                </button>
+                <button
+                  className={`icon-button notification-button ${showNotifications ? "active" : ""}`}
+                  type="button"
+                  aria-label="通知"
+                  aria-expanded={showNotifications}
+                  onClick={() => setShowNotifications((current) => !current)}
+                >
+                  <Bell size={18} />
+                  {unreadCount > 0 && <span>{unreadCount}</span>}
+                </button>
+                <button className={`icon-button ${showSettings ? "active" : ""}`} type="button" aria-label="设置" onClick={() => setShowSettings(true)}>
+                  <Settings size={18} />
+                </button>
+                {showNotifications && (
+                  <NotificationPanel
+                    notifications={notifications}
+                    onClose={() => setShowNotifications(false)}
+                    onMarkAllRead={markAllNotificationsRead}
+                    onOpenNotification={openNotification}
+                  />
+                )}
+              </>
+            ) : (
+              <span className="mode-pill">公开只读</span>
             )}
           </div>
         </header>
@@ -1969,9 +2023,10 @@ export function App() {
             onConfirm={confirmMatch}
             onReject={rejectMatch}
             onView={openMatch}
+            isAdmin={isAdmin}
           />
         )}
-        {activeView === "players" && <PlayersView players={players} openImport={() => setShowImport(true)} />}
+        {activeView === "players" && <PlayersView players={players} openImport={() => setShowImport(true)} isAdmin={isAdmin} />}
         {activeView === "matches" && (
           <MatchesView
             matches={visibleMatches}
@@ -1982,16 +2037,17 @@ export function App() {
             dateRange={dateRange}
             settings={settings}
             onOpenSettings={() => setShowSettings(true)}
+            isAdmin={isAdmin}
           />
         )}
         {activeView === "leaderboard" && <LeaderboardView players={rankedPlayers} settings={settings} />}
-        {activeView === "draft" && <DraftView players={rankedPlayers} captains={captains} />}
-        {activeView === "playoff" && <PlayoffView captains={captains} />}
+        {activeView === "draft" && <DraftView players={rankedPlayers} captains={captains} isAdmin={isAdmin} />}
+        {activeView === "playoff" && <PlayoffView captains={captains} isAdmin={isAdmin} />}
         {activeView === "rules" && <RulesView />}
       </main>
 
-      {showImport && <ImportModal onClose={() => setShowImport(false)} onImport={importPlayers} />}
-      {showSettings && <SettingsModal settings={settings} onChange={setSettings} onClose={() => setShowSettings(false)} onReset={resetSettings} />}
+      {isAdmin && showImport && <ImportModal onClose={() => setShowImport(false)} onImport={importPlayers} />}
+      {isAdmin && showSettings && <SettingsModal settings={settings} onChange={setSettings} onClose={() => setShowSettings(false)} onReset={resetSettings} />}
       {selectedMatch && (
         <MatchDetailModal
           match={selectedMatch}
@@ -2003,6 +2059,7 @@ export function App() {
           onClose={() => setSelectedMatchId(null)}
           onConfirm={confirmMatch}
           onReject={rejectMatch}
+          isAdmin={isAdmin}
         />
       )}
     </div>
