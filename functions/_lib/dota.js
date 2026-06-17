@@ -357,6 +357,41 @@ export function isRankedLadderMatch(match) {
   return [6, 7].includes(Number(match?.lobby_type));
 }
 
+export function describeLobbyType(lobbyType) {
+  const names = {
+    "-1": "无效房间",
+    0: "普通匹配",
+    1: "练习房间",
+    2: "锦标赛房间",
+    3: "教程",
+    4: "合作打电脑",
+    5: "组队匹配",
+    6: "单排天梯",
+    7: "天梯匹配",
+    8: "中等机器人",
+    9: "勇士联赛",
+    12: "活动房间",
+  };
+  return names[String(lobbyType)] || `房间类型 ${lobbyType ?? "-"}`;
+}
+
+export function describeGameMode(gameMode) {
+  const names = {
+    0: "未知模式",
+    1: "全阵营选择",
+    2: "队长模式",
+    3: "随机征召",
+    4: "小黑屋随机",
+    5: "全阵营随机",
+    12: "生疏模式",
+    16: "队长征召",
+    18: "技能征召",
+    22: "天梯全阵营选择",
+    23: "Turbo",
+  };
+  return names[String(gameMode)] || `模式 ${gameMode ?? "-"}`;
+}
+
 export function formatMatchTime(startTime) {
   if (!startTime) return "时间未知";
   return new Intl.DateTimeFormat("zh-CN", {
@@ -449,16 +484,21 @@ export function resolveMatchPlayers(match, detail, players) {
   const playerByAccount = new Map(players.map((player) => [String(player.dotaId), player]));
   const fallbackPlayers = match?.registeredPlayers || [];
   const fallbackByAccount = new Map(fallbackPlayers.map((player) => [String(player.accountId || player.dotaId || ""), player]).filter(([accountId]) => accountId));
+  const fallbackBySlotHero = new Map(
+    fallbackPlayers
+      .filter((player) => player.playerSlot !== undefined && player.heroId !== undefined)
+      .map((player) => [`${player.playerSlot}-${player.heroId}`, player]),
+  );
   const detailPlayers = detail?.players || [];
 
   return detailPlayers.map((player) => {
     const accountId = player.account_id ? String(player.account_id) : "";
     const rosterPlayer = accountId ? playerByAccount.get(accountId) : null;
-    const fallbackPlayer = accountId ? fallbackByAccount.get(accountId) : null;
+    const fallbackPlayer = (accountId && fallbackByAccount.get(accountId)) || (!accountId ? fallbackBySlotHero.get(`${player.player_slot}-${player.hero_id}`) : null);
     const knownPlayer = rosterPlayer || fallbackPlayer;
     const side = playerSide(player.player_slot);
     return {
-      accountId: accountId || knownPlayer?.accountId || "",
+      accountId: accountId || knownPlayer?.accountId || knownPlayer?.dotaId || "",
       name: knownPlayer?.name || player.personaname || player.name || "匿名玩家",
       side,
       playerSlot: player.player_slot,
@@ -470,6 +510,7 @@ export function resolveMatchPlayers(match, detail, players) {
       xpPerMin: player.xp_per_min,
       result: side === "天辉" ? Boolean(detail.radiant_win) : !detail.radiant_win,
       isRegistered: Boolean(knownPlayer),
+      identifySource: rosterPlayer ? "玩家库 ID 匹配" : fallbackPlayer ? "同步记录匹配" : "未匹配",
     };
   });
 }
@@ -479,4 +520,93 @@ export function registeredSideSummary(players) {
   const radiant = registeredPlayers.filter((player) => player.side === "天辉").length;
   const dire = registeredPlayers.filter((player) => player.side === "夜魇").length;
   return { registered: registeredPlayers.length, radiant, dire, sides: `${radiant} : ${dire}` };
+}
+
+export function createPendingMatch(matchId, notes = "管理员手动添加；正在等待 OpenDota 返回详情。") {
+  return {
+    id: Number(matchId) || matchId,
+    time: "待解析",
+    registered: 0,
+    total: 10,
+    sides: "-",
+    status: "待确认",
+    score: "待解析",
+    notes,
+    registeredPlayers: [],
+  };
+}
+
+export function buildMatchFromDetail(currentMatch, detail, players, settings = DEFAULT_SETTINGS) {
+  const resolvedPlayers = resolveMatchPlayers(currentMatch, detail, players);
+  const recognition = registeredSideSummary(resolvedPlayers);
+  const rankedLadder = isRankedLadderMatch(detail);
+  const threshold = Number(settings?.minRegisteredPlayers || DEFAULT_SETTINGS.minRegisteredPlayers);
+  const total = detail.players?.length || currentMatch.total || 10;
+  const fullInhouse = recognition.registered >= Math.min(total, 10);
+  const meetsThreshold = recognition.registered >= threshold;
+  const balancedSides = recognition.radiant > 0 && recognition.dire > 0 && Math.abs(recognition.radiant - recognition.dire) <= 1;
+  const lobbyName = describeLobbyType(detail.lobby_type);
+  const modeName = describeGameMode(detail.game_mode);
+
+  let score = `玩家库命中 ${recognition.registered}`;
+  let notes = `OpenDota 已解析：${lobbyName} / ${modeName}，玩家库命中 ${recognition.registered}/${total}，双方命中 ${recognition.sides}。`;
+
+  if (rankedLadder) {
+    score = "天梯跳过";
+    notes = `${notes} 该房间类型属于天梯，已从内战识别队列隐藏，不计入积分。`;
+  } else if (fullInhouse) {
+    score = "完整 10 人内战";
+    notes = `${notes} 命中完整 10 人，可优先确认后入库。`;
+  } else if (meetsThreshold) {
+    score = `达到阈值 ${recognition.registered}/${threshold}`;
+    notes = `${notes} 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。`;
+  } else {
+    score = `命中不足 ${recognition.registered}/${threshold}`;
+    notes = `${notes} 未达到当前阈值，暂不建议作为有效内战确认。`;
+  }
+
+  if (!rankedLadder && !balancedSides && recognition.registered > 0) {
+    notes = `${notes} 两边命中不均衡，可能是玩家库缺 ID 或这不是完整群内战。`;
+  }
+
+  return {
+    ...currentMatch,
+    hidden: rankedLadder,
+    isRankedLadder: rankedLadder,
+    status: rankedLadder ? "已驳回" : currentMatch.status || "待确认",
+    time: detail.start_time ? formatMatchTime(detail.start_time) : currentMatch.time,
+    startTime: detail.start_time || currentMatch.startTime,
+    lobbyType: detail.lobby_type,
+    gameMode: detail.game_mode,
+    registered: recognition.registered,
+    total,
+    sides: recognition.sides,
+    registeredPlayers: resolvedPlayers
+      .filter((player) => player.isRegistered)
+      .map((player) => ({
+        accountId: player.accountId,
+        name: player.name,
+        side: player.side,
+        playerSlot: player.playerSlot,
+        heroId: player.heroId,
+        kills: player.kills,
+        deaths: player.deaths,
+        assists: player.assists,
+        result: player.result,
+      })),
+    score,
+    notes,
+    detail,
+    recognition: {
+      ...recognition,
+      total,
+      threshold,
+      fullInhouse,
+      meetsThreshold,
+      balancedSides,
+      rankedLadder,
+      lobbyName,
+      modeName,
+    },
+  };
 }

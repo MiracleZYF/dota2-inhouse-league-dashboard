@@ -354,8 +354,16 @@ function registeredSideSummary(players) {
   };
 }
 
+function matchLobbyType(match) {
+  return match?.lobby_type ?? match?.lobbyType;
+}
+
+function matchGameMode(match) {
+  return match?.game_mode ?? match?.gameMode;
+}
+
 function isRankedLadderMatch(match) {
-  return [6, 7].includes(Number(match?.lobby_type));
+  return [6, 7].includes(Number(matchLobbyType(match)));
 }
 
 function isConfirmedInhouseMatch(match) {
@@ -364,6 +372,129 @@ function isConfirmedInhouseMatch(match) {
 
 function isReviewableMatch(match) {
   return !match.hidden && !match.isRankedLadder && match.status !== "已驳回";
+}
+
+function describeLobbyType(lobbyType) {
+  const names = {
+    "-1": "无效房间",
+    0: "普通匹配",
+    1: "练习房间",
+    2: "锦标赛房间",
+    3: "教程",
+    4: "合作打电脑",
+    5: "组队匹配",
+    6: "单排天梯",
+    7: "天梯匹配",
+    8: "中等机器人",
+    9: "勇士联赛",
+    12: "活动房间",
+  };
+  if (lobbyType === undefined || lobbyType === null || lobbyType === "") return "待解析";
+  return names[String(lobbyType)] || `房间类型 ${lobbyType}`;
+}
+
+function describeGameMode(gameMode) {
+  const names = {
+    0: "未知模式",
+    1: "全阵营选择",
+    2: "队长模式",
+    3: "随机征召",
+    4: "小黑屋随机",
+    5: "全阵营随机",
+    12: "生疏模式",
+    16: "队长征召",
+    18: "技能征召",
+    22: "天梯全阵营选择",
+    23: "Turbo",
+  };
+  if (gameMode === undefined || gameMode === null || gameMode === "") return "待解析";
+  return names[String(gameMode)] || `模式 ${gameMode}`;
+}
+
+function parseSideCounts(sides) {
+  const [radiant, dire] = String(sides || "")
+    .split(":")
+    .map((value) => Number(value.trim()));
+  return {
+    radiant: Number.isFinite(radiant) ? radiant : 0,
+    dire: Number.isFinite(dire) ? dire : 0,
+  };
+}
+
+function buildMatchRecognition(match, settings = DEFAULT_SETTINGS, detail) {
+  const registered = Number(match?.registered || 0);
+  const total = Number(detail?.players?.length || match?.total || 10);
+  const threshold = Number(settings?.minRegisteredPlayers || DEFAULT_SETTINGS.minRegisteredPlayers);
+  const sideCounts = parseSideCounts(match?.sides);
+  const parsed = Boolean(detail || match?.startTime || matchLobbyType(match) !== undefined || matchGameMode(match) !== undefined);
+  const rankedLadder = Boolean(match?.isRankedLadder || isRankedLadderMatch(detail || match));
+  const fullInhouse = registered >= Math.min(total, 10);
+  const meetsThreshold = registered >= threshold;
+  const balancedSides = sideCounts.radiant > 0 && sideCounts.dire > 0 && Math.abs(sideCounts.radiant - sideCounts.dire) <= 1;
+
+  let label = "待解析";
+  let tone = "info";
+  let verdict = "还没有拿到 OpenDota 详情，先不要确认计分。";
+
+  if (rankedLadder) {
+    label = "天梯跳过";
+    tone = "muted";
+    verdict = "房间类型属于天梯，不进入内战积分。";
+  } else if (fullInhouse) {
+    label = "完整内战";
+    tone = "success";
+    verdict = "玩家库命中完整 10 人，可优先确认。";
+  } else if (meetsThreshold) {
+    label = "需要复核";
+    tone = "warning";
+    verdict = `命中 ${registered} 人，已达到 ${threshold} 人阈值，但不是完整 10 人。`;
+  } else if (parsed) {
+    label = "命中不足";
+    tone = "muted";
+    verdict = `只命中 ${registered} 人，未达到 ${threshold} 人阈值。`;
+  }
+
+  const checks = [
+    {
+      label: "已拿到对局详情",
+      ok: parsed,
+      text: parsed ? "OpenDota 已返回时间、模式和阵容" : "等待 OpenDota 解析或收录",
+    },
+    {
+      label: "不是天梯",
+      ok: parsed && !rankedLadder,
+      text: rankedLadder ? "天梯/单排类型，自动跳过" : parsed ? "房间类型没有命中天梯规则" : "待解析",
+    },
+    {
+      label: "命中人数达标",
+      ok: meetsThreshold,
+      text: `${registered}/${total}，当前阈值 ${threshold} 人`,
+    },
+    {
+      label: "双方接近 5v5",
+      ok: balancedSides,
+      text: sideCounts.radiant || sideCounts.dire ? `天辉 ${sideCounts.radiant} / 夜魇 ${sideCounts.dire}` : "待识别阵营",
+    },
+  ];
+
+  return {
+    label,
+    tone,
+    verdict,
+    parsed,
+    rankedLadder,
+    fullInhouse,
+    meetsThreshold,
+    balancedSides,
+    registered,
+    total,
+    threshold,
+    radiant: sideCounts.radiant,
+    dire: sideCounts.dire,
+    lobbyName: describeLobbyType(matchLobbyType(detail || match)),
+    modeName: describeGameMode(matchGameMode(detail || match)),
+    checks,
+  };
 }
 
 function resolveMatchPlayers(match, detail, players, heroNames = {}) {
@@ -878,7 +1009,7 @@ function LeaderboardTable({ players, limit, compact = false }) {
   );
 }
 
-function MatchQueue({ matches, onConfirm, onReject, onView, compact = false, isAdmin = false }) {
+function MatchQueue({ matches, onConfirm, onReject, onView, compact = false, isAdmin = false, settings = DEFAULT_SETTINGS }) {
   if (!matches.length) {
     return (
       <EmptyState
@@ -895,6 +1026,7 @@ function MatchQueue({ matches, onConfirm, onReject, onView, compact = false, isA
           <tr>
             <th>状态</th>
             <th>Match ID</th>
+            <th>识别结论</th>
             <th>比赛时间</th>
             <th>命中人数</th>
             <th>双方命中</th>
@@ -902,56 +1034,68 @@ function MatchQueue({ matches, onConfirm, onReject, onView, compact = false, isA
           </tr>
         </thead>
         <tbody>
-          {matches.map((match) => (
-            <tr key={match.id}>
-              <td>
-                <span className={`status-pill ${statusClass(match.status)}`}>{match.status}</span>
-              </td>
-              <td>{match.id}</td>
-              <td>{match.time}</td>
-              <td>
-                <strong>{match.registered}</strong> / {match.total}
-              </td>
-              <td>{match.sides}</td>
-              <td>
-                <div className="table-actions">
-                  <button
-                    className={`ghost-button ${compact ? "icon-action" : ""}`}
-                    type="button"
-                    title="查看"
-                    aria-label={`查看比赛 ${match.id}`}
-                    onClick={() => onView?.(match)}
-                  >
-                    <Eye size={15} />
-                    {!compact && "查看"}
-                  </button>
-                  {isAdmin && match.status === "待确认" && !compact && (
-                    <>
-                      <button className="danger-button" type="button" onClick={() => onReject(match.id)}>
-                        <X size={15} />
-                        驳回
-                      </button>
-                      <button className="primary-button compact-button" type="button" onClick={() => onConfirm(match.id)}>
+          {matches.map((match) => {
+            const recognition = buildMatchRecognition(match, settings);
+            return (
+              <tr key={match.id}>
+                <td>
+                  <span className={`status-pill ${statusClass(match.status)}`}>{match.status}</span>
+                </td>
+                <td className="match-id-cell">
+                  <strong>{match.id}</strong>
+                  <small>
+                    {recognition.lobbyName} · {recognition.modeName}
+                  </small>
+                </td>
+                <td className="recognition-cell">
+                  <span className={`status-pill status-${recognition.tone}`}>{recognition.label}</span>
+                  {!compact && <small>{recognition.verdict}</small>}
+                </td>
+                <td>{match.time}</td>
+                <td className="match-hit-cell">
+                  <strong>{recognition.registered}</strong> / {recognition.total}
+                </td>
+                <td>{match.sides}</td>
+                <td>
+                  <div className="table-actions">
+                    <button
+                      className={`ghost-button ${compact ? "icon-action" : ""}`}
+                      type="button"
+                      title="查看并重新识别"
+                      aria-label={`查看比赛 ${match.id}`}
+                      onClick={() => onView?.(match)}
+                    >
+                      <Eye size={15} />
+                      {!compact && "查看"}
+                    </button>
+                    {isAdmin && match.status === "待确认" && !compact && (
+                      <>
+                        <button className="danger-button" type="button" onClick={() => onReject(match.id)}>
+                          <X size={15} />
+                          驳回
+                        </button>
+                        <button className="primary-button compact-button" type="button" onClick={() => onConfirm(match.id)}>
+                          <Check size={15} />
+                          确认
+                        </button>
+                      </>
+                    )}
+                    {isAdmin && match.status === "待确认" && compact && (
+                      <button className="primary-button compact-button icon-action" type="button" onClick={() => onConfirm(match.id)} title="确认">
                         <Check size={15} />
-                        确认
                       </button>
-                    </>
-                  )}
-                  {isAdmin && match.status === "待确认" && compact && (
-                    <button className="primary-button compact-button icon-action" type="button" onClick={() => onConfirm(match.id)} title="确认">
-                      <Check size={15} />
-                    </button>
-                  )}
-                  {isAdmin && match.status === "已确认" && (
-                    <button className={`primary-button compact-button ${compact ? "icon-action" : ""}`} type="button" onClick={() => onConfirm(match.id)} title="入库">
-                      <Database size={15} />
-                      {!compact && "入库"}
-                    </button>
-                  )}
-                </div>
-              </td>
-            </tr>
-          ))}
+                    )}
+                    {isAdmin && match.status === "已确认" && (
+                      <button className={`primary-button compact-button ${compact ? "icon-action" : ""}`} type="button" onClick={() => onConfirm(match.id)} title="入库">
+                        <Database size={15} />
+                        {!compact && "入库"}
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -1043,7 +1187,7 @@ function ImportModal({ onClose, onImport }) {
   );
 }
 
-function MatchDetailModal({ match, detail, loading, error, players, heroNames, onClose, onConfirm, onReject, isAdmin = false }) {
+function MatchDetailModal({ match, detail, loading, error, players, heroNames, onClose, onConfirm, onReject, settings = DEFAULT_SETTINGS, isAdmin = false }) {
   if (!match) return null;
 
   const canConfirm = isAdmin && match.status === "待确认";
@@ -1052,16 +1196,23 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
   const displayedPlayers = resolveMatchPlayers(match, detail, players, heroNames);
   const radiantPlayers = displayedPlayers.filter((player) => player.side === "天辉");
   const direPlayers = displayedPlayers.filter((player) => player.side === "夜魇");
-  const recognition = registeredSideSummary(displayedPlayers);
-  const registeredCount = recognition.registered;
+  const sideSummary = registeredSideSummary(displayedPlayers);
+  const registeredCount = sideSummary.registered;
   const totalPlayers = detailPlayers.length || match.total || 10;
   const winner = detail ? (detail.radiant_win ? "天辉" : "夜魇") : "-";
-  const verdict =
-    registeredCount >= 10
-      ? "玩家库命中 10 人，可按完整内战复核"
-      : registeredCount > 0
-        ? `玩家库命中 ${registeredCount} 人，需要补全名单或人工复核`
-        : "暂无玩家库命中，需先补充 DOTA2 ID 或等待同步";
+  const recognition = buildMatchRecognition(
+    {
+      ...match,
+      registered: registeredCount,
+      total: totalPlayers,
+      sides: sideSummary.sides,
+      lobbyType: detail?.lobby_type ?? match.lobbyType,
+      gameMode: detail?.game_mode ?? match.gameMode,
+      isRankedLadder: match.isRankedLadder || (detail ? isRankedLadderMatch(detail) : false),
+    },
+    settings,
+    detail,
+  );
 
   function renderTeam(title, teamPlayers, won) {
     return (
@@ -1121,9 +1272,10 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
           <div className="match-summary-banner">
             <div>
               <span>本场结论</span>
-              <strong>{verdict}</strong>
+              <strong>{recognition.verdict}</strong>
             </div>
             <p>
+              <span className={`status-pill status-${recognition.tone}`}>{recognition.label}</span>
               胜方：{winner} · 时长：{detail ? formatDuration(detail.duration) : "-"} · 玩家库命中：{registeredCount} / {totalPlayers}
             </p>
           </div>
@@ -1136,8 +1288,22 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
               </strong>
             </div>
             <div className="detail-card">
+              <span>识别标签</span>
+              <strong>
+                <span className={`status-pill status-${recognition.tone}`}>{recognition.label}</span>
+              </strong>
+            </div>
+            <div className="detail-card">
               <span>比赛时间</span>
               <strong>{match.time}</strong>
+            </div>
+            <div className="detail-card">
+              <span>房间类型</span>
+              <strong>{recognition.lobbyName}</strong>
+            </div>
+            <div className="detail-card">
+              <span>游戏模式</span>
+              <strong>{recognition.modeName}</strong>
             </div>
             <div className="detail-card">
               <span>玩家库命中</span>
@@ -1147,7 +1313,7 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
             </div>
             <div className="detail-card">
               <span>双方命中</span>
-              <strong>{recognition.sides}</strong>
+              <strong>{sideSummary.sides}</strong>
             </div>
             <div className="detail-card">
               <span>队列记录</span>
@@ -1155,7 +1321,7 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
             </div>
             <div className="detail-card">
               <span>复核结论</span>
-              <strong>{registeredCount >= 10 ? "完整内战" : "名单不足"}</strong>
+              <strong>{recognition.label}</strong>
             </div>
             <div className="detail-card">
               <span>OpenDota</span>
@@ -1174,6 +1340,18 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
           <div className="detail-note">
             <span>识别备注</span>
             <p>{match.notes}</p>
+          </div>
+
+          <div className="recognition-checklist">
+            {recognition.checks.map((check) => (
+              <div className={`recognition-check ${check.ok ? "ok" : "pending"}`} key={check.label}>
+                <span>{check.ok ? <Check size={15} /> : <X size={15} />}</span>
+                <div>
+                  <strong>{check.label}</strong>
+                  <small>{check.text}</small>
+                </div>
+              </div>
+            ))}
           </div>
 
           {error && (
@@ -1266,7 +1444,7 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
   );
 }
 
-function Overview({ players, matches, captains, onNavigate, onConfirm, onReject, onView, isAdmin = false }) {
+function Overview({ players, matches, captains, onNavigate, onConfirm, onReject, onView, settings, isAdmin = false }) {
   const pendingCount = matches.filter((match) => match.status === "待确认").length;
   const effectiveMatches = matches.filter(isConfirmedInhouseMatch);
   const effectiveCount = effectiveMatches.length;
@@ -1312,7 +1490,7 @@ function Overview({ players, matches, captains, onNavigate, onConfirm, onReject,
             </button>
           }
         >
-          <MatchQueue matches={matches} onConfirm={onConfirm} onReject={onReject} onView={onView} compact isAdmin={isAdmin} />
+          <MatchQueue matches={matches} onConfirm={onConfirm} onReject={onReject} onView={onView} compact isAdmin={isAdmin} settings={settings} />
           <button className="full-width-button" type="button" onClick={() => onNavigate("matches")}>
             前往比赛识别中心
             <ChevronRight size={16} />
@@ -1477,6 +1655,7 @@ function MatchesView({ matches, onAddMatch, onConfirm, onReject, onView, dateRan
   const [matchId, setMatchId] = useState("");
   const [threshold, setThreshold] = useState(settings.minRegisteredPlayers);
   const [manualMessage, setManualMessage] = useState("");
+  const [addingMatch, setAddingMatch] = useState(false);
 
   async function addMatch() {
     const cleanId = matchId.trim();
@@ -1486,12 +1665,16 @@ function MatchesView({ matches, onAddMatch, onConfirm, onReject, onView, dateRan
       setMatchId("");
       return;
     }
+    setAddingMatch(true);
+    setManualMessage(`正在识别 Match ID ${cleanId}，会同时尝试拉取 OpenDota 详情...`);
     try {
       const result = await onAddMatch?.(cleanId);
       setManualMessage(result?.message || `Match ID ${cleanId} 已加入候选队列。`);
       setMatchId("");
     } catch (error) {
       setManualMessage(error instanceof Error ? error.message : "加入队列失败");
+    } finally {
+      setAddingMatch(false);
     }
   }
 
@@ -1557,11 +1740,11 @@ function MatchesView({ matches, onAddMatch, onConfirm, onReject, onView, dateRan
               <div className="manual-add">
                 <label className="search-field">
                   <Gamepad2 size={16} />
-                  <input value={matchId} onChange={(event) => setMatchId(event.target.value)} placeholder="输入 match_id 手动加入候选队列" />
+                  <input value={matchId} onChange={(event) => setMatchId(event.target.value)} placeholder="输入 match_id 后立即识别" disabled={addingMatch} />
                 </label>
-                <button className="primary-button" type="button" onClick={addMatch}>
-                  <Plus size={16} />
-                  加入队列
+                <button className="primary-button" type="button" onClick={addMatch} disabled={addingMatch}>
+                  {addingMatch ? <RefreshCw size={16} /> : <Plus size={16} />}
+                  {addingMatch ? "识别中" : "加入并识别"}
                 </button>
                 <button className="ghost-button" type="button" onClick={onOpenSettings}>
                   <SlidersHorizontal size={16} />
@@ -1571,19 +1754,22 @@ function MatchesView({ matches, onAddMatch, onConfirm, onReject, onView, dateRan
               {manualMessage && <p className="inline-message">{manualMessage}</p>}
             </>
           )}
-          <MatchQueue matches={matches} onConfirm={onConfirm} onReject={onReject} onView={onView} isAdmin={isAdmin} />
+          <MatchQueue matches={matches} onConfirm={onConfirm} onReject={onReject} onView={onView} isAdmin={isAdmin} settings={settings} />
         </Panel>
 
         <div className="note-grid">
-          {matches.slice(0, 3).map((match) => (
-            <article className="review-note" key={`note-${match.id}`}>
-              <div>
-                <span className={`status-pill ${statusClass(match.status)}`}>{match.status}</span>
-                <strong>{match.id}</strong>
-              </div>
-              <p>{match.notes}</p>
-            </article>
-          ))}
+          {matches.slice(0, 3).map((match) => {
+            const recognition = buildMatchRecognition(match, settings);
+            return (
+              <article className="review-note" key={`note-${match.id}`}>
+                <div>
+                  <span className={`status-pill status-${recognition.tone}`}>{recognition.label}</span>
+                  <strong>{match.id}</strong>
+                </div>
+                <p>{match.notes || recognition.verdict}</p>
+              </article>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -2152,6 +2338,7 @@ export function App() {
     try {
       const data = await apiRequest("/api/matches/manual", { method: "POST", admin: true, body: { matchId } });
       if (Array.isArray(data.matches)) setMatches(data.matches);
+      if (data.detail) setMatchDetails((current) => ({ ...current, [matchId]: data.detail }));
       setLastSync("比赛队列已保存");
       return data;
     } catch (error) {
@@ -2321,8 +2508,22 @@ export function App() {
         const detail = await response.json();
         setMatchDetails((current) => ({ ...current, [match.id]: detail }));
         const resolvedPlayers = resolveMatchPlayers(match, detail, players, heroNames);
-        const recognition = registeredSideSummary(resolvedPlayers);
+        const sideSummary = registeredSideSummary(resolvedPlayers);
         const rankedLadder = isRankedLadderMatch(detail);
+        const totalPlayers = detail.players?.length || match.total || 10;
+        const recognition = buildMatchRecognition(
+          {
+            ...match,
+            registered: sideSummary.registered,
+            total: totalPlayers,
+            sides: sideSummary.sides,
+            lobbyType: detail.lobby_type,
+            gameMode: detail.game_mode,
+            isRankedLadder: rankedLadder,
+          },
+          settings,
+          detail,
+        );
         setMatches((current) =>
           current.map((item) => {
             if (item.id !== match.id) return item;
@@ -2335,9 +2536,9 @@ export function App() {
               startTime: detail.start_time || item.startTime,
               lobbyType: detail.lobby_type,
               gameMode: detail.game_mode,
-              registered: recognition.registered,
-              total: detail.players?.length || item.total || 10,
-              sides: recognition.sides,
+              registered: sideSummary.registered,
+              total: totalPlayers,
+              sides: sideSummary.sides,
               registeredPlayers: resolvedPlayers
                 .filter((player) => player.isRegistered)
                 .map((player) => ({
@@ -2351,12 +2552,12 @@ export function App() {
                   assists: player.assists,
                   result: player.result,
                 })),
-              score: recognition.registered >= 10 ? "玩家库命中 10" : `玩家库命中 ${recognition.registered}`,
+              score: recognition.fullInhouse ? "完整 10 人内战" : recognition.meetsThreshold ? `达到阈值 ${sideSummary.registered}/${recognition.threshold}` : `命中不足 ${sideSummary.registered}/${recognition.threshold}`,
               notes: rankedLadder
                 ? "OpenDota 识别为天梯/单排类型，已从内战识别队列隐藏，不计入积分。"
-                : recognition.registered >= 10
+                : recognition.fullInhouse
                   ? "OpenDota 详情与本地玩家库匹配到 10 人，可按完整内战复核。"
-                  : `OpenDota 详情与本地玩家库匹配到 ${recognition.registered} 人；若实际群友更多，需要补充对应 DOTA2 ID 后重算。`,
+                  : `OpenDota 详情与本地玩家库匹配到 ${sideSummary.registered} 人；${recognition.meetsThreshold ? "已达到阈值但仍需人工复核。" : "未达到当前阈值，建议补充玩家 ID 后重算。"}`,
             };
           }),
         );
@@ -2542,6 +2743,7 @@ export function App() {
             onConfirm={confirmMatch}
             onReject={rejectMatch}
             onView={openMatch}
+            settings={settings}
             isAdmin={isAdmin}
           />
         )}
@@ -2589,6 +2791,7 @@ export function App() {
           onClose={() => setSelectedMatchId(null)}
           onConfirm={confirmMatch}
           onReject={rejectMatch}
+          settings={settings}
           isAdmin={isAdmin}
         />
       )}

@@ -875,6 +875,18 @@ button:disabled {
   font-size: 13px;
 }
 
+.match-table {
+  min-width: 920px;
+}
+
+.data-table.compact.match-table {
+  min-width: 760px;
+}
+
+.data-table.compact .recognition-cell {
+  min-width: 110px;
+}
+
 .match-table .icon-action {
   width: 32px;
   min-width: 32px;
@@ -884,6 +896,40 @@ button:disabled {
 .match-table th,
 .match-table td {
   white-space: nowrap;
+}
+
+.match-id-cell strong,
+.match-id-cell small,
+.recognition-cell small {
+  display: block;
+}
+
+.match-id-cell strong {
+  color: var(--text);
+}
+
+.match-id-cell small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.recognition-cell {
+  min-width: 190px;
+}
+
+.recognition-cell small {
+  max-width: 320px;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.match-hit-cell strong {
+  color: var(--teal);
+  font-size: 16px;
 }
 
 .captain-preview {
@@ -1822,9 +1868,67 @@ input[type="range"] {
   text-align: right;
 }
 
+.match-summary-banner p .status-pill {
+  margin-right: 8px;
+}
+
 .compact-summary-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   padding-top: 14px;
+}
+
+.recognition-checklist {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 18px 14px;
+}
+
+.recognition-check {
+  min-height: 82px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(11, 23, 34, 0.72);
+}
+
+.recognition-check > span {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.recognition-check.ok > span {
+  color: var(--green);
+  background: rgba(53, 200, 131, 0.13);
+}
+
+.recognition-check.pending > span {
+  color: var(--gold);
+  background: rgba(247, 182, 75, 0.13);
+}
+
+.recognition-check strong,
+.recognition-check small {
+  display: block;
+}
+
+.recognition-check strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.recognition-check small {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .team-detail-layout {
@@ -2251,6 +2355,7 @@ input[type="range"] {
   .bracket,
   .team-columns,
   .note-grid,
+  .recognition-checklist,
   .rules-layout {
     grid-template-columns: 1fr;
   }
