@@ -681,8 +681,9 @@ function buildStandingsFromScoredMatches(players, scoreEntries, settings) {
       ...player,
       captain: player.played >= settings.minCaptainGames,
       form: player.form.length ? player.form : ["-", "-", "-", "-", "-"],
+      winRate: player.wins / Math.max(player.played, 1),
     }))
-    .sort((a, b) => b.points - a.points || b.wins - a.wins || b.played - a.played);
+    .sort((a, b) => b.points - a.points || b.wins - a.wins || b.winRate - a.winRate || b.played - a.played);
 }
 
 const PLAYER_PROFILE_FIXTURES = {
@@ -1926,6 +1927,10 @@ function LeaderboardView({ players, matches, scoreEntries, settings }) {
             <div>
               <strong>队长资格</strong>
               <span>{settings.minCaptainGames} 场</span>
+            </div>
+            <div>
+              <strong>排名规则</strong>
+              <span>积分 ＞ 胜场 ＞ 胜率 ＞ 场次</span>
             </div>
             <div>
               <strong>MVP / 加扣分</strong>
