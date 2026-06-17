@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   BarChart3,
@@ -35,7 +35,17 @@ import {
 } from "lucide-react";
 
 const OPENDOTA_BASE_URL = "https://api.opendota.com/api";
+const ADMIN_TOKEN_STORAGE_KEY = "dota2-inhouse-admin-token";
 const DEFAULT_DATE_RANGE = { start: "2026-06-01T00:00", end: "2026-06-21T23:59", preset: "season" };
+const DEFAULT_SETTINGS = {
+  seasonName: "S1 积分周期",
+  minRegisteredPlayers: 8,
+  minCaptainGames: 6,
+  winPoints: 10,
+  lossPoints: 3,
+  autoSync: true,
+  allowPartialMatches: true,
+};
 const DATE_RANGE_PRESETS = [
   { id: "season", label: "本周期" },
   { id: "lastNight", label: "昨晚" },
@@ -293,6 +303,43 @@ function registeredAccountId(player) {
 function getInitialAdminMode() {
   if (typeof window === "undefined") return false;
   return new URLSearchParams(window.location.search).get("admin") === "1";
+}
+
+function getStoredAdminToken() {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || "";
+}
+
+function askForAdminToken() {
+  if (typeof window === "undefined") return "";
+  const token = window.prompt("请输入管理员操作密码（ADMIN_TOKEN）");
+  if (token) window.localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, token);
+  return token || "";
+}
+
+async function apiRequest(path, { method = "GET", body, admin = false, retryAuth = true } = {}) {
+  const headers = {};
+  if (body !== undefined) headers["content-type"] = "application/json";
+  if (admin) {
+    const token = getStoredAdminToken() || askForAdminToken();
+    if (!token) throw new Error("已取消管理员操作");
+    headers.authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(path, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+  if (response.status === 401 && admin && retryAuth && typeof window !== "undefined") {
+    window.localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+    return apiRequest(path, { method, body, admin, retryAuth: false });
+  }
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  return data;
 }
 
 function registeredSideSummary(players) {
@@ -718,18 +765,6 @@ function avatarUrl(playerOrName) {
 
   const seed = playerOrName || "player";
   return `https://api.dicebear.com/9.x/adventurer/svg?seed=${encodeURIComponent(seed)}&backgroundColor=0f172a,1f2937,2f1f19`;
-}
-
-function formatProfileSyncTime(date = new Date()) {
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  })
-    .format(date)
-    .replace(/\//g, "-");
 }
 
 function statusClass(status) {
@@ -1438,12 +1473,12 @@ function PlayersView({ players, openImport, onSyncProfiles, profileSyncing = fal
   );
 }
 
-function MatchesView({ matches, setMatches, onConfirm, onReject, onView, dateRange, dateRangeLabel, dateRangeValid, settings, onOpenSettings, isAdmin = false }) {
+function MatchesView({ matches, onAddMatch, onConfirm, onReject, onView, dateRange, dateRangeLabel, dateRangeValid, settings, onOpenSettings, isAdmin = false }) {
   const [matchId, setMatchId] = useState("");
   const [threshold, setThreshold] = useState(settings.minRegisteredPlayers);
   const [manualMessage, setManualMessage] = useState("");
 
-  function addMatch() {
+  async function addMatch() {
     const cleanId = matchId.trim();
     if (!cleanId) return;
     if (matches.some((match) => String(match.id) === cleanId)) {
@@ -1451,25 +1486,13 @@ function MatchesView({ matches, setMatches, onConfirm, onReject, onView, dateRan
       setMatchId("");
       return;
     }
-
-    const nextMatch = {
-      id: Number(cleanId) || Date.now(),
-      time: "刚刚",
-      registered: 0,
-      total: 10,
-      sides: "-",
-      status: "待确认",
-      score: "待拉取",
-      notes: "管理员手动添加；打开查看后会按 OpenDota 详情和本地玩家库重算命中人数。",
-      registeredPlayers: [],
-    };
-
-    setMatches((current) => {
-      if (current.some((match) => String(match.id) === cleanId)) return current;
-      return [nextMatch, ...current];
-    });
-    setManualMessage(`Match ID ${cleanId} 已加入候选队列。`);
-    setMatchId("");
+    try {
+      const result = await onAddMatch?.(cleanId);
+      setManualMessage(result?.message || `Match ID ${cleanId} 已加入候选队列。`);
+      setMatchId("");
+    } catch (error) {
+      setManualMessage(error instanceof Error ? error.message : "加入队列失败");
+    }
   }
 
   return (
@@ -1980,17 +2003,11 @@ export function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [notifications, setNotifications] = useState(initialNotifications);
   const [dateRange, setDateRange] = useState(DEFAULT_DATE_RANGE);
-  const [settings, setSettings] = useState({
-    seasonName: "S1 积分周期",
-    minRegisteredPlayers: 8,
-    minCaptainGames: 6,
-    winPoints: 10,
-    lossPoints: 3,
-    autoSync: true,
-    allowPartialMatches: true,
-  });
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [lastSync, setLastSync] = useState("刚刚更新");
   const [syncing, setSyncing] = useState(false);
+  const [backendReady, setBackendReady] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
   const [profileSyncing, setProfileSyncing] = useState(false);
   const [profileSyncMessage, setProfileSyncMessage] = useState("");
   const [matchDetails, setMatchDetails] = useState({});
@@ -2007,6 +2024,44 @@ export function App() {
   const dateRangeStatus = useMemo(() => getDateRangeSeconds(dateRange), [dateRange]);
   const dateRangeLabel = useMemo(() => formatDateRangeLabel(dateRange), [dateRange]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadBootstrap() {
+      try {
+        const data = await apiRequest("/api/bootstrap");
+        if (cancelled) return;
+        if (Array.isArray(data.players)) setPlayers(data.players);
+        if (Array.isArray(data.matches)) setMatches(data.matches);
+        if (data.settings) setSettings((current) => ({ ...current, ...data.settings }));
+        setBackendReady(true);
+        setLastSync("已连接 D1");
+      } catch (error) {
+        if (cancelled) return;
+        setBackendReady(false);
+        setLastSync("本地演示数据");
+        setNotifications((current) => [
+          {
+            id: `bootstrap-error-${Date.now()}`,
+            title: "D1 后端暂不可用",
+            body: error instanceof Error ? error.message : "当前使用本地演示数据，部署后会自动连接 Cloudflare D1。",
+            time: "刚刚",
+            read: false,
+            action: "overview",
+          },
+          ...current.slice(0, 5),
+        ]);
+      } finally {
+        if (!cancelled) setDataLoading(false);
+      }
+    }
+
+    loadBootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   function updateDateRangeField(field, value) {
     setDateRange((current) => ({ ...current, [field]: value, preset: "custom" }));
   }
@@ -2019,23 +2074,115 @@ export function App() {
     setDateRange(makeDateRangePreset(preset));
   }
 
-  function confirmMatch(matchId) {
-    setMatches((current) =>
-      current.map((match) => {
-        if (match.id !== matchId) return match;
-        if (match.status === "待确认") return { ...match, status: "已确认", notes: "管理员已确认，等待入库计分" };
-        if (match.status === "已确认") return { ...match, status: "已入库", notes: "已按当前积分规则完成入库" };
-        return match;
-      }),
-    );
+  async function confirmMatch(matchId) {
+    const target = matches.find((match) => String(match.id) === String(matchId));
+    const nextStatus = target?.status === "待确认" ? "已确认" : target?.status === "已确认" ? "已入库" : target?.status;
+    if (!nextStatus) return;
+
+    try {
+      const data = await apiRequest(`/api/matches/${matchId}`, { method: "PATCH", admin: true, body: { status: nextStatus } });
+      if (Array.isArray(data.matches)) setMatches(data.matches);
+      setLastSync("D1 已保存");
+    } catch (error) {
+      setMatches((current) =>
+        current.map((match) => {
+          if (match.id !== matchId) return match;
+          if (match.status === "待确认") return { ...match, status: "已确认", notes: "管理员已确认，等待入库计分" };
+          if (match.status === "已确认") return { ...match, status: "已入库", notes: "已按当前积分规则完成入库" };
+          return match;
+        }),
+      );
+      setNotifications((current) => [
+        {
+          id: `confirm-error-${Date.now()}`,
+          title: "保存到 D1 失败",
+          body: error instanceof Error ? error.message : "比赛状态仅在当前页面临时更新。",
+          time: "刚刚",
+          read: false,
+          action: "matches",
+        },
+        ...current.slice(0, 5),
+      ]);
+    }
   }
 
-  function rejectMatch(matchId) {
-    setMatches((current) => current.map((match) => (match.id === matchId ? { ...match, status: "已驳回", notes: "管理员驳回：不满足本期有效内战标准" } : match)));
+  async function rejectMatch(matchId) {
+    try {
+      const data = await apiRequest(`/api/matches/${matchId}`, { method: "PATCH", admin: true, body: { status: "已驳回" } });
+      if (Array.isArray(data.matches)) setMatches(data.matches);
+      setLastSync("D1 已保存");
+    } catch (error) {
+      setMatches((current) => current.map((match) => (match.id === matchId ? { ...match, status: "已驳回", notes: "管理员驳回：不满足本期有效内战标准" } : match)));
+      setNotifications((current) => [
+        {
+          id: `reject-error-${Date.now()}`,
+          title: "保存到 D1 失败",
+          body: error instanceof Error ? error.message : "驳回状态仅在当前页面临时更新。",
+          time: "刚刚",
+          read: false,
+          action: "matches",
+        },
+        ...current.slice(0, 5),
+      ]);
+    }
   }
 
-  function importPlayers(importedPlayers) {
-    setPlayers((current) => [...current, ...importedPlayers]);
+  async function importPlayers(importedPlayers) {
+    try {
+      const data = await apiRequest("/api/players/import", { method: "POST", admin: true, body: { players: importedPlayers } });
+      if (Array.isArray(data.players)) setPlayers(data.players);
+      setLastSync("玩家库已保存");
+    } catch (error) {
+      setPlayers((current) => [...current, ...importedPlayers]);
+      setNotifications((current) => [
+        {
+          id: `import-error-${Date.now()}`,
+          title: "玩家导入未写入 D1",
+          body: error instanceof Error ? error.message : "玩家只在当前页面临时加入。",
+          time: "刚刚",
+          read: false,
+          action: "players",
+        },
+        ...current.slice(0, 5),
+      ]);
+    }
+  }
+
+  async function addManualMatch(matchId) {
+    try {
+      const data = await apiRequest("/api/matches/manual", { method: "POST", admin: true, body: { matchId } });
+      if (Array.isArray(data.matches)) setMatches(data.matches);
+      setLastSync("比赛队列已保存");
+      return data;
+    } catch (error) {
+      const nextMatch = {
+        id: Number(matchId) || Date.now(),
+        time: "刚刚",
+        registered: 0,
+        total: 10,
+        sides: "-",
+        status: "待确认",
+        score: "待拉取",
+        notes: "管理员手动添加；打开查看后会按 OpenDota 详情和本地玩家库重算命中人数。",
+        registeredPlayers: [],
+      };
+      setMatches((current) => {
+        if (current.some((match) => String(match.id) === String(matchId))) return current;
+        return [nextMatch, ...current];
+      });
+      setNotifications((current) => [
+        {
+          id: `manual-match-error-${Date.now()}`,
+          title: "比赛未写入 D1",
+          body: error instanceof Error ? error.message : "Match ID 只在当前页面临时加入。",
+          time: "刚刚",
+          read: false,
+          action: "matches",
+        },
+        ...current.slice(0, 5),
+      ]);
+      return { message: `Match ID ${matchId} 已临时加入；D1 保存失败。` };
+    }
   }
 
   async function syncPlayerProfiles() {
@@ -2043,92 +2190,40 @@ export function App() {
 
     setProfileSyncing(true);
     setProfileSyncMessage("正在从 OpenDota 同步游戏昵称、头像和 Steam 主页...");
-
-    const rosterSnapshot = players;
-    const results = [];
-
-    for (const player of rosterSnapshot) {
-      const dotaId = String(player.dotaId || "").trim();
-      if (!/^\d+$/.test(dotaId)) {
-        results.push({ id: player.id, ok: false, error: "DOTA2 ID 无效" });
-        continue;
-      }
-
-      try {
-        const response = await fetch(`${OPENDOTA_BASE_URL}/players/${dotaId}`);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
-        const profile = data?.profile || {};
-        const gameName = String(profile.personaname || "").trim();
-        if (!gameName) throw new Error("未返回游戏昵称");
-
-        results.push({
-          id: player.id,
-          ok: true,
-          profile: {
-            gameName,
-            avatarUrl: profile.avatarfull || profile.avatarmedium || profile.avatar || "",
-            profileUrl: profile.profileurl || "",
-          },
-        });
-      } catch (error) {
-        results.push({
-          id: player.id,
-          ok: false,
-          error: error instanceof Error ? error.message : "请求失败",
-        });
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 120));
+    try {
+      const data = await apiRequest("/api/players/sync-profiles", { method: "POST", admin: true });
+      if (Array.isArray(data.players)) setPlayers(data.players);
+      const message = data.message || `同步完成：${data.successCount || 0} 个成功，${data.failedCount || 0} 个失败。`;
+      setProfileSyncMessage(message);
+      setLastSync("玩家库已保存");
+      setNotifications((current) => [
+        {
+          id: `profile-sync-${Date.now()}`,
+          title: "玩家昵称同步完成",
+          body: message,
+          time: "刚刚",
+          read: false,
+          action: "players",
+        },
+        ...current.slice(0, 5),
+      ]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "OpenDota 请求失败，请稍后重试。";
+      setProfileSyncMessage(`同步失败：${message}`);
+      setNotifications((current) => [
+        {
+          id: `profile-sync-error-${Date.now()}`,
+          title: "玩家昵称同步失败",
+          body: message,
+          time: "刚刚",
+          read: false,
+          action: "players",
+        },
+        ...current.slice(0, 5),
+      ]);
+    } finally {
+      setProfileSyncing(false);
     }
-
-    const syncedAt = formatProfileSyncTime();
-    const resultById = new Map(results.map((result) => [result.id, result]));
-    const successCount = results.filter((result) => result.ok).length;
-    const failedCount = results.length - successCount;
-
-    setPlayers((current) =>
-      current.map((player) => {
-        const result = resultById.get(player.id);
-        if (!result) return player;
-
-        if (!result.ok) {
-          return {
-            ...player,
-            profileError: result.error,
-            status: player.publicData ? "资料保留，重试失败" : "资料同步失败",
-          };
-        }
-
-        const shouldUseGameName = isPlaceholderPlayerName(player.name);
-        return {
-          ...player,
-          name: shouldUseGameName ? result.profile.gameName : player.name,
-          gameName: result.profile.gameName,
-          avatarUrl: result.profile.avatarUrl,
-          profileUrl: result.profile.profileUrl,
-          profileSyncedAt: syncedAt,
-          profileError: "",
-          publicData: true,
-          status: "资料已同步",
-        };
-      }),
-    );
-
-    const message = `同步完成：${successCount} 个成功，${failedCount} 个失败。已有群昵称已保留，占位昵称已用游戏昵称补齐。`;
-    setProfileSyncMessage(message);
-    setNotifications((current) => [
-      {
-        id: `profile-sync-${Date.now()}`,
-        title: "玩家昵称同步完成",
-        body: message,
-        time: "刚刚",
-        read: false,
-        action: "players",
-      },
-      ...current.slice(0, 5),
-    ]);
-    setProfileSyncing(false);
   }
 
   async function loadHeroNames() {
@@ -2167,22 +2262,16 @@ export function App() {
     setSyncing(true);
     setLastSync("正在拉取 OpenDota");
     try {
-      const results = await Promise.allSettled(
-        players.map(async (player) => {
-          const response = await fetch(`${OPENDOTA_BASE_URL}/players/${player.dotaId}/recentMatches`);
-          if (!response.ok) throw new Error(`${player.name} 拉取失败 ${response.status}`);
-          const recentMatches = await response.json();
-          return recentMatches.map((match) => ({ player, match }));
-        }),
-      );
-      const recentRows = results.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
-      const failedCount = results.filter((result) => result.status === "rejected").length;
-      const candidates = buildCandidatesFromRecentMatches(players, recentRows, dateRange, settings);
-      const existingIds = new Set(matches.map((match) => String(match.id)));
-      const newCandidates = candidates.filter((match) => !existingIds.has(String(match.id)));
-      const duplicatedCount = candidates.length - newCandidates.length;
-      setMatches([...newCandidates, ...matches].sort((a, b) => (b.startTime || 0) - (a.startTime || 0)));
-      setLastSync(`${newCandidates.length} 新增，${duplicatedCount} 重复已跳过`);
+      const data = await apiRequest("/api/sync-recent", {
+        method: "POST",
+        admin: true,
+        body: { dateRange, settings },
+      });
+      const newCandidates = data.newCandidates || [];
+      const duplicatedCount = data.duplicatedCount || 0;
+      const failedCount = data.failedCount || 0;
+      if (Array.isArray(data.matches)) setMatches(data.matches);
+      setLastSync(data.message || `${newCandidates.length} 新增，${duplicatedCount} 重复已跳过`);
       setNotifications((current) => [
         {
           id: `sync-${Date.now()}`,
@@ -2220,52 +2309,60 @@ export function App() {
 
     setMatchDetailLoading(true);
     try {
-      const response = await fetch(`${OPENDOTA_BASE_URL}/matches/${match.id}`);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const detail = await response.json();
+      const data = await apiRequest(`/api/matches/${match.id}`);
+      if (Array.isArray(data.matches)) setMatches(data.matches);
+      if (!data.detail) throw new Error(data.error || "OpenDota 暂未返回对局详情");
+      const detail = data.detail;
       setMatchDetails((current) => ({ ...current, [match.id]: detail }));
-      const resolvedPlayers = resolveMatchPlayers(match, detail, players, heroNames);
-      const recognition = registeredSideSummary(resolvedPlayers);
-      const rankedLadder = isRankedLadderMatch(detail);
-      setMatches((current) =>
-        current.map((item) => {
-          if (item.id !== match.id) return item;
-          return {
-            ...item,
-            hidden: rankedLadder,
-            isRankedLadder: rankedLadder,
-            status: rankedLadder ? "已驳回" : item.status,
-            time: detail.start_time ? formatMatchTime(detail.start_time) : item.time,
-            startTime: detail.start_time || item.startTime,
-            lobbyType: detail.lobby_type,
-            gameMode: detail.game_mode,
-            registered: recognition.registered,
-            total: detail.players?.length || item.total || 10,
-            sides: recognition.sides,
-            registeredPlayers: resolvedPlayers
-              .filter((player) => player.isRegistered)
-              .map((player) => ({
-                accountId: player.accountId,
-                name: player.name,
-                side: player.side,
-                playerSlot: player.playerSlot,
-                heroId: player.heroId,
-                kills: player.kills,
-                deaths: player.deaths,
-                assists: player.assists,
-                result: player.result,
-              })),
-            score: recognition.registered >= 10 ? "玩家库命中 10" : `玩家库命中 ${recognition.registered}`,
-            notes: rankedLadder
-              ? "OpenDota 识别为天梯/单排类型，已从内战识别队列隐藏，不计入积分。"
-              : recognition.registered >= 10
-                ? "OpenDota 详情与本地玩家库匹配到 10 人，可按完整内战复核。"
-                : `OpenDota 详情与本地玩家库匹配到 ${recognition.registered} 人；若实际群友更多，需要补充对应 DOTA2 ID 后重算。`,
-          };
-        }),
-      );
     } catch (error) {
-      setMatchDetailError(error instanceof Error ? error.message : "OpenDota 请求失败");
+      try {
+        const response = await fetch(`${OPENDOTA_BASE_URL}/matches/${match.id}`);
+        if (!response.ok) throw error;
+        const detail = await response.json();
+        setMatchDetails((current) => ({ ...current, [match.id]: detail }));
+        const resolvedPlayers = resolveMatchPlayers(match, detail, players, heroNames);
+        const recognition = registeredSideSummary(resolvedPlayers);
+        const rankedLadder = isRankedLadderMatch(detail);
+        setMatches((current) =>
+          current.map((item) => {
+            if (item.id !== match.id) return item;
+            return {
+              ...item,
+              hidden: rankedLadder,
+              isRankedLadder: rankedLadder,
+              status: rankedLadder ? "已驳回" : item.status,
+              time: detail.start_time ? formatMatchTime(detail.start_time) : item.time,
+              startTime: detail.start_time || item.startTime,
+              lobbyType: detail.lobby_type,
+              gameMode: detail.game_mode,
+              registered: recognition.registered,
+              total: detail.players?.length || item.total || 10,
+              sides: recognition.sides,
+              registeredPlayers: resolvedPlayers
+                .filter((player) => player.isRegistered)
+                .map((player) => ({
+                  accountId: player.accountId,
+                  name: player.name,
+                  side: player.side,
+                  playerSlot: player.playerSlot,
+                  heroId: player.heroId,
+                  kills: player.kills,
+                  deaths: player.deaths,
+                  assists: player.assists,
+                  result: player.result,
+                })),
+              score: recognition.registered >= 10 ? "玩家库命中 10" : `玩家库命中 ${recognition.registered}`,
+              notes: rankedLadder
+                ? "OpenDota 识别为天梯/单排类型，已从内战识别队列隐藏，不计入积分。"
+                : recognition.registered >= 10
+                  ? "OpenDota 详情与本地玩家库匹配到 10 人，可按完整内战复核。"
+                  : `OpenDota 详情与本地玩家库匹配到 ${recognition.registered} 人；若实际群友更多，需要补充对应 DOTA2 ID 后重算。`,
+            };
+          }),
+        );
+      } catch {
+        setMatchDetailError(error instanceof Error ? error.message : "OpenDota 请求失败");
+      }
     } finally {
       setMatchDetailLoading(false);
     }
@@ -2282,15 +2379,29 @@ export function App() {
   }
 
   function resetSettings() {
-    setSettings({
-      seasonName: "S1 积分周期",
-      minRegisteredPlayers: 8,
-      minCaptainGames: 6,
-      winPoints: 10,
-      lossPoints: 3,
-      autoSync: true,
-      allowPartialMatches: true,
-    });
+    setSettings(DEFAULT_SETTINGS);
+  }
+
+  async function saveSettingsAndClose() {
+    try {
+      const data = await apiRequest("/api/settings", { method: "PUT", admin: true, body: { settings } });
+      if (data.settings) setSettings(data.settings);
+      setLastSync("设置已保存");
+      setShowSettings(false);
+    } catch (error) {
+      setNotifications((current) => [
+        {
+          id: `settings-error-${Date.now()}`,
+          title: "设置未写入 D1",
+          body: error instanceof Error ? error.message : "当前设置只保留在本页面。",
+          time: "刚刚",
+          read: false,
+          action: "rules",
+        },
+        ...current.slice(0, 5),
+      ]);
+      setShowSettings(false);
+    }
   }
 
   return (
@@ -2447,7 +2558,7 @@ export function App() {
         {activeView === "matches" && (
           <MatchesView
             matches={visibleMatches}
-            setMatches={setMatches}
+            onAddMatch={addManualMatch}
             onConfirm={confirmMatch}
             onReject={rejectMatch}
             onView={openMatch}
@@ -2466,7 +2577,7 @@ export function App() {
       </main>
 
       {isAdmin && showImport && <ImportModal onClose={() => setShowImport(false)} onImport={importPlayers} />}
-      {isAdmin && showSettings && <SettingsModal settings={settings} onChange={setSettings} onClose={() => setShowSettings(false)} onReset={resetSettings} />}
+      {isAdmin && showSettings && <SettingsModal settings={settings} onChange={setSettings} onClose={saveSettingsAndClose} onReset={resetSettings} />}
       {selectedMatch && (
         <MatchDetailModal
           match={selectedMatch}
