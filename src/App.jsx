@@ -366,8 +366,8 @@ function isRankedLadderMatch(match) {
   return [6, 7].includes(Number(matchLobbyType(match)));
 }
 
-function isConfirmedInhouseMatch(match) {
-  return match.status === "已确认" || match.status === "已入库";
+function isScoredInhouseMatch(match) {
+  return match.status === "已入库";
 }
 
 function isReviewableMatch(match) {
@@ -615,8 +615,39 @@ function buildCandidatesFromRecentMatches(players, recentRows, dateRange, settin
     .sort((a, b) => b.startTime - a.startTime);
 }
 
-function buildStandingsFromConfirmedMatches(players, matches, settings) {
+function buildScoreEntries(players, matches, settings) {
   const playerByAccount = new Map(players.map((player) => [String(player.dotaId), player]));
+  return matches.filter(isScoredInhouseMatch).flatMap((match) =>
+    (match.registeredPlayers || [])
+      .map((matchPlayer) => {
+        const accountId = registeredAccountId(matchPlayer);
+        const rosterPlayer = playerByAccount.get(accountId);
+        if (!rosterPlayer) return null;
+
+        const won = Boolean(matchPlayer.result);
+        return {
+          id: `${match.id}-${accountId}`,
+          matchId: match.id,
+          time: match.time || "时间未知",
+          startTime: match.startTime || 0,
+          playerId: rosterPlayer.id,
+          playerName: rosterPlayer.name,
+          accountId,
+          side: matchPlayer.side || "-",
+          heroId: matchPlayer.heroId,
+          kills: matchPlayer.kills,
+          deaths: matchPlayer.deaths,
+          assists: matchPlayer.assists,
+          result: won ? "胜" : "负",
+          won,
+          points: won ? settings.winPoints : settings.lossPoints,
+        };
+      })
+      .filter(Boolean),
+  );
+}
+
+function buildStandingsFromScoredMatches(players, scoreEntries, settings) {
   const standingById = new Map(
     players.map((player) => [
       player.id,
@@ -624,29 +655,25 @@ function buildStandingsFromConfirmedMatches(players, matches, settings) {
         ...player,
         played: 0,
         wins: 0,
+        losses: 0,
         points: 0,
         captain: false,
         form: [],
+        scoreEntries: [],
       },
     ]),
   );
 
-  matches
-    .filter(isConfirmedInhouseMatch)
-    .forEach((match) => {
-      (match.registeredPlayers || []).forEach((matchPlayer) => {
-        const accountId = registeredAccountId(matchPlayer);
-        const rosterPlayer = playerByAccount.get(accountId);
-        if (!rosterPlayer) return;
-
-        const row = standingById.get(rosterPlayer.id);
-        const won = Boolean(matchPlayer.result);
-        row.played += 1;
-        row.wins += won ? 1 : 0;
-        row.points += won ? settings.winPoints : settings.lossPoints;
-        row.form = [won ? "W" : "L", ...row.form].slice(0, 5);
-      });
-    });
+  scoreEntries.forEach((entry) => {
+    const row = standingById.get(entry.playerId);
+    if (!row) return;
+    row.played += 1;
+    row.wins += entry.won ? 1 : 0;
+    row.losses += entry.won ? 0 : 1;
+    row.points += entry.points;
+    row.form = [entry.won ? "W" : "L", ...row.form].slice(0, 5);
+    row.scoreEntries = [entry, ...row.scoreEntries].sort((a, b) => b.startTime - a.startTime);
+  });
 
   return Array.from(standingById.values())
     .filter((player) => player.played > 0)
@@ -953,8 +980,8 @@ function LeaderboardTable({ players, limit, compact = false }) {
   if (!rows.length) {
     return (
       <EmptyState
-        title="暂无已确认内战积分"
-        body="待管理员在比赛识别中确认有效内战后，这里才会生成排名。天梯或普通路人局不会计入。"
+        title="暂无已入库内战积分"
+        body="比赛需要先确认有效，再点击入库计分后才会生成排名。天梯或普通路人局不会计入。"
       />
     );
   }
@@ -968,6 +995,7 @@ function LeaderboardTable({ players, limit, compact = false }) {
             <th>玩家</th>
             <th>场次</th>
             <th>胜场</th>
+            <th>负场</th>
             <th>胜率</th>
             <th>总积分</th>
             <th>近期表现</th>
@@ -990,6 +1018,7 @@ function LeaderboardTable({ players, limit, compact = false }) {
               </td>
               <td>{player.played}</td>
               <td>{player.wins}</td>
+              <td>{player.losses}</td>
               <td>{formatWinRate(player)}</td>
               <td className="score">{player.points}</td>
               <td>
@@ -1446,7 +1475,8 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
 
 function Overview({ players, matches, captains, onNavigate, onConfirm, onReject, onView, settings, isAdmin = false }) {
   const pendingCount = matches.filter((match) => match.status === "待确认").length;
-  const effectiveMatches = matches.filter(isConfirmedInhouseMatch);
+  const readyToStoreCount = matches.filter((match) => match.status === "已确认").length;
+  const effectiveMatches = matches.filter(isScoredInhouseMatch);
   const effectiveCount = effectiveMatches.length;
   const activeCount = players.length;
   const averagePlayers = effectiveMatches.length
@@ -1456,9 +1486,9 @@ function Overview({ players, matches, captains, onNavigate, onConfirm, onReject,
   return (
     <div className="view-stack">
       <div className="kpi-grid">
-        <KpiCard icon={Swords} label="有效内战场次" value={effectiveCount} meta="仅统计已确认内战" tone="red" />
-        <KpiCard icon={Users} label="上榜玩家" value={activeCount} meta="来自已确认内战" tone="gold" />
-        <KpiCard icon={CircleHelp} label="今日待确认" value={pendingCount} meta="待处理比赛" tone="yellow" />
+        <KpiCard icon={Swords} label="入库计分场次" value={effectiveCount} meta="仅统计已入库内战" tone="red" />
+        <KpiCard icon={Users} label="上榜玩家" value={activeCount} meta="来自已入库内战" tone="gold" />
+        <KpiCard icon={CircleHelp} label="待处理比赛" value={pendingCount} meta={`${readyToStoreCount} 场待入库`} tone="yellow" />
         <KpiCard icon={CalendarDays} label="当前周期" value="第 12 天" meta="共 21 天" tone="cyan" />
         <KpiCard icon={Activity} label="场均命中人数" value={averagePlayers} meta="天梯不计入" tone="teal" />
       </div>
@@ -1474,7 +1504,7 @@ function Overview({ players, matches, captains, onNavigate, onConfirm, onReject,
           }
         >
           <LeaderboardTable players={players} limit={10} compact />
-          <p className="footnote">积分只统计管理员确认的有效内战；待确认、驳回、天梯/路人局均不计入。</p>
+          <p className="footnote">积分只统计管理员点击“入库计分”的有效内战；待确认、已确认未入库、驳回、天梯/路人局均不计入。</p>
         </Panel>
 
         <Panel
@@ -1518,7 +1548,7 @@ function Overview({ players, matches, captains, onNavigate, onConfirm, onReject,
               <p className="draft-order">蛇形选人：第 4 名 → 第 3 名 → 第 2 名 → 第 1 名 → 第 1 名 → 第 2 名 → 第 3 名 → 第 4 名 ...</p>
             </>
           ) : (
-            <EmptyState title="队长池未生成" body="暂无满足最低场次的已确认内战积分，周期末会按积分榜自动生成队长候选。" />
+            <EmptyState title="队长池未生成" body="暂无满足最低场次的已入库内战积分，周期末会按积分榜自动生成队长候选。" />
           )}
         </Panel>
 
@@ -1535,7 +1565,7 @@ function Overview({ players, matches, captains, onNavigate, onConfirm, onReject,
             <span className="status-pill status-muted">未开始</span>
             <span>预计开始时间：06-24</span>
           </div>
-          {captains.length ? <BracketPreview captains={captains} /> : <EmptyState title="赛程待生成" body="确认足够内战并生成队长池后，淘汰赛对阵会在这里展示。" />}
+          {captains.length ? <BracketPreview captains={captains} /> : <EmptyState title="赛程待生成" body="入库足够内战并生成队长池后，淘汰赛对阵会在这里展示。" />}
         </Panel>
       </div>
     </div>
@@ -1645,7 +1675,7 @@ function PlayersView({ players, openImport, onSyncProfiles, profileSyncing = fal
             </tbody>
           </table>
         </div>
-        <p className="footnote">玩家库会保留群内显示名，并可从 OpenDota 同步游戏昵称、Steam 头像和主页；场次、积分、队长资格仍只由已确认内战生成。</p>
+        <p className="footnote">玩家库会保留群内显示名，并可从 OpenDota 同步游戏昵称、Steam 头像和主页；场次、积分、队长资格只由已入库内战生成。</p>
       </Panel>
     </div>
   );
@@ -1722,7 +1752,7 @@ function MatchesView({ matches, onAddMatch, onConfirm, onReject, onView, dateRan
             <div className="rail-section">
               <span className="rail-label">访问模式</span>
               <span className="status-pill status-muted">公开只读</span>
-              <small>这里只展示候选和已确认比赛，确认、驳回和同步由管理员处理。</small>
+              <small>这里只展示候选、已确认和已入库比赛；确认、入库、驳回和同步由管理员处理。</small>
             </div>
             <div className="rail-section">
               <span className="rail-label">当前日期范围</span>
@@ -1776,36 +1806,143 @@ function MatchesView({ matches, onAddMatch, onConfirm, onReject, onView, dateRan
   );
 }
 
-function LeaderboardView({ players, settings }) {
+function ScoreEntriesTable({ entries, limit = 30 }) {
+  const rows = limit ? entries.slice(0, limit) : entries;
+  if (!rows.length) {
+    return <EmptyState title="暂无计分明细" body="只有已入库比赛会生成计分流水；确认有效后还需要点击入库计分。" />;
+  }
+
   return (
-    <div className="leaderboard-layout">
-      <Panel title="完整积分榜" action={<span className="status-pill status-warning">最低 {settings.minCaptainGames} 场进入选人池</span>}>
-        <LeaderboardTable players={players} />
-      </Panel>
-      <Panel title="积分规则" className="rules-panel">
-        <div className="rule-list">
+    <div className="table-wrap">
+      <table className="data-table score-ledger-table">
+        <thead>
+          <tr>
+            <th>Match ID</th>
+            <th>时间</th>
+            <th>玩家</th>
+            <th>阵营</th>
+            <th>结果</th>
+            <th>KDA</th>
+            <th>积分</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((entry) => (
+            <tr key={entry.id}>
+              <td>{entry.matchId}</td>
+              <td>{entry.time}</td>
+              <td>{entry.playerName}</td>
+              <td>{entry.side}</td>
+              <td>
+                <span className={`result-pill ${entry.won ? "win" : "loss"}`}>{entry.result}</span>
+              </td>
+              <td>
+                {entry.kills ?? "-"} / {entry.deaths ?? "-"} / {entry.assists ?? "-"}
+              </td>
+              <td className="score">+{entry.points}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function PendingStoreTable({ matches }) {
+  if (!matches.length) {
+    return <EmptyState title="暂无待入库比赛" body="已确认的比赛都会出现在这里；点击入库计分后才会进入积分榜。" />;
+  }
+
+  return (
+    <div className="pending-store-list">
+      {matches.map((match) => (
+        <article className="pending-store-row" key={match.id}>
           <div>
-            <strong>胜方</strong>
-            <span>+10</span>
+            <strong>{match.id}</strong>
+            <span>{match.time || "时间未知"}</span>
           </div>
-          <div>
-            <strong>负方</strong>
-            <span>+3</span>
+          <span>{match.registered || 0} / {match.total || 10}</span>
+          <small>{match.sides || "-"}</small>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function LeaderboardView({ players, matches, scoreEntries, settings }) {
+  const scoredMatches = matches.filter(isScoredInhouseMatch);
+  const pendingStoreMatches = matches.filter((match) => match.status === "已确认");
+  const totalPoints = scoreEntries.reduce((total, entry) => total + entry.points, 0);
+  const averagePlayers = scoredMatches.length ? (scoreEntries.length / scoredMatches.length).toFixed(1) : "-";
+
+  return (
+    <div className="leaderboard-page">
+      <div className="score-kpi-row">
+        <section className="score-kpi-card">
+          <span>入库比赛</span>
+          <strong>{scoredMatches.length}</strong>
+          <small>只统计已入库</small>
+        </section>
+        <section className="score-kpi-card">
+          <span>待入库</span>
+          <strong>{pendingStoreMatches.length}</strong>
+          <small>已确认但未计分</small>
+        </section>
+        <section className="score-kpi-card">
+          <span>计分流水</span>
+          <strong>{scoreEntries.length}</strong>
+          <small>玩家单场记录</small>
+        </section>
+        <section className="score-kpi-card">
+          <span>已发积分</span>
+          <strong>{totalPoints}</strong>
+          <small>胜负基础分</small>
+        </section>
+        <section className="score-kpi-card">
+          <span>场均计分人数</span>
+          <strong>{averagePlayers}</strong>
+          <small>用于发现异常场次</small>
+        </section>
+      </div>
+
+      <div className="leaderboard-layout">
+        <Panel title="完整积分榜" action={<span className="status-pill status-warning">最低 {settings.minCaptainGames} 场进入选人池</span>}>
+          <LeaderboardTable players={players} />
+        </Panel>
+        <Panel title="积分规则" className="rules-panel">
+          <div className="rule-list">
+            <div>
+              <strong>胜方</strong>
+              <span>+{settings.winPoints}</span>
+            </div>
+            <div>
+              <strong>负方</strong>
+              <span>+{settings.lossPoints}</span>
+            </div>
+            <div>
+              <strong>计分口径</strong>
+              <span>仅已入库</span>
+            </div>
+            <div>
+              <strong>队长资格</strong>
+              <span>{settings.minCaptainGames} 场</span>
+            </div>
+            <div>
+              <strong>MVP / 加扣分</strong>
+              <span>后续扩展</span>
+            </div>
           </div>
-          <div>
-            <strong>MVP / 团队贡献</strong>
-            <span>+1 ~ +2</span>
-          </div>
-          <div>
-            <strong>爆冷胜利</strong>
-            <span>+1 ~ +2</span>
-          </div>
-          <div>
-            <strong>单场上限</strong>
-            <span>+14</span>
-          </div>
-        </div>
-      </Panel>
+        </Panel>
+      </div>
+
+      <div className="leaderboard-detail-grid">
+        <Panel title="计分明细" action={<span className="status-pill status-success">可追溯</span>}>
+          <ScoreEntriesTable entries={scoreEntries} />
+        </Panel>
+        <Panel title="待入库比赛" action={<span className="status-pill status-info">确认后待计分</span>}>
+          <PendingStoreTable matches={pendingStoreMatches} />
+        </Panel>
+      </div>
     </div>
   );
 }
@@ -1836,7 +1973,7 @@ function DraftView({ players, captains, isAdmin = false }) {
     return (
       <div className="draft-page">
         <Panel title="队长选人" action={<span className="status-pill status-muted">未开始</span>}>
-          <EmptyState title="暂无队长候选" body="积分榜只统计已确认内战；当前没有满足最低场次的玩家，暂不生成选人池。" />
+          <EmptyState title="暂无队长候选" body="积分榜只统计已入库内战；当前没有满足最低场次的玩家，暂不生成选人池。" />
         </Panel>
       </div>
     );
@@ -1992,13 +2129,13 @@ function PlayoffView({ captains, isAdmin = false }) {
   );
 }
 
-function RulesView() {
+function RulesView({ settings = DEFAULT_SETTINGS }) {
   return (
     <div className="rules-layout">
       {[
         ["有效内战", "一场比赛至少 8 名登记玩家参与，双方每边至少 4 名登记玩家。"],
-        ["日常积分", "胜方 +10，负方 +3，MVP 或团队贡献最多 +2，爆冷胜利最多 +2。"],
-        ["队长资格", "周期结束时积分前 4 且至少 6 场有效内战的玩家成为队长候选。"],
+        ["日常积分", `确认有效后还要入库才计分；胜方 +${settings.winPoints}，负方 +${settings.lossPoints}。`],
+        ["队长资格", `周期结束时积分前 4 且至少 ${settings.minCaptainGames} 场已入库内战的玩家成为队长候选。`],
         ["选人机制", "低排名队长先选，之后蛇形返回；每队 5 人，可额外登记 1 名替补。"],
         ["淘汰赛", "4 队半决赛 BO3，决赛 BO3；时间紧时可改半决赛 BO1。"],
         ["违规处理", "代打、小号、假赛、恶意摆烂会扣分，严重者取消本期资格。"],
@@ -2018,8 +2155,8 @@ function RulesView() {
 const initialNotifications = [
   {
     id: "no-confirmed-matches",
-    title: "暂无已确认内战",
-    body: "积分榜只会统计管理员确认的有效内战；天梯和路人局不会进入积分。",
+    title: "暂无已入库内战",
+    body: "积分榜只会统计管理员入库计分的有效内战；天梯和路人局不会进入积分。",
     time: "刚刚",
     read: false,
     action: "leaderboard",
@@ -2202,7 +2339,8 @@ export function App() {
   const [heroNames, setHeroNames] = useState({});
 
   const visibleMatches = useMemo(() => matches.filter(isReviewableMatch), [matches]);
-  const rankedPlayers = useMemo(() => buildStandingsFromConfirmedMatches(players, matches, settings), [players, matches, settings]);
+  const scoreEntries = useMemo(() => buildScoreEntries(players, matches, settings), [players, matches, settings]);
+  const rankedPlayers = useMemo(() => buildStandingsFromScoredMatches(players, scoreEntries, settings), [players, scoreEntries, settings]);
   const captains = rankedPlayers.filter((player) => player.played >= settings.minCaptainGames).slice(0, 4);
   const activeNav = navItems.find((item) => item.id === activeView) || navItems[0];
   const selectedMatch = matches.find((match) => match.id === selectedMatchId);
@@ -2772,10 +2910,10 @@ export function App() {
             isAdmin={isAdmin}
           />
         )}
-        {activeView === "leaderboard" && <LeaderboardView players={rankedPlayers} settings={settings} />}
+        {activeView === "leaderboard" && <LeaderboardView players={rankedPlayers} matches={matches} scoreEntries={scoreEntries} settings={settings} />}
         {activeView === "draft" && <DraftView players={rankedPlayers} captains={captains} isAdmin={isAdmin} />}
         {activeView === "playoff" && <PlayoffView captains={captains} isAdmin={isAdmin} />}
-        {activeView === "rules" && <RulesView />}
+        {activeView === "rules" && <RulesView settings={settings} />}
       </main>
 
       {isAdmin && showImport && <ImportModal onClose={() => setShowImport(false)} onImport={importPlayers} />}

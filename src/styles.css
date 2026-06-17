@@ -1304,6 +1304,100 @@ input[type="range"] {
   gap: 14px;
 }
 
+.leaderboard-page {
+  display: grid;
+  gap: 14px;
+}
+
+.score-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.score-kpi-card {
+  min-height: 106px;
+  display: grid;
+  align-content: center;
+  gap: 7px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(17, 29, 41, 0.9);
+}
+
+.score-kpi-card span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.score-kpi-card strong {
+  color: var(--text);
+  font-size: 28px;
+}
+
+.score-kpi-card small {
+  color: var(--muted-2);
+  line-height: 1.35;
+}
+
+.leaderboard-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 0.8fr);
+  gap: 14px;
+}
+
+.score-ledger-table {
+  min-width: 840px;
+}
+
+.pending-store-list {
+  display: grid;
+  gap: 10px;
+  padding: 0 18px 18px;
+}
+
+.pending-store-row {
+  min-height: 66px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: rgba(13, 25, 37, 0.64);
+}
+
+.pending-store-row div {
+  min-width: 0;
+}
+
+.pending-store-row strong,
+.pending-store-row span,
+.pending-store-row small {
+  display: block;
+}
+
+.pending-store-row strong {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pending-store-row span,
+.pending-store-row small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pending-store-row > span {
+  color: var(--teal);
+  font-size: 14px;
+  font-weight: 800;
+}
+
 .rules-panel {
   align-self: start;
 }
@@ -2254,10 +2348,15 @@ input[type="range"] {
   .overview-grid,
   .bottom-grid,
   .leaderboard-layout,
+  .leaderboard-detail-grid,
   .playoff-board,
   .rules-layout,
   .match-layout {
     grid-template-columns: 1fr;
+  }
+
+  .score-kpi-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -2356,6 +2455,7 @@ input[type="range"] {
   .team-columns,
   .note-grid,
   .recognition-checklist,
+  .score-kpi-row,
   .rules-layout {
     grid-template-columns: 1fr;
   }
