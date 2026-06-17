@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.npm-cache/
+qa/
+
+*.log
+vite-dev.*.log
+design-qa.md
+AGENTS.md
+.npmrc
+
+.env
+.env.*
+!.env.example
+
+.DS_Store
+Thumbs.db
