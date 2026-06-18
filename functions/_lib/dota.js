@@ -354,12 +354,38 @@ export async function upsertMatch(env, match, { preserveStatus = true } = {}) {
 
 export async function updateMatchStatus(env, matchId, status) {
   const notesByStatus = {
+    待确认: "管理员已恢复到待确认，可重新识别和复核",
     已确认: "管理员已确认，等待入库计分",
     已入库: "已按当前积分规则完成入库",
     已驳回: "管理员驳回：不满足本期有效内战标准",
   };
+  if (status === "待确认") {
+    await env.DB.prepare("UPDATE matches SET status = ?, notes = ?, hidden = 0, is_ranked_ladder = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .bind(status, notesByStatus[status], String(matchId))
+      .run();
+    return getMatch(env, matchId);
+  }
   await env.DB.prepare("UPDATE matches SET status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
     .bind(status, notesByStatus[status] || "", String(matchId))
+    .run();
+  return getMatch(env, matchId);
+}
+
+export async function updateMatchWinner(env, matchId, winnerSide) {
+  if (!["天辉", "夜魇"].includes(winnerSide)) throw new Error("胜方只能选择天辉或夜魇");
+  const row = await env.DB.prepare("SELECT registered_players_json, notes FROM matches WHERE id = ?").bind(String(matchId)).first();
+  if (!row) return null;
+  const registeredPlayers = parseJson(row.registered_players_json, []);
+  if (!registeredPlayers.length) throw new Error("这场比赛还没有可修正的命中玩家");
+  const nextPlayers = registeredPlayers.map((player) => ({
+    ...player,
+    result: player.side ? player.side === winnerSide : null,
+  }));
+  const currentNotes = row.notes || "";
+  const cleanNotes = currentNotes.replace(/^管理员手动指定(天辉|夜魇)胜；?/, "");
+  const notes = `管理员手动指定${winnerSide}胜；${cleanNotes}`;
+  await env.DB.prepare("UPDATE matches SET registered_players_json = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+    .bind(JSON.stringify(nextPlayers), notes, String(matchId))
     .run();
   return getMatch(env, matchId);
 }
@@ -847,6 +873,7 @@ export function resolveMatchPlayers(match, detail, players) {
     const fallbackPlayer = (accountId && fallbackByAccount.get(accountId)) || (!accountId ? fallbackBySlotHero.get(`${player.player_slot}-${player.hero_id}`) : null);
     const knownPlayer = rosterPlayer || fallbackPlayer;
     const side = playerSide(player.player_slot);
+    const fallbackResult = typeof fallbackPlayer?.result === "boolean" ? fallbackPlayer.result : null;
     return {
       accountId: accountId || knownPlayer?.accountId || knownPlayer?.dotaId || "",
       name: knownPlayer?.name || player.personaname || player.name || "匿名玩家",
@@ -858,7 +885,7 @@ export function resolveMatchPlayers(match, detail, players) {
       assists: player.assists,
       goldPerMin: player.gold_per_min,
       xpPerMin: player.xp_per_min,
-      result: playerWon(side, detail),
+      result: playerWon(side, detail) ?? fallbackResult,
       isRegistered: Boolean(knownPlayer),
       identifySource: rosterPlayer ? "玩家库 ID 匹配" : fallbackPlayer ? "同步记录匹配" : "未匹配",
     };

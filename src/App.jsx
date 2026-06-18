@@ -541,7 +541,13 @@ function resolveMatchPlayers(match, detail, players, heroNames = {}) {
       assists: player.assists,
       goldPerMin: player.gold_per_min,
       xpPerMin: player.xp_per_min,
-      result: hasKnownResult(detail.radiant_win) ? (side === "天辉" ? detail.radiant_win : !detail.radiant_win) : null,
+      result: hasKnownResult(detail.radiant_win)
+        ? side === "天辉"
+          ? detail.radiant_win
+          : !detail.radiant_win
+        : hasKnownResult(fallbackPlayer?.result)
+          ? fallbackPlayer.result
+          : null,
       isRegistered: Boolean(knownPlayer),
       identifySource: rosterPlayer ? "玩家库 ID 匹配" : fallbackPlayer ? "同步记录匹配" : "未匹配",
     };
@@ -1143,7 +1149,7 @@ function LeaderboardTable({ players, limit, compact = false }) {
   );
 }
 
-function MatchQueue({ matches, onConfirm, onReject, onView, compact = false, isAdmin = false, settings = DEFAULT_SETTINGS }) {
+function MatchQueue({ matches, onConfirm, onReject, onRestore, onView, compact = false, isAdmin = false, settings = DEFAULT_SETTINGS }) {
   if (!matches.length) {
     return (
       <EmptyState
@@ -1229,6 +1235,12 @@ function MatchQueue({ matches, onConfirm, onReject, onView, compact = false, isA
                       <button className={`primary-button compact-button ${compact ? "icon-action" : ""}`} type="button" onClick={() => onConfirm(match.id)} title="入库">
                         <Database size={15} />
                         {!compact && "入库"}
+                      </button>
+                    )}
+                    {isAdmin && match.status === "已驳回" && !compact && (
+                      <button className="ghost-button compact-button" type="button" onClick={() => onRestore?.(match.id)}>
+                        <RefreshCw size={15} />
+                        恢复
                       </button>
                     )}
                   </div>
@@ -1415,7 +1427,7 @@ function PlayerEditModal({ player, onClose, onSave }) {
   );
 }
 
-function MatchDetailModal({ match, detail, loading, error, players, heroNames, onClose, onConfirm, onReject, settings = DEFAULT_SETTINGS, isAdmin = false }) {
+function MatchDetailModal({ match, detail, loading, error, players, heroNames, onClose, onConfirm, onReject, onSetWinner, settings = DEFAULT_SETTINGS, isAdmin = false }) {
   if (!match) return null;
 
   const canConfirm = isAdmin && match.status === "待确认";
@@ -1427,7 +1439,6 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
   const sideSummary = registeredSideSummary(displayedPlayers);
   const registeredCount = sideSummary.registered;
   const totalPlayers = detailPlayers.length || match.total || 10;
-  const winner = detail ? (detail.radiant_win ? "天辉" : "夜魇") : "-";
   const detailSourceLabel = detail?.data_source === "steam" ? "Steam Web API" : detail ? "OpenDota" : "-";
   const leagueId = detail?.leagueid || detail?.league_id || 0;
   const recognition = buildMatchRecognition(
@@ -1444,6 +1455,9 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
     detail,
   );
   const scorePreview = buildMatchScorePreview(displayedPlayers, settings);
+  const manualWinner = displayedPlayers.find((player) => player.isRegistered && player.result === true)?.side || "";
+  const winner = detail && hasKnownResult(detail.radiant_win) ? (detail.radiant_win ? "天辉" : "夜魇") : manualWinner || "-";
+  const storeBlockedByUnknownResult = canStore && scorePreview.unknownCount > 0;
   const reviewSteps = buildReviewSteps(recognition, match.status);
   const reviewWarnings = buildReviewWarnings(recognition, scorePreview, match.status);
 
@@ -1453,7 +1467,7 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
         <div className="team-detail-head">
           <div>
             <h3>{title}</h3>
-            <span>{won ? "胜方" : "负方"}</span>
+            <span>{winner === "-" ? "胜负待定" : won ? "胜方" : "负方"}</span>
           </div>
           <strong>{teamPlayers.filter((player) => player.isRegistered).length} 名命中</strong>
         </div>
@@ -1703,8 +1717,8 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
           )}
 
           <div className="team-detail-layout">
-            {renderTeam("天辉", radiantPlayers, detail ? detail.radiant_win : false)}
-            {renderTeam("夜魇", direPlayers, detail ? !detail.radiant_win : false)}
+            {renderTeam("天辉", radiantPlayers, winner === "天辉")}
+            {renderTeam("夜魇", direPlayers, winner === "夜魇")}
           </div>
 
           <details className="match-record-section">
@@ -1762,6 +1776,16 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
           <button className="ghost-button" type="button" onClick={onClose}>
             关闭
           </button>
+          {isAdmin && scorePreview.unknownCount > 0 && match.status !== "已入库" && (
+            <>
+              <button className="ghost-button" type="button" onClick={() => onSetWinner?.(match.id, "天辉")}>
+                天辉胜
+              </button>
+              <button className="ghost-button" type="button" onClick={() => onSetWinner?.(match.id, "夜魇")}>
+                夜魇胜
+              </button>
+            </>
+          )}
           {canConfirm && (
             <button className="danger-button" type="button" onClick={() => onReject(match.id)}>
               <X size={16} />
@@ -1769,9 +1793,9 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
             </button>
           )}
           {(canConfirm || canStore) && (
-            <button className="primary-button" type="button" onClick={() => onConfirm(match.id)}>
+            <button className="primary-button" type="button" onClick={() => onConfirm(match.id)} disabled={storeBlockedByUnknownResult}>
               {canStore ? <Database size={16} /> : <Check size={16} />}
-              {canStore ? "入库计分" : "确认有效"}
+              {storeBlockedByUnknownResult ? "先指定胜方" : canStore ? "入库计分" : "确认有效"}
             </button>
           )}
         </div>
@@ -1997,11 +2021,13 @@ function PlayersView({ players, openImport, onEditPlayer, onSyncProfiles, profil
   );
 }
 
-function MatchesView({ matches, onAddMatch, onConfirm, onReject, onView, dateRange, dateRangeLabel, dateRangeValid, settings, onOpenSettings, isAdmin = false }) {
+function MatchesView({ matches, onAddMatch, onConfirm, onReject, onRestore, onView, dateRange, dateRangeLabel, dateRangeValid, settings, onOpenSettings, isAdmin = false }) {
   const [matchId, setMatchId] = useState("");
   const [threshold, setThreshold] = useState(settings.minRegisteredPlayers);
   const [manualMessage, setManualMessage] = useState("");
   const [addingMatch, setAddingMatch] = useState(false);
+  const reviewableMatches = isAdmin ? matches.filter(isReviewableMatch) : matches;
+  const archivedMatches = isAdmin ? matches.filter((match) => !isReviewableMatch(match)) : [];
   const reviewCounts = matches.reduce(
     (counts, match) => {
       const recognition = buildMatchRecognition(match, settings);
@@ -2017,13 +2043,9 @@ function MatchesView({ matches, onAddMatch, onConfirm, onReject, onView, dateRan
   async function addMatch() {
     const cleanId = matchId.trim();
     if (!cleanId) return;
-    if (matches.some((match) => String(match.id) === cleanId)) {
-      setManualMessage(`Match ID ${cleanId} 已在识别队列中，已跳过去重。`);
-      setMatchId("");
-      return;
-    }
+    const existed = matches.some((match) => String(match.id) === cleanId);
     setAddingMatch(true);
-    setManualMessage(`正在识别 Match ID ${cleanId}，会同时尝试拉取 OpenDota/Steam 详情...`);
+    setManualMessage(`正在${existed ? "重新" : ""}识别 Match ID ${cleanId}，会同时尝试拉取 OpenDota/Steam 详情...`);
     try {
       const result = await onAddMatch?.(cleanId);
       setManualMessage(result?.message || `Match ID ${cleanId} 已加入候选队列。`);
@@ -2125,11 +2147,18 @@ function MatchesView({ matches, onAddMatch, onConfirm, onReject, onView, dateRan
               {manualMessage && <p className="inline-message">{manualMessage}</p>}
             </>
           )}
-          <MatchQueue matches={matches} onConfirm={onConfirm} onReject={onReject} onView={onView} isAdmin={isAdmin} settings={settings} />
+          <MatchQueue matches={reviewableMatches} onConfirm={onConfirm} onReject={onReject} onView={onView} isAdmin={isAdmin} settings={settings} />
         </Panel>
 
+        {isAdmin && archivedMatches.length > 0 && (
+          <Panel title="已驳回/隐藏记录" action={<span className="status-pill status-muted">{archivedMatches.length} 场</span>}>
+            <p className="panel-note">这些比赛不会进入公开候选和积分榜；可以查看详情、重新识别，或恢复到待确认。</p>
+            <MatchQueue matches={archivedMatches} onConfirm={onConfirm} onReject={onReject} onRestore={onRestore} onView={onView} isAdmin={isAdmin} settings={settings} />
+          </Panel>
+        )}
+
         <div className="note-grid">
-          {matches.slice(0, 3).map((match) => {
+          {reviewableMatches.slice(0, 3).map((match) => {
             const recognition = buildMatchRecognition(match, settings);
             const reviewHint = buildReviewActionHint(match, recognition);
             return (
@@ -2778,19 +2807,11 @@ export function App() {
       if (Array.isArray(data.matches)) setMatches(data.matches);
       setLastSync("D1 已保存");
     } catch (error) {
-      setMatches((current) =>
-        current.map((match) => {
-          if (match.id !== matchId) return match;
-          if (match.status === "待确认") return { ...match, status: "已确认", notes: "管理员已确认，等待入库计分" };
-          if (match.status === "已确认") return { ...match, status: "已入库", notes: "已按当前积分规则完成入库" };
-          return match;
-        }),
-      );
       setNotifications((current) => [
         {
           id: `confirm-error-${Date.now()}`,
-          title: "保存到 D1 失败",
-          body: error instanceof Error ? error.message : "比赛状态仅在当前页面临时更新。",
+          title: "比赛状态未变更",
+          body: error instanceof Error ? error.message : "保存到 D1 失败，请稍后重试。",
           time: "刚刚",
           read: false,
           action: "matches",
@@ -2806,12 +2827,62 @@ export function App() {
       if (Array.isArray(data.matches)) setMatches(data.matches);
       setLastSync("D1 已保存");
     } catch (error) {
-      setMatches((current) => current.map((match) => (match.id === matchId ? { ...match, status: "已驳回", notes: "管理员驳回：不满足本期有效内战标准" } : match)));
       setNotifications((current) => [
         {
           id: `reject-error-${Date.now()}`,
-          title: "保存到 D1 失败",
-          body: error instanceof Error ? error.message : "驳回状态仅在当前页面临时更新。",
+          title: "比赛状态未变更",
+          body: error instanceof Error ? error.message : "保存到 D1 失败，请稍后重试。",
+          time: "刚刚",
+          read: false,
+          action: "matches",
+        },
+        ...current.slice(0, 5),
+      ]);
+    }
+  }
+
+  async function restoreMatch(matchId) {
+    try {
+      const data = await apiRequest(`/api/matches/${matchId}`, { method: "PATCH", admin: true, body: { status: "待确认" } });
+      if (Array.isArray(data.matches)) setMatches(data.matches);
+      setLastSync("已恢复待确认");
+    } catch (error) {
+      setNotifications((current) => [
+        {
+          id: `restore-error-${Date.now()}`,
+          title: "恢复失败",
+          body: error instanceof Error ? error.message : "保存到 D1 失败，请稍后重试。",
+          time: "刚刚",
+          read: false,
+          action: "matches",
+        },
+        ...current.slice(0, 5),
+      ]);
+    }
+  }
+
+  async function setMatchWinner(matchId, winnerSide) {
+    try {
+      const data = await apiRequest(`/api/matches/${matchId}`, { method: "PATCH", admin: true, body: { winnerSide } });
+      if (Array.isArray(data.matches)) setMatches(data.matches);
+      setLastSync(data.message || `已指定${winnerSide}胜`);
+      setNotifications((current) => [
+        {
+          id: `winner-${Date.now()}`,
+          title: "胜方已修正",
+          body: data.message || `Match ID ${matchId} 已指定${winnerSide}胜。`,
+          time: "刚刚",
+          read: false,
+          action: "matches",
+        },
+        ...current.slice(0, 5),
+      ]);
+    } catch (error) {
+      setNotifications((current) => [
+        {
+          id: `winner-error-${Date.now()}`,
+          title: "胜方修正失败",
+          body: error instanceof Error ? error.message : "保存到 D1 失败，请稍后重试。",
           time: "刚刚",
           read: false,
           action: "matches",
@@ -3291,10 +3362,11 @@ export function App() {
         )}
         {activeView === "matches" && (
           <MatchesView
-            matches={visibleMatches}
+            matches={isAdmin ? matches : visibleMatches}
             onAddMatch={addManualMatch}
             onConfirm={confirmMatch}
             onReject={rejectMatch}
+            onRestore={restoreMatch}
             onView={openMatch}
             dateRange={dateRange}
             dateRangeLabel={dateRangeLabel}
@@ -3324,6 +3396,7 @@ export function App() {
           onClose={() => setSelectedMatchId(null)}
           onConfirm={confirmMatch}
           onReject={rejectMatch}
+          onSetWinner={setMatchWinner}
           settings={settings}
           isAdmin={isAdmin}
         />

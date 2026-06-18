@@ -11,6 +11,7 @@ import {
   requireAdmin,
   getSettings,
   updateMatchStatus,
+  updateMatchWinner,
   upsertMatch,
 } from "../../_lib/dota.js";
 
@@ -77,6 +78,11 @@ export async function onRequestPatch({ request, params, env }) {
   try {
     await ensureDatabase(env);
     const body = await readJson(request);
+    if (body.winnerSide) {
+      const match = await updateMatchWinner(env, params.matchId, body.winnerSide);
+      if (!match) return json({ error: "比赛不存在" }, { status: 404 });
+      return json({ match, matches: await getMatches(env), message: `已手动指定${body.winnerSide}胜` });
+    }
     const status = body.status;
     if (!["待确认", "已确认", "已入库", "已驳回"].includes(status)) return json({ error: "比赛状态无效" }, { status: 400 });
     if (status === "已入库") {

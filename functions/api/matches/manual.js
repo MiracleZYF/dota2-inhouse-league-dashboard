@@ -25,7 +25,15 @@ export async function onRequestPost({ request, env }) {
     if (!/^\d+$/.test(matchId)) return json({ error: "Match ID 只能填写数字" }, { status: 400 });
 
     const existing = await getMatch(env, matchId);
-    let match = existing || createPendingMatch(matchId, "管理员手动添加；已加入识别队列，正在尝试读取 OpenDota 详情。");
+    let match = existing
+      ? {
+          ...existing,
+          status: "待确认",
+          hidden: false,
+          isRankedLadder: false,
+          notes: "管理员手动重新识别；正在尝试读取 OpenDota/Steam 详情。",
+        }
+      : createPendingMatch(matchId, "管理员手动添加；已加入识别队列，正在尝试读取 OpenDota/Steam 详情。");
     let detail = null;
     let parseRequested = false;
     let parsed = false;
