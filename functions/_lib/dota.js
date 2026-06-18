@@ -406,6 +406,13 @@ function dateTimeValueToSeconds(value, endOfDay = false) {
 }
 
 export function getDateRangeSeconds(dateRange) {
+  if (Number.isFinite(Number(dateRange?.startSeconds)) && Number.isFinite(Number(dateRange?.endSeconds))) {
+    return {
+      startSeconds: Number(dateRange.startSeconds),
+      endSeconds: Number(dateRange.endSeconds),
+      valid: Number(dateRange.startSeconds) <= Number(dateRange.endSeconds),
+    };
+  }
   const startSeconds = dateTimeValueToSeconds(dateRange?.start);
   const endSeconds = dateTimeValueToSeconds(dateRange?.end, true);
   return {
@@ -886,6 +893,89 @@ export function mergeMatchCandidates(candidates) {
   return Array.from(grouped.values()).sort((a, b) => Number(b.startTime || 0) - Number(a.startTime || 0));
 }
 
+export function makeRecentDateRange(hours = 72) {
+  const safeHours = Math.min(Math.max(Number(hours) || 72, 6), 168);
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    startSeconds: now - safeHours * 60 * 60,
+    endSeconds: now + 60 * 60,
+  };
+}
+
+export async function syncRecentMatches(env, { dateRange = makeRecentDateRange(), settingsOverride = {} } = {}) {
+  const players = await getPlayers(env);
+  const settings = { ...(await getSettings(env)), ...(settingsOverride || {}) };
+  const leagueId = String(settingsOverride?.leagueId || settings.leagueId || "").trim();
+  let leagueCandidates = [];
+  let leagueScan = {
+    enabled: Boolean(settings.useLeagueScan && leagueId),
+    leagueId,
+    fetched: 0,
+    candidateCount: 0,
+    failed: false,
+    error: "",
+  };
+
+  if (leagueScan.enabled) {
+    const leagueResult = await getSteamLeagueMatches(env, leagueId);
+    if (leagueResult.ok) {
+      leagueScan = {
+        ...leagueScan,
+        fetched: leagueResult.matches.length,
+        totalResults: leagueResult.totalResults,
+        resultsRemaining: leagueResult.resultsRemaining,
+      };
+      leagueCandidates = buildCandidatesFromLeagueMatches(players, leagueResult.matches, dateRange, settings, leagueId);
+      leagueScan.candidateCount = leagueCandidates.length;
+    } else {
+      leagueScan = {
+        ...leagueScan,
+        failed: true,
+        error: leagueResult.error || "Steam 联赛房扫描失败",
+      };
+    }
+  }
+
+  const results = await Promise.allSettled(
+    players.map(async (player) => {
+      const response = await openDotaFetch(env, `/players/${player.dotaId}/recentMatches`);
+      if (!response.ok) throw new Error(`${player.name} 拉取失败 ${response.status}`);
+      const recentMatches = await response.json();
+      return recentMatches.map((match) => ({ player, match }));
+    }),
+  );
+
+  const recentRows = results.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
+  const failedCount = results.filter((result) => result.status === "rejected").length;
+  const recentCandidates = buildCandidatesFromRecentMatches(players, recentRows, dateRange, settings);
+  const candidates = mergeMatchCandidates([...leagueCandidates, ...recentCandidates]);
+  const existingIds = new Set((await getMatches(env)).map((match) => String(match.id)));
+  const newCandidates = candidates.filter((match) => !existingIds.has(String(match.id)));
+
+  for (const match of newCandidates) {
+    await upsertMatch(env, match, { preserveStatus: false });
+  }
+
+  const duplicatedCount = candidates.length - newCandidates.length;
+  const sourceDuplicateCount = leagueCandidates.length + recentCandidates.length - candidates.length;
+  const leagueMessage = leagueScan.enabled
+    ? `联赛房 ${leagueId} 扫到 ${leagueScan.fetched} 场，命中 ${leagueScan.candidateCount} 场`
+    : "未启用联赛房扫描";
+
+  return {
+    matches: await getMatches(env),
+    newCandidates,
+    failedCount,
+    duplicatedCount,
+    sourceDuplicateCount,
+    leagueScan,
+    leagueId,
+    leagueCandidateCount: leagueCandidates.length,
+    recentCandidateCount: recentCandidates.length,
+    message: `${newCandidates.length} 新增，${duplicatedCount} 重复已跳过；${leagueMessage}${leagueScan.failed ? `（${leagueScan.error}）` : ""}`,
+  };
+}
+
 export function resolveMatchPlayers(match, detail, players) {
   const playerByAccount = new Map(players.map((player) => [String(player.dotaId), player]));
   const fallbackPlayers = match?.registeredPlayers || [];
@@ -1017,5 +1107,88 @@ export function buildMatchFromDetail(currentMatch, detail, players, settings = D
       lobbyName,
       modeName,
     },
+  };
+}
+
+async function getLeagueHistoryFallback(env, matchId, settings) {
+  const leagueId = String(settings?.leagueId || "").trim();
+  if (!leagueId || !settings?.useLeagueScan) return { detail: null, error: "" };
+  const leagueResult = await getSteamLeagueMatches(env, leagueId);
+  if (!leagueResult.ok) return { detail: null, error: leagueResult.error || "Steam 联赛列表暂不可用" };
+  const leagueMatch = (leagueResult.matches || []).find((match) => String(match.match_id) === String(matchId));
+  if (!leagueMatch) return { detail: null, error: `Steam 联赛 ${leagueId} 最近记录中未找到该 Match ID` };
+  return { detail: buildSteamHistoryDetail(leagueMatch, leagueId), error: "" };
+}
+
+export async function refreshStoredMatch(env, matchId, { resetReviewStatus = false, requestOpenDotaParse = true, useSteam = true } = {}) {
+  const existingMatch = await getMatch(env, matchId);
+  const currentMatch = existingMatch || createPendingMatch(matchId);
+  const players = await getPlayers(env);
+  const settings = await getSettings(env);
+  const lookup = await fetchMatchDetailWithFallback(env, matchId, {
+    requestOpenDotaParse,
+    useSteam,
+  });
+
+  if (lookup.ok) {
+    const baseMatch = resetReviewStatus && currentMatch.status !== "已入库" ? { ...currentMatch, status: "待确认", hidden: false, isRankedLadder: false } : currentMatch;
+    const updatedMatch = buildMatchFromDetail(baseMatch, lookup.detail, players, settings);
+    const match = existingMatch ? await upsertMatch(env, updatedMatch, { preserveStatus: false }) : updatedMatch;
+    return {
+      ok: true,
+      match,
+      detail: lookup.detail,
+      source: lookup.source,
+      openDotaStatus: lookup.openDotaStatus,
+      steamStatus: lookup.steamStatus,
+      parseRequested: lookup.parseRequested,
+      message: `已通过 ${lookup.source === "steam" ? "Steam Web API" : "OpenDota"} 刷新比赛详情`,
+    };
+  }
+
+  const leagueFallback = await getLeagueHistoryFallback(env, matchId, settings);
+  const cachedDetail = await getMatchDetail(env, matchId);
+  const fallbackDetail = leagueFallback.detail || cachedDetail;
+  if (fallbackDetail?.players?.length) {
+    const baseMatch = resetReviewStatus && currentMatch.status !== "已入库" ? { ...currentMatch, status: "待确认", hidden: false, isRankedLadder: false } : currentMatch;
+    const updatedMatch = buildMatchFromDetail(baseMatch, fallbackDetail, players, settings);
+    const match = existingMatch ? await upsertMatch(env, updatedMatch, { preserveStatus: false }) : updatedMatch;
+    const source = leagueFallback.detail ? "steam-history" : fallbackDetail.data_source || "cached";
+    return {
+      ok: true,
+      match,
+      detail: fallbackDetail,
+      source,
+      openDotaStatus: lookup.openDotaStatus,
+      steamStatus: lookup.steamStatus,
+      parseRequested: lookup.parseRequested,
+      warning: lookup.error,
+      message: source === "steam-history" ? "单场详情暂未返回，已用 Steam 联赛列表刷新 10 人阵容" : "单场详情暂未返回，已保留当前缓存阵容",
+    };
+  }
+
+  let match = currentMatch;
+  if (existingMatch) {
+    match = await upsertMatch(
+      env,
+      {
+        ...currentMatch,
+        score: lookup.parseRequested ? "已请求解析" : "待解析",
+        notes: `${lookup.error || "数据源暂未返回这场比赛详情"}；${leagueFallback.error || "稍后重新识别即可重试。"}`,
+      },
+      { preserveStatus: false },
+    );
+  }
+
+  return {
+    ok: false,
+    match,
+    detail: null,
+    source: null,
+    openDotaStatus: lookup.openDotaStatus,
+    steamStatus: lookup.steamStatus,
+    parseRequested: lookup.parseRequested,
+    error: lookup.error || leagueFallback.error || `OpenDota HTTP ${lookup.openDotaStatus}`,
+    message: "已重新请求解析，但数据源仍未返回完整详情",
   };
 }

@@ -1,108 +1,25 @@
 import {
-  buildMatchFromDetail,
-  buildSteamHistoryDetail,
-  createPendingMatch,
   ensureDatabase,
   getMatch,
-  getMatchDetail,
   getMatches,
-  getPlayers,
   json,
-  fetchMatchDetailWithFallback,
+  refreshStoredMatch,
   readJson,
   requireAdmin,
-  getSettings,
-  getSteamLeagueMatches,
   updateMatchStatus,
   updateMatchWinner,
-  upsertMatch,
 } from "../../_lib/dota.js";
-
-async function getLeagueHistoryFallback(env, matchId, settings) {
-  const leagueId = String(settings?.leagueId || "").trim();
-  if (!leagueId || !settings?.useLeagueScan) return { detail: null, error: "" };
-  const leagueResult = await getSteamLeagueMatches(env, leagueId);
-  if (!leagueResult.ok) return { detail: null, error: leagueResult.error || "Steam 联赛列表暂不可用" };
-  const leagueMatch = (leagueResult.matches || []).find((match) => String(match.match_id) === String(matchId));
-  if (!leagueMatch) return { detail: null, error: `Steam 联赛 ${leagueId} 最近记录中未找到该 Match ID` };
-  return { detail: buildSteamHistoryDetail(leagueMatch, leagueId), error: "" };
-}
-
-async function refreshMatch(env, matchId, { resetReviewStatus = false } = {}) {
-  const existingMatch = await getMatch(env, matchId);
-  const currentMatch = existingMatch || createPendingMatch(matchId);
-  const players = await getPlayers(env);
-  const settings = await getSettings(env);
-  const lookup = await fetchMatchDetailWithFallback(env, matchId, {
-    requestOpenDotaParse: resetReviewStatus || Boolean(existingMatch),
-    useSteam: resetReviewStatus || Boolean(existingMatch),
-  });
-
-  if (lookup.ok) {
-    const baseMatch = resetReviewStatus && currentMatch.status !== "已入库" ? { ...currentMatch, status: "待确认", hidden: false, isRankedLadder: false } : currentMatch;
-    const updatedMatch = buildMatchFromDetail(baseMatch, lookup.detail, players, settings);
-    const match = existingMatch ? await upsertMatch(env, updatedMatch, { preserveStatus: false }) : updatedMatch;
-    return {
-      match,
-      detail: lookup.detail,
-      source: lookup.source,
-      openDotaStatus: lookup.openDotaStatus,
-      steamStatus: lookup.steamStatus,
-      parseRequested: lookup.parseRequested,
-      message: `已通过 ${lookup.source === "steam" ? "Steam Web API" : "OpenDota"} 刷新比赛详情`,
-    };
-  }
-
-  const leagueFallback = await getLeagueHistoryFallback(env, matchId, settings);
-  const cachedDetail = await getMatchDetail(env, matchId);
-  const fallbackDetail = leagueFallback.detail || cachedDetail;
-  if (fallbackDetail?.players?.length) {
-    const baseMatch = resetReviewStatus && currentMatch.status !== "已入库" ? { ...currentMatch, status: "待确认", hidden: false, isRankedLadder: false } : currentMatch;
-    const updatedMatch = buildMatchFromDetail(baseMatch, fallbackDetail, players, settings);
-    const match = existingMatch ? await upsertMatch(env, updatedMatch, { preserveStatus: false }) : updatedMatch;
-    const source = leagueFallback.detail ? "steam-history" : fallbackDetail.data_source || "cached";
-    return {
-      match,
-      detail: fallbackDetail,
-      source,
-      openDotaStatus: lookup.openDotaStatus,
-      steamStatus: lookup.steamStatus,
-      parseRequested: lookup.parseRequested,
-      warning: lookup.error,
-      message: source === "steam-history" ? "单场详情暂未返回，已用 Steam 联赛列表刷新 10 人阵容" : "单场详情暂未返回，已保留当前缓存阵容",
-    };
-  }
-
-  let match = currentMatch;
-  if (existingMatch) {
-    match = await upsertMatch(
-      env,
-      {
-        ...currentMatch,
-        score: lookup.parseRequested ? "已请求解析" : "待解析",
-        notes: `${lookup.error || "数据源暂未返回这场比赛详情"}；${leagueFallback.error || "稍后重新识别即可重试。"}`,
-      },
-      { preserveStatus: false },
-    );
-  }
-
-  return {
-    match,
-    detail: null,
-    source: null,
-    openDotaStatus: lookup.openDotaStatus,
-    steamStatus: lookup.steamStatus,
-    parseRequested: lookup.parseRequested,
-    error: lookup.error || leagueFallback.error || `OpenDota HTTP ${lookup.openDotaStatus}`,
-    message: "已重新请求解析，但数据源仍未返回完整详情",
-  };
-}
 
 export async function onRequestGet({ params, env }) {
   const matchId = String(params.matchId || "").trim();
   try {
     await ensureDatabase(env);
-    const result = await refreshMatch(env, matchId, { resetReviewStatus: false });
+    const existingMatch = await getMatch(env, matchId);
+    const result = await refreshStoredMatch(env, matchId, {
+      resetReviewStatus: false,
+      requestOpenDotaParse: Boolean(existingMatch),
+      useSteam: Boolean(existingMatch),
+    });
     return json({
       ...result,
       matches: await getMatches(env),
@@ -121,7 +38,11 @@ export async function onRequestPost({ request, params, env }) {
     await ensureDatabase(env);
     const body = await readJson(request);
     if (body.action && body.action !== "refresh") return json({ error: "操作无效" }, { status: 400 });
-    const result = await refreshMatch(env, params.matchId, { resetReviewStatus: true });
+    const result = await refreshStoredMatch(env, params.matchId, {
+      resetReviewStatus: true,
+      requestOpenDotaParse: true,
+      useSteam: true,
+    });
     return json({
       ...result,
       matches: await getMatches(env),

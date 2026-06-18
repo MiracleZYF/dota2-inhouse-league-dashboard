@@ -1,0 +1,33 @@
+name: DOTA2 Auto Sync
+
+on:
+  schedule:
+    # 19:00 UTC = 03:00 Asia/Shanghai
+    - cron: "0 19 * * *"
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: "How many recent hours to scan"
+        required: false
+        default: "72"
+      retryLimit:
+        description: "How many unresolved matches to retry"
+        required: false
+        default: "12"
+
+jobs:
+  auto-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger dashboard auto sync
+        env:
+          SYNC_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+          HOURS: ${{ github.event.inputs.hours || '72' }}
+          RETRY_LIMIT: ${{ github.event.inputs.retryLimit || '12' }}
+        run: |
+          test -n "$SYNC_TOKEN"
+          curl --fail-with-body --request POST \
+            "https://dota2-inhouse-league-dashboard.pages.dev/api/cron/sync" \
+            --header "Authorization: Bearer $SYNC_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data "{\"hours\":${HOURS},\"retryLimit\":${RETRY_LIMIT}}"

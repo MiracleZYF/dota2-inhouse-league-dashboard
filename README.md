@@ -28,4 +28,15 @@ The production output is generated in `dist`.
 - Public read-only view: `/`
 - Admin prototype view: `/?admin=1`
 
-The admin prototype view only hides or shows frontend controls. Use a real backend and authentication before relying on it for secure production administration.
+Admin write operations require the Cloudflare `ADMIN_TOKEN` environment variable.
+
+## Automatic Sync
+
+The app exposes a protected endpoint for scheduled sync:
+
+```text
+POST /api/cron/sync
+Authorization: Bearer <ADMIN_TOKEN or CRON_SECRET>
+```
+
+The included GitHub Actions workflow runs it every day at 19:00 UTC, which is 03:00 in Asia/Shanghai. To enable it, add a GitHub repository secret named `ADMIN_TOKEN` with the same value as the Cloudflare Pages `ADMIN_TOKEN`.
