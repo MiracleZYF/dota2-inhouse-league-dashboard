@@ -1,5 +1,6 @@
 const OPENDOTA_BASE_URL = "https://api.opendota.com/api";
 const STEAM_DOTA_MATCH_BASE_URL = "https://api.steampowered.com/IDOTA2Match_570";
+const ROSTER_VERSION = "2026-06-18-roster-38";
 
 export const DEFAULT_SETTINGS = {
   seasonName: "S1 积分周期",
@@ -30,20 +31,28 @@ const INITIAL_PLAYERS = [
   { id: 14, name: "Pupa", dotaId: "237169385", role: "3 / 5", gameName: "Pupa", profileUrl: "https://steamcommunity.com/profiles/76561198197435113/", avatarUrl: "https://avatars.steamstatic.com/be65902c43f582d8c064c0fed73dceaf885b6455_full.jpg" },
   { id: 15, name: "阿均", dotaId: "880277674", role: "4 / 5", gameName: 'American "Free Speech"', profileUrl: "https://steamcommunity.com/profiles/76561198840543402/", avatarUrl: "https://avatars.steamstatic.com/cf514dcf1a4e826e61988ab052f820c3abf3c4e3_full.jpg" },
   { id: 16, name: "焖焖", dotaId: "201599278", role: "2 / 3", gameName: "牢焖", profileUrl: "https://steamcommunity.com/profiles/76561198161865006/", avatarUrl: "https://avatars.steamstatic.com/44aa729ce88eed142dc9877b2a10bcf561b1e785_full.jpg" },
-  { id: 17, name: "奶龙抚琴", dotaId: "1512446117", role: "1 / 2", gameName: "Af Am", profileUrl: "https://steamcommunity.com/profiles/76561199472711845/", avatarUrl: "https://avatars.steamstatic.com/c0b7310b0c3568616a989161b86de33d940f37ad_full.jpg" },
-  { id: 18, name: "Artol", dotaId: "1742683220", role: "待补", gameName: "Artol", profileUrl: "https://steamcommunity.com/profiles/76561199702948948/", avatarUrl: "https://avatars.steamstatic.com/48b8d8cd5cd35b94299f7951a118f6fff33f891b_full.jpg" },
-  { id: 19, name: "Tips", dotaId: "1045578592", role: "3 / 4", gameName: "酒蒙子黄毛体育生卡提", profileUrl: "https://steamcommunity.com/id/tipsong/", avatarUrl: "https://avatars.steamstatic.com/088d1a708489f77ae2a59d4e2c5335d5f45cffae_full.jpg" },
-  { id: 20, name: "雨", dotaId: "1241554543", role: "4 / 5", gameName: "雨", profileUrl: "https://steamcommunity.com/profiles/76561199201820271/", avatarUrl: "https://avatars.steamstatic.com/58bd67cf047436f84c8a308c31be95e1e23a809b_full.jpg" },
-  { id: 21, name: "哈基马", dotaId: "339743252", role: "1 / 3", gameName: "等我上个马", profileUrl: "https://steamcommunity.com/profiles/76561198300008980/", avatarUrl: "https://avatars.steamstatic.com/752eb38c3b0bc6f74708ec2c3d44d00bda41edde_full.jpg" },
-  { id: 22, name: "哈基暴", dotaId: "338957505", role: "3 / 5", gameName: "暴鲤龙的大爷爷", profileUrl: "https://steamcommunity.com/profiles/76561198299223233/", avatarUrl: "https://avatars.steamstatic.com/764f5bf486117c83ed29e5f29e33cd69e583dc29_full.jpg" },
-  { id: 23, name: "Zsso_zao", dotaId: "175928804", role: "4 / 5", gameName: "Zsso_zao", profileUrl: "https://steamcommunity.com/profiles/76561198136194532/", avatarUrl: "https://avatars.steamstatic.com/e1edeeccc8320a26774cfabd63467ab9f0a5a6d8_full.jpg" },
-  { id: 24, name: "KAMI", dotaId: "133666698", role: "全能", gameName: "能帮我弄干净吗", profileUrl: "https://steamcommunity.com/profiles/76561198093932426/", avatarUrl: "https://avatars.steamstatic.com/198cc4ad9a2c31ad45c4d83d54498df854aedcf4_full.jpg" },
-  { id: 25, name: "李斯", dotaId: "403665770", role: "待补", gameName: "李斯", profileUrl: "https://steamcommunity.com/id/798780530/", avatarUrl: "https://avatars.steamstatic.com/af339fcac970b1098c7f3c3bd0107af2645fad59_full.jpg" },
-  { id: 26, name: "cheaterbush", dotaId: "448417036", role: "待补", gameName: "cheaterbush", profileUrl: "https://steamcommunity.com/profiles/76561198408682764/", avatarUrl: "https://avatars.steamstatic.com/f9e7e02b28bf8f1f18c07a5e95cb714b795195fd_full.jpg" },
-  { id: 27, name: "钢琴家睿达", dotaId: "139291120", role: "待补", gameName: "钢琴家睿达", profileUrl: "https://steamcommunity.com/id/GunyumL/", avatarUrl: "https://avatars.steamstatic.com/bc55afd6180a0aebd83a33fc36da2d534370498e_full.jpg" },
-  { id: 28, name: "Kano", dotaId: "139595295", role: "待补", gameName: "Kano", profileUrl: "https://steamcommunity.com/profiles/76561198099861023/", avatarUrl: "https://avatars.steamstatic.com/80f218cad570a586adf3990d20ca8ab664b2e88f_full.jpg" },
-  { id: 29, name: "Cherry", dotaId: "1765455118", role: "待补", gameName: "Cherry", profileUrl: "https://steamcommunity.com/profiles/76561199725720846/", avatarUrl: "https://avatars.steamstatic.com/774151f6a68b1a9c34b5248a92b7e842a3fcf3b4_full.jpg" },
-  { id: 30, name: "ico", dotaId: "1206359917", role: "待补", gameName: "ico", profileUrl: "https://steamcommunity.com/id/qiubo666/", avatarUrl: "https://avatars.steamstatic.com/b5984ec17651d765dce7eaf215ae6ec9cec268d2_full.jpg" },
+  { id: 17, name: "猎奇", dotaId: "788744238", role: "待补", gameName: "猎奇", profileUrl: "https://steamcommunity.com/profiles/76561198749009966/", avatarUrl: "https://avatars.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_full.jpg" },
+  { id: 18, name: "范瑶", dotaId: "830568211", role: "待补", gameName: "范瑶", profileUrl: "https://steamcommunity.com/profiles/76561198790833939/", avatarUrl: "https://avatars.steamstatic.com/2719f0cda01e8db67b3a0c4c885d9876b367b8df_full.jpg" },
+  { id: 19, name: "Artol", dotaId: "1742683220", role: "待补", gameName: "Artol", profileUrl: "https://steamcommunity.com/profiles/76561199702948948/", avatarUrl: "https://avatars.steamstatic.com/48b8d8cd5cd35b94299f7951a118f6fff33f891b_full.jpg" },
+  { id: 20, name: "Tips", dotaId: "1045578592", role: "3 / 4", gameName: "酒蒙子黄毛体育生卡提", profileUrl: "https://steamcommunity.com/id/tipsong/", avatarUrl: "https://avatars.steamstatic.com/088d1a708489f77ae2a59d4e2c5335d5f45cffae_full.jpg" },
+  { id: 21, name: "雨", dotaId: "1241554543", role: "4 / 5", gameName: "雨", profileUrl: "https://steamcommunity.com/profiles/76561199201820271/", avatarUrl: "https://avatars.steamstatic.com/58bd67cf047436f84c8a308c31be95e1e23a809b_full.jpg" },
+  { id: 22, name: "哈基马", dotaId: "339743252", role: "1 / 3", gameName: "等我上个马", profileUrl: "https://steamcommunity.com/profiles/76561198300008980/", avatarUrl: "https://avatars.steamstatic.com/752eb38c3b0bc6f74708ec2c3d44d00bda41edde_full.jpg" },
+  { id: 23, name: "哈基暴", dotaId: "338957505", role: "3 / 5", gameName: "暴鲤龙的大爷爷", profileUrl: "https://steamcommunity.com/profiles/76561198299223233/", avatarUrl: "https://avatars.steamstatic.com/764f5bf486117c83ed29e5f29e33cd69e583dc29_full.jpg" },
+  { id: 24, name: "Zsso_zao", dotaId: "175928804", role: "4 / 5", gameName: "Zsso_zao", profileUrl: "https://steamcommunity.com/profiles/76561198136194532/", avatarUrl: "https://avatars.steamstatic.com/e1edeeccc8320a26774cfabd63467ab9f0a5a6d8_full.jpg" },
+  { id: 25, name: "KAMI", dotaId: "133666698", role: "全能", gameName: "能帮我弄干净吗", profileUrl: "https://steamcommunity.com/profiles/76561198093932426/", avatarUrl: "https://avatars.steamstatic.com/198cc4ad9a2c31ad45c4d83d54498df854aedcf4_full.jpg" },
+  { id: 26, name: "李斯", dotaId: "403665770", role: "待补", gameName: "李斯", profileUrl: "https://steamcommunity.com/id/798780530/", avatarUrl: "https://avatars.steamstatic.com/af339fcac970b1098c7f3c3bd0107af2645fad59_full.jpg" },
+  { id: 27, name: "cheaterbush", dotaId: "448417036", role: "待补", gameName: "cheaterbush", profileUrl: "https://steamcommunity.com/profiles/76561198408682764/", avatarUrl: "https://avatars.steamstatic.com/f9e7e02b28bf8f1f18c07a5e95cb714b795195fd_full.jpg" },
+  { id: 28, name: "钢琴家睿达", dotaId: "139291120", role: "待补", gameName: "钢琴家睿达", profileUrl: "https://steamcommunity.com/id/GunyumL/", avatarUrl: "https://avatars.steamstatic.com/bc55afd6180a0aebd83a33fc36da2d534370498e_full.jpg" },
+  { id: 29, name: "Kano", dotaId: "139595295", role: "待补", gameName: "Kano", profileUrl: "https://steamcommunity.com/profiles/76561198099861023/", avatarUrl: "https://avatars.steamstatic.com/80f218cad570a586adf3990d20ca8ab664b2e88f_full.jpg" },
+  { id: 30, name: "Cherry", dotaId: "1765455118", role: "待补", gameName: "Cherry", profileUrl: "https://steamcommunity.com/profiles/76561199725720846/", avatarUrl: "https://avatars.steamstatic.com/774151f6a68b1a9c34b5248a92b7e842a3fcf3b4_full.jpg" },
+  { id: 31, name: "ico", dotaId: "1206359917", role: "待补", gameName: "ico", profileUrl: "https://steamcommunity.com/id/qiubo666/", avatarUrl: "https://avatars.steamstatic.com/b5984ec17651d765dce7eaf215ae6ec9cec268d2_full.jpg" },
+  { id: 32, name: "be happy", dotaId: "1261852738", role: "待补", gameName: "be happy", profileUrl: "https://steamcommunity.com/id/a1726355653/", avatarUrl: "https://avatars.steamstatic.com/1d624398f7d78e30860f065744ce8221756c61d0_full.jpg" },
+  { id: 33, name: "我去监督李达康", dotaId: "183774603", role: "待补", gameName: "我去监督李达康", profileUrl: "https://steamcommunity.com/profiles/76561198144040331/", avatarUrl: "https://avatars.steamstatic.com/c26286f1a292309692f9a3a04eed8e0b8c15c66b_full.jpg" },
+  { id: 34, name: "Moribund", dotaId: "1065035539", role: "待补", gameName: "Moribund", profileUrl: "https://steamcommunity.com/profiles/76561199025301267/", avatarUrl: "https://avatars.steamstatic.com/3e7fa82d331c950cc2dffca68c4e0f723849cff0_full.jpg" },
+  { id: 35, name: "Denn1s", dotaId: "208476639", role: "待补", gameName: "Denn1s", profileUrl: "https://steamcommunity.com/profiles/76561198168742367/", avatarUrl: "https://avatars.steamstatic.com/ab6436a6821059163a6514eb245e23e52c4ad9d3_full.jpg" },
+  { id: 36, name: "你是哪塊小餅乾", dotaId: "1067592430", role: "待补", gameName: "你是哪塊小餅乾", profileUrl: "https://steamcommunity.com/profiles/76561199027858158/", avatarUrl: "https://avatars.steamstatic.com/d918c28ebc011aef576647577bb55f9cbf333541_full.jpg" },
+  { id: 37, name: "海绵", dotaId: "138638303", role: "待补", gameName: "海绵", profileUrl: "https://steamcommunity.com/profiles/76561198098904031/", avatarUrl: "https://avatars.steamstatic.com/a5fda511842c996d37157b5fa2a33e657d2eaf32_full.jpg" },
+  { id: 38, name: "今晚执翻剂", dotaId: "182726435", role: "待补", gameName: "今晚执翻剂", profileUrl: "https://steamcommunity.com/profiles/76561198142992163/", avatarUrl: "https://avatars.steamstatic.com/d9fd361f2f6f46e78959617190a493da4da8696e_full.jpg" },
 ];
 
 export function json(data, init = {}) {
@@ -71,6 +80,81 @@ export function requireAdmin(request, env) {
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : request.headers.get("x-admin-token");
   if (token !== expected) return json({ error: "管理员密码不正确" }, { status: 401 });
   return null;
+}
+
+async function reconcileInitialPlayerRoster(env) {
+  const versionRow = await env.DB.prepare("SELECT value FROM settings WHERE key = 'roster_version'").first();
+  if (versionRow?.value === ROSTER_VERSION) return;
+
+  const now = new Date().toISOString();
+  const desiredIds = new Set(INITIAL_PLAYERS.map((player) => String(player.dotaId)));
+  const currentResult = await env.DB.prepare("SELECT * FROM players ORDER BY id ASC").all();
+  const currentRows = currentResult.results || [];
+  const currentByDotaId = new Map(currentRows.map((row) => [String(row.dota_id), row]));
+  const deleteStatements = currentRows
+    .filter((row) => !desiredIds.has(String(row.dota_id)))
+    .map((row) => env.DB.prepare("DELETE FROM players WHERE dota_id = ?").bind(String(row.dota_id)));
+
+  if (deleteStatements.length) await env.DB.batch(deleteStatements);
+
+  const offsetStatements = currentRows
+    .filter((row) => desiredIds.has(String(row.dota_id)))
+    .map((row) => env.DB.prepare("UPDATE players SET id = id + 100000 WHERE dota_id = ?").bind(String(row.dota_id)));
+
+  if (offsetStatements.length) await env.DB.batch(offsetStatements);
+
+  const upsertStatements = INITIAL_PLAYERS.map((player) => {
+    const current = currentByDotaId.get(String(player.dotaId));
+    const currentName = String(current?.name || "");
+    const currentRole = String(current?.role || "");
+    const name = isPlaceholderPlayerName(currentName) ? player.name : currentName || player.name;
+    const role = !currentRole || currentRole === "待补" ? player.role : currentRole;
+    const gameName = current?.game_name || player.gameName || "";
+    const avatarUrl = current?.avatar_url || player.avatarUrl || "";
+    const profileUrl = current?.profile_url || player.profileUrl || "";
+    const profileSyncedAt = current?.profile_synced_at || "";
+    const profileError = current?.profile_error || "";
+    const publicData = current?.public_data || gameName || avatarUrl || profileUrl ? 1 : 0;
+    const status = current?.status && current.status !== "待内战统计" ? current.status : publicData ? "资料已同步" : "待内战统计";
+
+    return env.DB.prepare(`INSERT INTO players
+      (id, name, dota_id, role, game_name, avatar_url, profile_url, profile_synced_at, profile_error, public_data, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(dota_id) DO UPDATE SET
+        id = excluded.id,
+        name = excluded.name,
+        role = excluded.role,
+        game_name = excluded.game_name,
+        avatar_url = excluded.avatar_url,
+        profile_url = excluded.profile_url,
+        profile_synced_at = excluded.profile_synced_at,
+        profile_error = excluded.profile_error,
+        public_data = excluded.public_data,
+        status = excluded.status,
+        updated_at = excluded.updated_at`)
+      .bind(
+        player.id,
+        name,
+        player.dotaId,
+        role,
+        gameName,
+        avatarUrl,
+        profileUrl,
+        profileSyncedAt,
+        profileError,
+        publicData,
+        status,
+        current?.created_at || now,
+        now,
+      );
+  });
+
+  await env.DB.batch(upsertStatements);
+  await env.DB.prepare(`INSERT INTO settings (key, value, updated_at)
+    VALUES ('roster_version', ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`)
+    .bind(ROSTER_VERSION)
+    .run();
 }
 
 export async function ensureDatabase(env) {
@@ -163,6 +247,8 @@ export async function ensureDatabase(env) {
     );
     await env.DB.batch(statements);
   }
+
+  await reconcileInitialPlayerRoster(env);
 
   const settingsRow = await env.DB.prepare("SELECT value FROM settings WHERE key = 'league'").first();
   if (!settingsRow) await saveSettings(env, DEFAULT_SETTINGS);
