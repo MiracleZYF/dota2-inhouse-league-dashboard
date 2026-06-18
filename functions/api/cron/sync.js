@@ -1,10 +1,14 @@
 import {
   ensureDatabase,
+  getAuditLogs,
   getMatchDetail,
   getMatches,
   getSettings,
+  getSyncRuns,
   json,
+  logAuditAction,
   makeRecentDateRange,
+  recordSyncRun,
   readJson,
   refreshStoredMatch,
   syncRecentMatches,
@@ -88,6 +92,7 @@ export async function onRequest({ request, env }) {
 
   try {
     await ensureDatabase(env);
+    const startedAt = new Date().toISOString();
     const url = new URL(request.url);
     const body = request.method === "GET" ? {} : await readJson(request);
     const settings = await getSettings(env);
@@ -108,6 +113,28 @@ export async function onRequest({ request, env }) {
     });
     const retryResult = retryLimit > 0 ? await retryUnresolvedMatches(env, retryLimit) : { attempted: 0, succeeded: 0, results: [] };
     const matches = await getMatches(env);
+    const status = syncResult.leagueScan?.failed || syncResult.failedCount || retryResult.results.some((item) => !item.ok) ? "warning" : "success";
+    const syncRun = await recordSyncRun(env, {
+      kind: "auto",
+      status,
+      summary: `自动同步完成：新增 ${syncResult.newCandidates.length} 场，重试 ${retryResult.attempted} 场`,
+      startedAt,
+      details: {
+        windowHours: hours,
+        retryLimit,
+        newCount: syncResult.newCandidates.length,
+        duplicatedCount: syncResult.duplicatedCount,
+        failedCount: syncResult.failedCount,
+        leagueScan: syncResult.leagueScan,
+        retry: retryResult,
+      },
+    });
+    await logAuditAction(env, {
+      action: "auto_sync",
+      actor: "GitHub Actions",
+      summary: `自动同步完成：新增 ${syncResult.newCandidates.length} 场，重试 ${retryResult.attempted} 场`,
+      details: { syncRunId: syncRun?.id, status },
+    });
 
     return json({
       ok: true,
@@ -122,11 +149,24 @@ export async function onRequest({ request, env }) {
         leagueScan: syncResult.leagueScan,
       },
       retry: retryResult,
+      syncRun,
+      syncRuns: await getSyncRuns(env),
+      auditLogs: await getAuditLogs(env),
       matchCount: matches.length,
       matches,
       message: `自动同步完成：新增 ${syncResult.newCandidates.length} 场，重试 ${retryResult.attempted} 场`,
     });
   } catch (error) {
+    try {
+      await recordSyncRun(env, {
+        kind: "auto",
+        status: "failed",
+        summary: error instanceof Error ? error.message : "自动同步失败",
+        details: {},
+      });
+    } catch {
+      // 写入失败记录本身不应掩盖原始错误。
+    }
     return json({ error: error instanceof Error ? error.message : "自动同步失败" }, { status: 500 });
   }
 }

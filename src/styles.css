@@ -592,6 +592,7 @@ button:disabled {
   font-size: 13px;
 }
 
+.ops-grid,
 .overview-grid,
 .bottom-grid {
   display: grid;
@@ -646,6 +647,84 @@ button:disabled {
   gap: 12px;
   padding: 0 18px 14px;
   color: var(--muted);
+}
+
+.ops-panel {
+  align-self: start;
+}
+
+.sync-status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 0 18px 10px;
+}
+
+.sync-status-grid div {
+  min-height: 86px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 5px;
+  background: rgba(11, 22, 33, 0.54);
+}
+
+.sync-status-grid span,
+.sync-status-grid small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sync-status-grid strong {
+  color: var(--text);
+  font-size: 18px;
+}
+
+.audit-list {
+  display: grid;
+  gap: 8px;
+  padding: 0 18px 16px;
+}
+
+.audit-item {
+  display: grid;
+  grid-template-columns: minmax(126px, 0.9fr) minmax(0, 1.6fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 50px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 5px;
+  background: rgba(11, 22, 33, 0.54);
+}
+
+.audit-item strong,
+.audit-item span,
+.audit-item p,
+.audit-item time {
+  display: block;
+  margin: 0;
+}
+
+.audit-item strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.audit-item span,
+.audit-item time {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.audit-item p {
+  overflow: hidden;
+  color: #c6d2df;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bottom-grid .panel-subhead {

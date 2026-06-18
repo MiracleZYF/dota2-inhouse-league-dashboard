@@ -116,8 +116,28 @@ export async function ensureDatabase(env) {
       value TEXT NOT NULL,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS sync_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind TEXT NOT NULL DEFAULT 'manual',
+      status TEXT NOT NULL DEFAULT 'success',
+      summary TEXT NOT NULL DEFAULT '',
+      details_json TEXT NOT NULL DEFAULT '{}',
+      started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      finished_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      action TEXT NOT NULL,
+      match_id TEXT NOT NULL DEFAULT '',
+      actor TEXT NOT NULL DEFAULT '管理员',
+      summary TEXT NOT NULL DEFAULT '',
+      details_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_matches_start_time ON matches(start_time)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_matches_status ON matches(status)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_sync_runs_finished_at ON sync_runs(finished_at)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at)"),
   ]);
 
   const playerCount = await env.DB.prepare("SELECT COUNT(*) AS count FROM players").first();
@@ -273,6 +293,65 @@ function parseJson(value, fallback) {
   } catch {
     return fallback;
   }
+}
+
+function rowToSyncRun(row) {
+  return {
+    id: row.id,
+    kind: row.kind || "manual",
+    status: row.status || "success",
+    summary: row.summary || "",
+    details: parseJson(row.details_json, {}),
+    startedAt: row.started_at || "",
+    finishedAt: row.finished_at || "",
+  };
+}
+
+function rowToAuditLog(row) {
+  return {
+    id: row.id,
+    action: row.action || "",
+    matchId: row.match_id || "",
+    actor: row.actor || "管理员",
+    summary: row.summary || "",
+    details: parseJson(row.details_json, {}),
+    createdAt: row.created_at || "",
+  };
+}
+
+export async function getSyncRuns(env, limit = 10) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
+  const result = await env.DB.prepare("SELECT * FROM sync_runs ORDER BY finished_at DESC, id DESC LIMIT ?").bind(safeLimit).all();
+  return (result.results || []).map(rowToSyncRun);
+}
+
+export async function getAuditLogs(env, limit = 30) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 100);
+  const result = await env.DB.prepare("SELECT * FROM audit_logs ORDER BY created_at DESC, id DESC LIMIT ?").bind(safeLimit).all();
+  return (result.results || []).map(rowToAuditLog);
+}
+
+export async function recordSyncRun(env, { kind = "manual", status = "success", summary = "", details = {}, startedAt } = {}) {
+  const started = startedAt || new Date().toISOString();
+  const finished = new Date().toISOString();
+  const result = await env.DB.prepare(`INSERT INTO sync_runs
+    (kind, status, summary, details_json, started_at, finished_at)
+    VALUES (?, ?, ?, ?, ?, ?)`)
+    .bind(kind, status, summary, JSON.stringify(details || {}), started, finished)
+    .run();
+  const row = await env.DB.prepare("SELECT * FROM sync_runs WHERE id = ?").bind(result.meta?.last_row_id || 0).first();
+  return row ? rowToSyncRun(row) : null;
+}
+
+export async function logAuditAction(env, { action, matchId = "", actor = "管理员", summary = "", details = {} } = {}) {
+  if (!action) return null;
+  const result = await env.DB.prepare(`INSERT INTO audit_logs
+    (action, match_id, actor, summary, details_json, created_at)
+    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`)
+    .bind(action, String(matchId || ""), actor || "管理员", summary || "", JSON.stringify(details || {}))
+    .run();
+  const row = await env.DB.prepare("SELECT * FROM audit_logs WHERE id = ?").bind(result.meta?.last_row_id || 0).first();
+  return row ? rowToAuditLog(row) : null;
 }
 
 function rowToMatch(row) {

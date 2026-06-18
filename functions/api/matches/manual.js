@@ -1,13 +1,12 @@
 import {
-  buildMatchFromDetail,
   createPendingMatch,
   ensureDatabase,
+  getAuditLogs,
   getMatch,
   getMatches,
-  getPlayers,
-  getSettings,
   json,
-  fetchMatchDetailWithFallback,
+  logAuditAction,
+  refreshStoredMatch,
   readJson,
   requireAdmin,
   upsertMatch,
@@ -35,36 +34,29 @@ export async function onRequestPost({ request, env }) {
         }
       : createPendingMatch(matchId, "管理员手动添加；已加入识别队列，正在尝试读取 OpenDota/Steam 详情。");
     let detail = null;
-    let parseRequested = false;
-    let parsed = false;
     let message = existing ? `Match ID ${matchId} 已在识别队列中，已尝试重新识别。` : `Match ID ${matchId} 已加入候选队列。`;
 
-    const lookup = await fetchMatchDetailWithFallback(env, matchId, { requestOpenDotaParse: true, useSteam: true });
-    if (lookup.ok) {
-      detail = lookup.detail;
-      const players = await getPlayers(env);
-      const settings = await getSettings(env);
-      const analyzed = buildMatchFromDetail(match, detail, players, settings);
-      match = await upsertMatch(env, analyzed, { preserveStatus: false });
-      parsed = true;
-      const sourceName = lookup.source === "steam" ? "Steam Web API" : "OpenDota";
-      const leagueText = detail.leagueid ? `，League ID ${detail.leagueid}` : "";
-      message = `${message} 已通过 ${sourceName} 识别：${analyzed.score}，${analyzed.sides}${leagueText}。`;
-    } else {
-      parseRequested = lookup.parseRequested;
-      const score = parseRequested ? "已请求解析" : "待解析";
-      const notes = `${lookup.error || "数据源暂未返回这场比赛详情"}；稍后点击查看可重新识别。`;
-      match = await upsertMatch(env, { ...match, score, notes }, { preserveStatus: false });
-      message = `${message} ${notes}`;
-    }
+    await upsertMatch(env, match, { preserveStatus: false });
+    const lookup = await refreshStoredMatch(env, matchId, { resetReviewStatus: true, requestOpenDotaParse: true, useSteam: true });
+    match = lookup.match;
+    detail = lookup.detail;
+    message = `${message} ${lookup.message}${lookup.warning ? `；${lookup.warning}` : ""}`;
+    await logAuditAction(env, {
+      action: existing ? "manual_reidentify_match" : "manual_add_match",
+      matchId,
+      actor: "管理员",
+      summary: message,
+      details: { source: lookup.source, openDotaStatus: lookup.openDotaStatus, steamStatus: lookup.steamStatus },
+    });
 
     return json({
       match,
       detail,
       matches: await getMatches(env),
+      auditLogs: await getAuditLogs(env),
       duplicated: Boolean(existing),
-      parsed,
-      parseRequested,
+      parsed: Boolean(lookup.ok),
+      parseRequested: Boolean(lookup.parseRequested),
       source: lookup.source,
       openDotaStatus: lookup.openDotaStatus,
       steamStatus: lookup.steamStatus,

@@ -285,6 +285,21 @@ function formatDuration(seconds) {
   return `${minutes}:${String(remainSeconds).padStart(2, "0")}`;
 }
 
+function formatBackendTime(value) {
+  if (!value) return "-";
+  const time = new Date(value);
+  if (!Number.isFinite(time.getTime())) return "-";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+    .format(time)
+    .replace(/\//g, "-");
+}
+
 function playerSide(playerSlot) {
   return Number(playerSlot) < 128 ? "天辉" : "夜魇";
 }
@@ -1082,6 +1097,99 @@ function Panel({ title, action, children, className = "" }) {
   );
 }
 
+function syncStatusMeta(run) {
+  if (!run) return { label: "未运行", tone: "muted" };
+  if (run.status === "failed") return { label: "失败", tone: "warning" };
+  if (run.status === "warning") return { label: "部分异常", tone: "warning" };
+  return { label: "成功", tone: "success" };
+}
+
+function actionLabel(action) {
+  const labels = {
+    manual_sync: "手动同步",
+    auto_sync: "自动同步",
+    refresh_match: "重新识别",
+    set_winner: "修正胜方",
+    restore_match: "恢复比赛",
+    confirm_match: "确认有效",
+    store_match: "入库计分",
+    rollback_match: "撤销入库",
+    reject_match: "驳回比赛",
+    manual_add_match: "手动添加",
+    manual_reidentify_match: "手动重识别",
+  };
+  return labels[action] || action || "操作";
+}
+
+function SyncStatusPanel({ syncRuns = [], onNavigate }) {
+  const latest = syncRuns[0];
+  const meta = syncStatusMeta(latest);
+  const details = latest?.details || {};
+  const leagueScan = details.leagueScan || {};
+  const retry = details.retry || {};
+
+  return (
+    <Panel title="自动同步状态" action={<span className={`status-pill status-${meta.tone}`}>{meta.label}</span>} className="ops-panel">
+      {latest ? (
+        <>
+          <div className="sync-status-grid">
+            <div>
+              <span>最近运行</span>
+              <strong>{formatBackendTime(latest.finishedAt)}</strong>
+              <small>{latest.kind === "auto" ? "GitHub Actions" : "管理员手动"}</small>
+            </div>
+            <div>
+              <span>新增比赛</span>
+              <strong>{details.newCount ?? 0}</strong>
+              <small>重复 {details.duplicatedCount ?? 0}</small>
+            </div>
+            <div>
+              <span>联赛扫描</span>
+              <strong>{leagueScan.fetched ?? 0}</strong>
+              <small>命中 {leagueScan.candidateCount ?? 0}</small>
+            </div>
+            <div>
+              <span>重试解析</span>
+              <strong>{retry.attempted ?? 0}</strong>
+              <small>成功 {retry.succeeded ?? 0}</small>
+            </div>
+          </div>
+          <p className="panel-note">{latest.summary}</p>
+        </>
+      ) : (
+        <EmptyState title="暂无同步记录" body="首次手动同步或每日自动同步完成后，这里会显示结果。" />
+      )}
+      <button className="full-width-button" type="button" onClick={() => onNavigate?.("matches")}>
+        前往比赛识别中心
+        <ChevronRight size={16} />
+      </button>
+    </Panel>
+  );
+}
+
+function AuditLogPanel({ auditLogs = [] }) {
+  return (
+    <Panel title="最近操作记录" action={<span className="status-pill status-info">{auditLogs.length} 条</span>} className="ops-panel">
+      {auditLogs.length ? (
+        <div className="audit-list">
+          {auditLogs.slice(0, 8).map((item) => (
+            <article className="audit-item" key={item.id}>
+              <div>
+                <strong>{actionLabel(item.action)}</strong>
+                <span>{item.matchId ? `Match ID ${item.matchId}` : item.actor}</span>
+              </div>
+              <p>{item.summary}</p>
+              <time>{formatBackendTime(item.createdAt)}</time>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="暂无操作记录" body="确认、入库、撤销、修正胜方等操作会记录在这里。" />
+      )}
+    </Panel>
+  );
+}
+
 function EmptyState({ title, body, action }) {
   return (
     <div className="empty-state">
@@ -1857,7 +1965,7 @@ function MatchDetailModal({
   );
 }
 
-function Overview({ players, matches, captains, onNavigate, onConfirm, onReject, onRollback, onView, onRefresh, refreshingMatchIds = [], settings, isAdmin = false }) {
+function Overview({ players, matches, captains, syncRuns, auditLogs, onNavigate, onConfirm, onReject, onRollback, onView, onRefresh, refreshingMatchIds = [], settings, isAdmin = false }) {
   const pendingCount = matches.filter((match) => match.status === "待确认").length;
   const readyToStoreCount = matches.filter((match) => match.status === "已确认").length;
   const effectiveMatches = matches.filter(isScoredInhouseMatch);
@@ -1875,6 +1983,11 @@ function Overview({ players, matches, captains, onNavigate, onConfirm, onReject,
         <KpiCard icon={CircleHelp} label="待处理比赛" value={pendingCount} meta={`${readyToStoreCount} 场待入库`} tone="yellow" />
         <KpiCard icon={CalendarDays} label="当前周期" value="第 12 天" meta="共 21 天" tone="cyan" />
         <KpiCard icon={Activity} label="场均命中人数" value={averagePlayers} meta="天梯不计入" tone="teal" />
+      </div>
+
+      <div className="ops-grid">
+        <SyncStatusPanel syncRuns={syncRuns} onNavigate={onNavigate} />
+        <AuditLogPanel auditLogs={auditLogs} />
       </div>
 
       <div className="overview-grid">
@@ -2825,6 +2938,8 @@ export function App() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [notifications, setNotifications] = useState(initialNotifications);
+  const [syncRuns, setSyncRuns] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [dateRange, setDateRange] = useState(DEFAULT_DATE_RANGE);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [lastSync, setLastSync] = useState("刚刚更新");
@@ -2858,6 +2973,8 @@ export function App() {
         if (cancelled) return;
         if (Array.isArray(data.players)) setPlayers(data.players);
         if (Array.isArray(data.matches)) setMatches(data.matches);
+        if (Array.isArray(data.syncRuns)) setSyncRuns(data.syncRuns);
+        if (Array.isArray(data.auditLogs)) setAuditLogs(data.auditLogs);
         if (data.settings) setSettings((current) => ({ ...current, ...data.settings }));
         setBackendReady(true);
         setLastSync("已连接 D1");
@@ -2899,6 +3016,12 @@ export function App() {
     setDateRange(makeDateRangePreset(preset));
   }
 
+  function applyServerState(data) {
+    if (Array.isArray(data?.matches)) setMatches(data.matches);
+    if (Array.isArray(data?.syncRuns)) setSyncRuns(data.syncRuns);
+    if (Array.isArray(data?.auditLogs)) setAuditLogs(data.auditLogs);
+  }
+
   async function confirmMatch(matchId) {
     const target = matches.find((match) => String(match.id) === String(matchId));
     const nextStatus = target?.status === "待确认" ? "已确认" : target?.status === "已确认" ? "已入库" : target?.status;
@@ -2911,7 +3034,7 @@ export function App() {
 
     try {
       const data = await apiRequest(`/api/matches/${matchId}`, { method: "PATCH", admin: true, body: { status: nextStatus } });
-      if (Array.isArray(data.matches)) setMatches(data.matches);
+      applyServerState(data);
       setLastSync("D1 已保存");
     } catch (error) {
       setNotifications((current) => [
@@ -2932,7 +3055,7 @@ export function App() {
     if (!confirmAdminAction(`确认驳回 Match ID ${matchId}？\n\n驳回后它不会进入公开候选和积分榜，可以之后从隐藏记录恢复。`)) return;
     try {
       const data = await apiRequest(`/api/matches/${matchId}`, { method: "PATCH", admin: true, body: { status: "已驳回" } });
-      if (Array.isArray(data.matches)) setMatches(data.matches);
+      applyServerState(data);
       setLastSync("D1 已保存");
     } catch (error) {
       setNotifications((current) => [
@@ -2952,7 +3075,7 @@ export function App() {
   async function restoreMatch(matchId) {
     try {
       const data = await apiRequest(`/api/matches/${matchId}`, { method: "PATCH", admin: true, body: { status: "待确认" } });
-      if (Array.isArray(data.matches)) setMatches(data.matches);
+      applyServerState(data);
       setLastSync("已恢复待确认");
     } catch (error) {
       setNotifications((current) => [
@@ -2973,7 +3096,7 @@ export function App() {
     if (!confirmAdminAction(`确认撤销 Match ID ${matchId} 的入库计分？\n\n这场比赛会回到“已确认”，积分榜会立即扣回本场产生的分数。`)) return;
     try {
       const data = await apiRequest(`/api/matches/${matchId}`, { method: "PATCH", admin: true, body: { status: "已确认" } });
-      if (Array.isArray(data.matches)) setMatches(data.matches);
+      applyServerState(data);
       setLastSync("已撤销入库，积分已回滚");
       setNotifications((current) => [
         {
@@ -3007,7 +3130,7 @@ export function App() {
     if (!confirmAdminAction(`确认将 Match ID ${matchId} 的胜方设为${winnerSide}？${storedText}`)) return;
     try {
       const data = await apiRequest(`/api/matches/${matchId}`, { method: "PATCH", admin: true, body: { winnerSide } });
-      if (Array.isArray(data.matches)) setMatches(data.matches);
+      applyServerState(data);
       setMatchDetails((current) => {
         const detail = current[matchId];
         if (!detail) return current;
@@ -3090,7 +3213,7 @@ export function App() {
   async function addManualMatch(matchId) {
     try {
       const data = await apiRequest("/api/matches/manual", { method: "POST", admin: true, body: { matchId } });
-      if (Array.isArray(data.matches)) setMatches(data.matches);
+      applyServerState(data);
       if (data.detail) setMatchDetails((current) => ({ ...current, [matchId]: data.detail }));
       setLastSync("比赛队列已保存");
       return data;
@@ -3214,7 +3337,7 @@ export function App() {
       const leagueSummary = leagueScan.enabled
         ? `联赛房 ${leagueScan.leagueId || settings.leagueId} 扫到 ${leagueScan.fetched || 0} 场，命中 ${leagueScan.candidateCount || 0} 场`
         : "联赛房扫描未启用";
-      if (Array.isArray(data.matches)) setMatches(data.matches);
+      applyServerState(data);
       setLastSync(data.message || `${newCandidates.length} 新增，${duplicatedCount} 重复已跳过`);
       setNotifications((current) => [
         {
@@ -3341,7 +3464,7 @@ export function App() {
 
     try {
       const data = await apiRequest(`/api/matches/${matchId}`, { method: "POST", admin: true, body: { action: "refresh" } });
-      if (Array.isArray(data.matches)) setMatches(data.matches);
+      applyServerState(data);
       if (data.detail) {
         setMatchDetails((current) => ({ ...current, [matchId]: data.detail }));
       } else if (String(selectedMatchId) === key) {
@@ -3549,6 +3672,8 @@ export function App() {
             players={rankedPlayers}
             matches={visibleMatches}
             captains={captains}
+            syncRuns={syncRuns}
+            auditLogs={auditLogs}
             onNavigate={setActiveView}
             onConfirm={confirmMatch}
             onReject={rejectMatch}
