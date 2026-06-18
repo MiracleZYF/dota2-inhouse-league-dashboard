@@ -457,6 +457,31 @@ export async function steamDotaFetch(env, method, params = {}, init) {
   return fetch(url.toString(), init);
 }
 
+function parseJsonPayload(text) {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function extractSteamApiMessage(payload, rawText) {
+  const result = payload?.result || payload;
+  const candidates = [
+    result?.error,
+    result?.message,
+    result?.statusDetail,
+    payload?.error,
+    payload?.message,
+    typeof result?.status === "number" ? `status=${result.status}` : null,
+  ];
+  const message = candidates.find((item) => typeof item === "string" && item.trim());
+  if (message) return message.trim().replace(/\s+/g, " ").slice(0, 180);
+  if (rawText && !payload) return rawText.trim().replace(/\s+/g, " ").slice(0, 180);
+  return "";
+}
+
 export function normalizeSteamMatchDetail(payload, matchId) {
   const result = payload?.result || payload;
   if (!result || typeof result !== "object" || result.error) return null;
@@ -494,20 +519,34 @@ export async function getSteamMatchDetail(env, matchId) {
 
   let response;
   let payload = null;
+  let rawText = "";
   try {
     response = await steamDotaFetch(env, "GetMatchDetails", { match_id: matchId });
-    payload = await response.json().catch(() => null);
+    rawText = await response.text().catch(() => "");
+    payload = parseJsonPayload(rawText);
   } catch (error) {
     return { ok: false, status: 0, error: error instanceof Error ? error.message : "Steam API 请求失败" };
   }
 
   if (!response.ok) {
-    return { ok: false, status: response.status, error: `Steam API HTTP ${response.status}`, payload };
+    const message = extractSteamApiMessage(payload, rawText);
+    return {
+      ok: false,
+      status: response.status,
+      error: message ? `Steam API HTTP ${response.status}：${message}` : `Steam API HTTP ${response.status}`,
+      payload,
+    };
   }
 
   const detail = normalizeSteamMatchDetail(payload, matchId);
   if (!detail) {
-    return { ok: false, status: response.status, error: "Steam API 未返回可用比赛详情", payload };
+    const message = extractSteamApiMessage(payload, rawText);
+    return {
+      ok: false,
+      status: response.status,
+      error: message ? `Steam API 未返回可用比赛详情：${message}` : "Steam API 未返回可用比赛详情",
+      payload,
+    };
   }
 
   return { ok: true, status: response.status, detail, payload };
