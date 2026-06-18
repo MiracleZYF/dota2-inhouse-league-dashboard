@@ -775,6 +775,30 @@ export function buildCandidatesFromRecentMatches(players, recentRows, dateRange,
     .sort((a, b) => b.startTime - a.startTime);
 }
 
+export function buildSteamHistoryDetail(match, leagueId) {
+  const matchPlayers = Array.isArray(match?.players) ? match.players : [];
+  return {
+    match_id: Number(match?.match_id || 0),
+    leagueid: Number(match?.leagueid || leagueId || 0),
+    lobby_type: match?.lobby_type,
+    game_mode: match?.game_mode,
+    radiant_win: hasBooleanWinner(match) ? match.radiant_win : null,
+    start_time: match?.start_time,
+    duration: match?.duration,
+    data_source: "steam-history",
+    players: matchPlayers.map((player) => ({
+      account_id: player.account_id,
+      player_slot: player.player_slot,
+      hero_id: player.hero_id,
+      kills: player.kills,
+      deaths: player.deaths,
+      assists: player.assists,
+      gold_per_min: player.gold_per_min,
+      xp_per_min: player.xp_per_min,
+    })),
+  };
+}
+
 export function buildCandidatesFromLeagueMatches(players, leagueMatches, dateRange, settings, leagueId) {
   const { startSeconds, endSeconds, valid } = getDateRangeSeconds(dateRange);
   if (!valid) return [];
@@ -786,6 +810,7 @@ export function buildCandidatesFromLeagueMatches(players, leagueMatches, dateRan
     .filter((match) => match.start_time >= startSeconds && match.start_time <= endSeconds)
     .map((match) => {
       const matchPlayers = Array.isArray(match.players) ? match.players : [];
+      const detail = buildSteamHistoryDetail(match, leagueId);
       const registeredPlayers = matchPlayers
         .map((player) => {
           const accountId = player.account_id ? String(player.account_id) : "";
@@ -828,6 +853,7 @@ export function buildCandidatesFromLeagueMatches(players, leagueMatches, dateRan
         hidden: false,
         isRankedLadder: false,
         registeredPlayers,
+        detail,
       };
     })
     .filter((entry) => entry.registered >= threshold && (settings.allowPartialMatches || entry.registered >= 10))

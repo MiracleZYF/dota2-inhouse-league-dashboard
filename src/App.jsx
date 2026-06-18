@@ -531,27 +531,27 @@ function resolveMatchPlayers(match, detail, players, heroNames = {}) {
       const side = playerSide(player.player_slot);
       return {
         accountId: accountId || registeredAccountId(knownPlayer),
-        name: knownPlayer?.name || player.personaname || player.name || "匿名玩家",
+        name: knownPlayer?.name || player.personaname || player.name || (accountId ? `未登记玩家 ${accountId}` : "匿名玩家"),
         side,
         playerSlot: player.player_slot,
         heroId: player.hero_id,
         heroName: formatHeroName(player.hero_id, heroNames),
         kills: player.kills,
         deaths: player.deaths,
-      assists: player.assists,
-      goldPerMin: player.gold_per_min,
-      xpPerMin: player.xp_per_min,
-      result: hasKnownResult(detail.radiant_win)
-        ? side === "天辉"
-          ? detail.radiant_win
-          : !detail.radiant_win
-        : hasKnownResult(fallbackPlayer?.result)
-          ? fallbackPlayer.result
-          : null,
-      isRegistered: Boolean(knownPlayer),
-      identifySource: rosterPlayer ? "玩家库 ID 匹配" : fallbackPlayer ? "同步记录匹配" : "未匹配",
-    };
-  });
+        assists: player.assists,
+        goldPerMin: player.gold_per_min,
+        xpPerMin: player.xp_per_min,
+        result: hasKnownResult(detail.radiant_win)
+          ? side === "天辉"
+            ? detail.radiant_win
+            : !detail.radiant_win
+          : hasKnownResult(fallbackPlayer?.result)
+            ? fallbackPlayer.result
+            : null,
+        isRegistered: Boolean(knownPlayer),
+        identifySource: rosterPlayer ? "玩家库 ID 匹配" : fallbackPlayer ? "同步记录匹配" : "未匹配",
+      };
+    });
   }
 
   return fallbackPlayers.map((player) => {
@@ -1149,7 +1149,7 @@ function LeaderboardTable({ players, limit, compact = false }) {
   );
 }
 
-function MatchQueue({ matches, onConfirm, onReject, onRestore, onView, compact = false, isAdmin = false, settings = DEFAULT_SETTINGS }) {
+function MatchQueue({ matches, onConfirm, onReject, onRestore, onView, onRefresh, refreshingMatchIds = [], compact = false, isAdmin = false, settings = DEFAULT_SETTINGS }) {
   if (!matches.length) {
     return (
       <EmptyState
@@ -1178,6 +1178,7 @@ function MatchQueue({ matches, onConfirm, onReject, onRestore, onView, compact =
           {matches.map((match) => {
             const recognition = buildMatchRecognition(match, settings);
             const reviewHint = buildReviewActionHint(match, recognition);
+            const isRefreshing = refreshingMatchIds.includes(String(match.id));
             return (
               <tr key={match.id}>
                 <td>
@@ -1214,6 +1215,12 @@ function MatchQueue({ matches, onConfirm, onReject, onRestore, onView, compact =
                       <Eye size={15} />
                       {!compact && "查看"}
                     </button>
+                    {isAdmin && !compact && (
+                      <button className="ghost-button compact-button" type="button" onClick={() => onRefresh?.(match.id)} disabled={isRefreshing}>
+                        <RefreshCw size={15} className={isRefreshing ? "spin-icon" : ""} />
+                        {isRefreshing ? "刷新中" : "重新识别"}
+                      </button>
+                    )}
                     {isAdmin && match.status === "待确认" && !compact && (
                       <>
                         <button className="danger-button" type="button" onClick={() => onReject(match.id)}>
@@ -1427,7 +1434,22 @@ function PlayerEditModal({ player, onClose, onSave }) {
   );
 }
 
-function MatchDetailModal({ match, detail, loading, error, players, heroNames, onClose, onConfirm, onReject, onSetWinner, settings = DEFAULT_SETTINGS, isAdmin = false }) {
+function MatchDetailModal({
+  match,
+  detail,
+  loading,
+  error,
+  players,
+  heroNames,
+  onClose,
+  onConfirm,
+  onReject,
+  onRefresh,
+  refreshing = false,
+  onSetWinner,
+  settings = DEFAULT_SETTINGS,
+  isAdmin = false,
+}) {
   if (!match) return null;
 
   const canConfirm = isAdmin && match.status === "待确认";
@@ -1439,7 +1461,7 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
   const sideSummary = registeredSideSummary(displayedPlayers);
   const registeredCount = sideSummary.registered;
   const totalPlayers = detailPlayers.length || match.total || 10;
-  const detailSourceLabel = detail?.data_source === "steam" ? "Steam Web API" : detail ? "OpenDota" : "-";
+  const detailSourceLabel = detail?.data_source === "steam" ? "Steam Web API" : detail?.data_source === "steam-history" ? "Steam 联赛列表" : detail ? "OpenDota" : "-";
   const leagueId = detail?.leagueid || detail?.league_id || 0;
   const recognition = buildMatchRecognition(
     {
@@ -1476,7 +1498,7 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
             teamPlayers.map((player, index) => (
               <article className={`team-player-row ${player.isRegistered ? "registered" : ""}`} key={`${title}-${player.accountId || index}-${player.heroId}`}>
                 <div className="team-player-main">
-                  <span className={`member-badge ${player.isRegistered ? "registered" : "outsider"}`}>{player.isRegistered ? "已命中" : "未匹配"}</span>
+                  <span className={`member-badge ${player.isRegistered ? "registered" : "outsider"}`}>{player.isRegistered ? "内战人员" : "非名单"}</span>
                   <div>
                     <strong>{player.name}</strong>
                     <small>
@@ -1733,6 +1755,7 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
                   <tr>
                     <th>阵营</th>
                     <th>玩家</th>
+                    <th>内战人员</th>
                     <th>Account ID</th>
                     <th>英雄</th>
                     <th>K / D / A</th>
@@ -1747,6 +1770,9 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
                       <tr key={`${player.accountId || "anonymous"}-${player.side}-${player.heroId}-${index}`}>
                         <td>{player.side}</td>
                         <td>{player.name}</td>
+                        <td>
+                          <span className={`member-badge ${player.isRegistered ? "registered" : "outsider"}`}>{player.isRegistered ? "是" : "否"}</span>
+                        </td>
                         <td>{player.accountId || "-"}</td>
                         <td>{player.heroName}</td>
                         <td>
@@ -1761,7 +1787,7 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="8" className="empty-cell">
+                      <td colSpan="9" className="empty-cell">
                         {loading ? "正在拉取 OpenDota 对局详情..." : "暂无可展示的对局记录"}
                       </td>
                     </tr>
@@ -1776,6 +1802,12 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
           <button className="ghost-button" type="button" onClick={onClose}>
             关闭
           </button>
+          {isAdmin && (
+            <button className="ghost-button" type="button" onClick={() => onRefresh?.(match.id)} disabled={refreshing}>
+              <RefreshCw size={16} className={refreshing ? "spin-icon" : ""} />
+              {refreshing ? "刷新中" : "刷新状态"}
+            </button>
+          )}
           {isAdmin && scorePreview.unknownCount > 0 && match.status !== "已入库" && (
             <>
               <button className="ghost-button" type="button" onClick={() => onSetWinner?.(match.id, "天辉")}>
@@ -1804,7 +1836,7 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
   );
 }
 
-function Overview({ players, matches, captains, onNavigate, onConfirm, onReject, onView, settings, isAdmin = false }) {
+function Overview({ players, matches, captains, onNavigate, onConfirm, onReject, onView, onRefresh, refreshingMatchIds = [], settings, isAdmin = false }) {
   const pendingCount = matches.filter((match) => match.status === "待确认").length;
   const readyToStoreCount = matches.filter((match) => match.status === "已确认").length;
   const effectiveMatches = matches.filter(isScoredInhouseMatch);
@@ -1851,7 +1883,17 @@ function Overview({ players, matches, captains, onNavigate, onConfirm, onReject,
             </button>
           }
         >
-          <MatchQueue matches={matches} onConfirm={onConfirm} onReject={onReject} onView={onView} compact isAdmin={isAdmin} settings={settings} />
+          <MatchQueue
+            matches={matches}
+            onConfirm={onConfirm}
+            onReject={onReject}
+            onView={onView}
+            onRefresh={onRefresh}
+            refreshingMatchIds={refreshingMatchIds}
+            compact
+            isAdmin={isAdmin}
+            settings={settings}
+          />
           <button className="full-width-button" type="button" onClick={() => onNavigate("matches")}>
             前往比赛识别中心
             <ChevronRight size={16} />
@@ -2021,7 +2063,22 @@ function PlayersView({ players, openImport, onEditPlayer, onSyncProfiles, profil
   );
 }
 
-function MatchesView({ matches, onAddMatch, onConfirm, onReject, onRestore, onView, dateRange, dateRangeLabel, dateRangeValid, settings, onOpenSettings, isAdmin = false }) {
+function MatchesView({
+  matches,
+  onAddMatch,
+  onConfirm,
+  onReject,
+  onRestore,
+  onView,
+  onRefresh,
+  refreshingMatchIds = [],
+  dateRange,
+  dateRangeLabel,
+  dateRangeValid,
+  settings,
+  onOpenSettings,
+  isAdmin = false,
+}) {
   const [matchId, setMatchId] = useState("");
   const [threshold, setThreshold] = useState(settings.minRegisteredPlayers);
   const [manualMessage, setManualMessage] = useState("");
@@ -2147,13 +2204,32 @@ function MatchesView({ matches, onAddMatch, onConfirm, onReject, onRestore, onVi
               {manualMessage && <p className="inline-message">{manualMessage}</p>}
             </>
           )}
-          <MatchQueue matches={reviewableMatches} onConfirm={onConfirm} onReject={onReject} onView={onView} isAdmin={isAdmin} settings={settings} />
+          <MatchQueue
+            matches={reviewableMatches}
+            onConfirm={onConfirm}
+            onReject={onReject}
+            onView={onView}
+            onRefresh={onRefresh}
+            refreshingMatchIds={refreshingMatchIds}
+            isAdmin={isAdmin}
+            settings={settings}
+          />
         </Panel>
 
         {isAdmin && archivedMatches.length > 0 && (
           <Panel title="已驳回/隐藏记录" action={<span className="status-pill status-muted">{archivedMatches.length} 场</span>}>
             <p className="panel-note">这些比赛不会进入公开候选和积分榜；可以查看详情、重新识别，或恢复到待确认。</p>
-            <MatchQueue matches={archivedMatches} onConfirm={onConfirm} onReject={onReject} onRestore={onRestore} onView={onView} isAdmin={isAdmin} settings={settings} />
+            <MatchQueue
+              matches={archivedMatches}
+              onConfirm={onConfirm}
+              onReject={onReject}
+              onRestore={onRestore}
+              onView={onView}
+              onRefresh={onRefresh}
+              refreshingMatchIds={refreshingMatchIds}
+              isAdmin={isAdmin}
+              settings={settings}
+            />
           </Panel>
         )}
 
@@ -2728,6 +2804,7 @@ export function App() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [lastSync, setLastSync] = useState("刚刚更新");
   const [syncing, setSyncing] = useState(false);
+  const [refreshingMatchIds, setRefreshingMatchIds] = useState([]);
   const [backendReady, setBackendReady] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
   const [profileSyncing, setProfileSyncing] = useState(false);
@@ -3171,6 +3248,59 @@ export function App() {
     }
   }
 
+  async function refreshMatch(matchId) {
+    const key = String(matchId);
+    if (refreshingMatchIds.includes(key)) return;
+
+    setRefreshingMatchIds((current) => [...current, key]);
+    setMatchDetailError("");
+    loadHeroNames();
+    setMatchDetails((current) => {
+      const next = { ...current };
+      delete next[matchId];
+      return next;
+    });
+
+    try {
+      const data = await apiRequest(`/api/matches/${matchId}`, { method: "POST", admin: true, body: { action: "refresh" } });
+      if (Array.isArray(data.matches)) setMatches(data.matches);
+      if (data.detail) {
+        setMatchDetails((current) => ({ ...current, [matchId]: data.detail }));
+      } else if (String(selectedMatchId) === key) {
+        setMatchDetailError(data.error || "OpenDota/Steam 暂未返回对局详情");
+      }
+      const message = data.message || `Match ID ${matchId} 已重新识别`;
+      setLastSync(message);
+      setNotifications((current) => [
+        {
+          id: `refresh-match-${Date.now()}`,
+          title: "比赛状态已刷新",
+          body: data.warning ? `${message}；${data.warning}` : message,
+          time: "刚刚",
+          read: false,
+          action: "matches",
+        },
+        ...current.slice(0, 5),
+      ]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "刷新比赛状态失败，请稍后重试。";
+      if (String(selectedMatchId) === key) setMatchDetailError(message);
+      setNotifications((current) => [
+        {
+          id: `refresh-match-error-${Date.now()}`,
+          title: "重新识别失败",
+          body: message,
+          time: "刚刚",
+          read: false,
+          action: "matches",
+        },
+        ...current.slice(0, 5),
+      ]);
+    } finally {
+      setRefreshingMatchIds((current) => current.filter((item) => item !== key));
+    }
+  }
+
   function openNotification(item) {
     setNotifications((current) => current.map((notification) => (notification.id === item.id ? { ...notification, read: true } : notification)));
     setActiveView(item.action);
@@ -3345,6 +3475,8 @@ export function App() {
             onConfirm={confirmMatch}
             onReject={rejectMatch}
             onView={openMatch}
+            onRefresh={refreshMatch}
+            refreshingMatchIds={refreshingMatchIds}
             settings={settings}
             isAdmin={isAdmin}
           />
@@ -3368,6 +3500,8 @@ export function App() {
             onReject={rejectMatch}
             onRestore={restoreMatch}
             onView={openMatch}
+            onRefresh={refreshMatch}
+            refreshingMatchIds={refreshingMatchIds}
             dateRange={dateRange}
             dateRangeLabel={dateRangeLabel}
             dateRangeValid={dateRangeStatus.valid}
@@ -3396,6 +3530,8 @@ export function App() {
           onClose={() => setSelectedMatchId(null)}
           onConfirm={confirmMatch}
           onReject={rejectMatch}
+          onRefresh={refreshMatch}
+          refreshing={refreshingMatchIds.includes(String(selectedMatchId))}
           onSetWinner={setMatchWinner}
           settings={settings}
           isAdmin={isAdmin}
