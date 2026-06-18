@@ -468,7 +468,7 @@ function buildMatchRecognition(match, settings = DEFAULT_SETTINGS, detail) {
 
   let label = "待解析";
   let tone = "info";
-  const sourceLabel = detail?.data_source === "steam" ? "Steam Web API" : detail ? "OpenDota" : "数据源";
+  const sourceLabel = matchSourceMeta(match, detail).label;
   let verdict = "还没有拿到对局详情，先不要确认计分。";
 
   if (rankedLadder) {
@@ -530,6 +530,97 @@ function buildMatchRecognition(match, settings = DEFAULT_SETTINGS, detail) {
     modeName: describeGameMode(matchGameMode(detail || match)),
     checks,
   };
+}
+
+function matchSourceMeta(match, detail) {
+  const source = detail?.data_source || match?.detailSource || "";
+  if (source === "steam") return { label: "Steam MatchDetails", tone: "success" };
+  if (source === "steam-history") return { label: "Steam 联赛列表", tone: "info" };
+  if (source === "opendota") return { label: "OpenDota 详情", tone: "success" };
+  const notes = `${match?.notes || ""} ${match?.score || ""}`;
+  if (notes.includes("Steam 联赛房")) return { label: "Steam 联赛房", tone: "info" };
+  if (notes.includes("OpenDota")) return { label: "OpenDota recentMatches", tone: "info" };
+  if (notes.includes("管理员手动") || notes.includes("手动添加")) return { label: "手动输入", tone: "warning" };
+  return { label: "待识别来源", tone: "muted" };
+}
+
+function getDetailPlayerCount(match, detail) {
+  const detailCount = Array.isArray(detail?.players) ? detail.players.length : Number(match?.detailPlayerCount || 0);
+  if (Number.isFinite(detailCount) && detailCount > 0) return detailCount;
+  return Array.isArray(match?.registeredPlayers) ? match.registeredPlayers.length : 0;
+}
+
+function matchHasKnownWinner(match, detail) {
+  if (hasKnownResult(detail?.radiant_win) || match?.hasKnownWinner) return true;
+  return (match?.registeredPlayers || []).some((player) => hasKnownResult(player.result));
+}
+
+function buildMatchDiagnostic(match, settings = DEFAULT_SETTINGS, detail) {
+  const recognition = buildMatchRecognition(match, settings, detail);
+  const source = matchSourceMeta(match, detail);
+  const detailPlayerCount = getDetailPlayerCount(match, detail);
+  const expectedTotal = Math.min(Number(recognition.total || 10), 10);
+  const hasFullRoster = detailPlayerCount >= expectedTotal;
+  const hasKnownWinner = matchHasKnownWinner(match, detail);
+  const reasons = [];
+
+  if (recognition.rankedLadder) reasons.push("房间类型疑似天梯，不建议计入");
+  if (!recognition.parsed) reasons.push("还没有拿到模式、阵营和玩家记录");
+  if (!hasFullRoster) reasons.push(`完整阵容未返回，目前详情 ${detailPlayerCount}/${expectedTotal}`);
+  if (!recognition.meetsThreshold) reasons.push(`命中人数未达阈值 ${recognition.registered}/${recognition.threshold}`);
+  if (recognition.meetsThreshold && !recognition.fullInhouse) reasons.push("达到阈值但不是完整 10 名登记玩家");
+  if (recognition.parsed && !recognition.balancedSides) reasons.push(`双方命中不均衡：天辉 ${recognition.radiant} / 夜魇 ${recognition.dire}`);
+  if (!hasKnownWinner) reasons.push("还没有明确胜负，入库前需要等待解析或手动指定");
+
+  let queue = { id: "waiting", label: "等待解析", tone: "warning" };
+  if (match.status === "已入库") {
+    queue = { id: "stored", label: "已入库", tone: "success" };
+  } else if (match.status === "已驳回" || match.hidden || recognition.rankedLadder) {
+    queue = { id: "archived", label: "已驳回/隐藏", tone: "muted" };
+  } else if (match.status === "已确认") {
+    queue = { id: "actionable", label: "可入库", tone: "info" };
+  } else if (recognition.fullInhouse && hasKnownWinner && recognition.balancedSides) {
+    queue = { id: "actionable", label: "可确认", tone: "success" };
+  } else if (recognition.parsed || recognition.meetsThreshold) {
+    queue = { id: "needsReview", label: "需人工判定", tone: "warning" };
+  }
+
+  return {
+    recognition,
+    queue,
+    source,
+    detail: {
+      label: hasFullRoster ? `10 人详情` : detailPlayerCount > 0 ? `部分详情 ${detailPlayerCount}/${expectedTotal}` : "无详情",
+      tone: hasFullRoster ? "success" : detailPlayerCount > 0 ? "warning" : "muted",
+      count: detailPlayerCount,
+      hasFullRoster,
+    },
+    result: {
+      label: hasKnownWinner ? "胜负已知" : "胜负待定",
+      tone: hasKnownWinner ? "success" : "warning",
+      known: hasKnownWinner,
+    },
+    reasons,
+  };
+}
+
+const MATCH_WORK_QUEUE_DEFS = [
+  { id: "actionable", label: "可确认/入库", empty: "没有已经满足规则的比赛。" },
+  { id: "needsReview", label: "需人工判定", empty: "暂时没有需要人工判定的比赛。" },
+  { id: "waiting", label: "等待解析", empty: "没有等待数据源返回详情的比赛。" },
+  { id: "stored", label: "已入库", empty: "还没有已入库比赛。" },
+  { id: "archived", label: "已驳回/隐藏", empty: "没有已驳回或隐藏记录。" },
+  { id: "all", label: "全部", empty: "暂无比赛记录。" },
+];
+
+function buildMatchWorkQueues(matches, settings = DEFAULT_SETTINGS) {
+  const queues = Object.fromEntries(MATCH_WORK_QUEUE_DEFS.map((queue) => [queue.id, []]));
+  matches.forEach((match) => {
+    const diagnostic = buildMatchDiagnostic(match, settings);
+    queues[diagnostic.queue.id]?.push(match);
+    queues.all.push(match);
+  });
+  return queues;
 }
 
 function resolveMatchPlayers(match, detail, players, heroNames = {}) {
@@ -1361,12 +1452,26 @@ function LeaderboardTable({ players, limit, compact = false }) {
   );
 }
 
-function MatchQueue({ matches, onConfirm, onReject, onRestore, onRollback, onView, onRefresh, refreshingMatchIds = [], compact = false, isAdmin = false, settings = DEFAULT_SETTINGS }) {
+function MatchQueue({
+  matches,
+  onConfirm,
+  onReject,
+  onRestore,
+  onRollback,
+  onView,
+  onRefresh,
+  refreshingMatchIds = [],
+  compact = false,
+  isAdmin = false,
+  settings = DEFAULT_SETTINGS,
+  emptyTitle = "暂无候选内战",
+  emptyBody = "自动同步会跳过明显天梯对局；只有达到阈值的疑似群内战或手动添加的 Match ID 会进入这里。",
+}) {
   if (!matches.length) {
     return (
       <EmptyState
-        title="暂无候选内战"
-        body="自动同步会跳过明显天梯对局；只有达到阈值的疑似群内战或手动添加的 Match ID 会进入这里。"
+        title={emptyTitle}
+        body={emptyBody}
       />
     );
   }
@@ -1388,7 +1493,8 @@ function MatchQueue({ matches, onConfirm, onReject, onRestore, onRollback, onVie
         </thead>
         <tbody>
           {matches.map((match) => {
-            const recognition = buildMatchRecognition(match, settings);
+            const diagnostic = buildMatchDiagnostic(match, settings);
+            const recognition = diagnostic.recognition;
             const reviewHint = buildReviewActionHint(match, recognition);
             const isRefreshing = refreshingMatchIds.includes(String(match.id));
             return (
@@ -1405,10 +1511,17 @@ function MatchQueue({ matches, onConfirm, onReject, onRestore, onRollback, onVie
                 <td className="recognition-cell">
                   <span className={`status-pill status-${recognition.tone}`}>{recognition.label}</span>
                   {!compact && <small>{recognition.verdict}</small>}
+                  {!compact && (
+                    <div className="diagnostic-tags">
+                      <span className={`status-pill status-${diagnostic.source.tone}`}>{diagnostic.source.label}</span>
+                      <span className={`status-pill status-${diagnostic.detail.tone}`}>{diagnostic.detail.label}</span>
+                      <span className={`status-pill status-${diagnostic.result.tone}`}>{diagnostic.result.label}</span>
+                    </div>
+                  )}
                 </td>
                 <td className="review-hint-cell">
-                  <span className={`status-pill status-${reviewHint.tone}`}>{reviewHint.title}</span>
-                  {!compact && <small>{reviewHint.body}</small>}
+                  <span className={`status-pill status-${diagnostic.queue.tone}`}>{diagnostic.queue.label}</span>
+                  {!compact && <small>{diagnostic.reasons[0] || reviewHint.body}</small>}
                 </td>
                 <td>{match.time}</td>
                 <td className="match-hit-cell">
@@ -2340,18 +2453,23 @@ function MatchesView({
   isAdmin = false,
 }) {
   const [matchId, setMatchId] = useState("");
-  const [threshold, setThreshold] = useState(settings.minRegisteredPlayers);
+  const threshold = settings.minRegisteredPlayers;
   const [manualMessage, setManualMessage] = useState("");
   const [addingMatch, setAddingMatch] = useState(false);
+  const [activeQueue, setActiveQueue] = useState("actionable");
   const reviewableMatches = isAdmin ? matches.filter(isReviewableMatch) : matches;
-  const archivedMatches = isAdmin ? matches.filter((match) => !isReviewableMatch(match)) : [];
+  const workbenchMatches = isAdmin ? matches : reviewableMatches;
+  const workQueues = useMemo(() => buildMatchWorkQueues(workbenchMatches, settings), [workbenchMatches, settings]);
+  const visibleQueueDefs = isAdmin ? MATCH_WORK_QUEUE_DEFS : MATCH_WORK_QUEUE_DEFS.filter((queue) => queue.id !== "archived");
+  const activeQueueDef = visibleQueueDefs.find((queue) => queue.id === activeQueue) || visibleQueueDefs[0];
+  const activeMatches = workQueues[activeQueueDef.id] || [];
   const reviewCounts = matches.reduce(
     (counts, match) => {
-      const recognition = buildMatchRecognition(match, settings);
+      const diagnostic = buildMatchDiagnostic(match, settings);
       if (match.status === "待确认") counts.pending += 1;
       if (match.status === "已确认") counts.ready += 1;
       if (match.status === "已入库") counts.stored += 1;
-      if (recognition.rankedLadder || !recognition.meetsThreshold || (recognition.meetsThreshold && !recognition.fullInhouse)) counts.needsReview += 1;
+      if (diagnostic.queue.id === "needsReview" || diagnostic.queue.id === "waiting") counts.needsReview += 1;
       return counts;
     },
     { pending: 0, ready: 0, stored: 0, needsReview: 0 },
@@ -2410,7 +2528,8 @@ function MatchesView({
             <div className="rail-section">
               <span className="rail-label">有效内战阈值</span>
               <div className="slider-readout">{threshold} / 10 人</div>
-              <input min="2" max="10" value={threshold} type="range" onChange={(event) => setThreshold(Number(event.target.value))} />
+              <input min="2" max="10" value={threshold} type="range" readOnly disabled />
+              <small>需要调整时请打开同步设置保存。</small>
             </div>
             <div className="rail-section">
               <span className="rail-label">当前日期范围</span>
@@ -2444,7 +2563,10 @@ function MatchesView({
       </aside>
 
       <div className="view-stack">
-        <Panel title="比赛识别" action={<span className={`status-pill ${isAdmin ? "status-success" : "status-muted"}`}>{isAdmin ? "数据同步正常" : "公开只读"}</span>}>
+        <Panel
+          title="比赛识别工作台"
+          action={<span className={`status-pill ${isAdmin ? "status-success" : "status-muted"}`}>{isAdmin ? "数据同步正常" : "公开只读"}</span>}
+        >
           {isAdmin && (
             <>
               <div className="manual-add">
@@ -2464,53 +2586,65 @@ function MatchesView({
               {manualMessage && <p className="inline-message">{manualMessage}</p>}
             </>
           )}
+          <div className="workbench-tabs">
+            {visibleQueueDefs.map((queue) => (
+              <button
+                className={queue.id === activeQueueDef.id ? "active" : ""}
+                type="button"
+                key={queue.id}
+                onClick={() => setActiveQueue(queue.id)}
+              >
+                <span>{queue.label}</span>
+                <strong>{workQueues[queue.id]?.length || 0}</strong>
+              </button>
+            ))}
+          </div>
+          <div className="workbench-subhead">
+            <span className="status-pill status-info">{activeQueueDef.label}</span>
+            <p>
+              {activeQueueDef.id === "actionable" && "优先处理这里：完整内战可确认，已确认比赛可入库计分。"}
+              {activeQueueDef.id === "needsReview" && "这些比赛已经有一定信息，但人数、阵营或胜负仍需要人工判断。"}
+              {activeQueueDef.id === "waiting" && "这些比赛还在等 OpenDota/Steam 返回更多详情，可稍后重新识别。"}
+              {activeQueueDef.id === "stored" && "这些比赛已经进入积分榜，如有误操作可以查看详情后撤销入库。"}
+              {activeQueueDef.id === "archived" && "这些比赛不会进入公开候选和积分榜，可以恢复到待确认。"}
+              {activeQueueDef.id === "all" && "全部比赛记录，按时间倒序展示。"}
+            </p>
+          </div>
           <MatchQueue
-            matches={reviewableMatches}
+            matches={activeMatches}
             onConfirm={onConfirm}
             onReject={onReject}
+            onRestore={onRestore}
             onRollback={onRollback}
             onView={onView}
             onRefresh={onRefresh}
             refreshingMatchIds={refreshingMatchIds}
             isAdmin={isAdmin}
             settings={settings}
+            emptyTitle={activeQueueDef.empty}
+            emptyBody="换到其他队列查看，或手动输入 Match ID 重新识别。"
           />
         </Panel>
 
-        {isAdmin && archivedMatches.length > 0 && (
-          <Panel title="已驳回/隐藏记录" action={<span className="status-pill status-muted">{archivedMatches.length} 场</span>}>
-            <p className="panel-note">这些比赛不会进入公开候选和积分榜；可以查看详情、重新识别，或恢复到待确认。</p>
-            <MatchQueue
-              matches={archivedMatches}
-              onConfirm={onConfirm}
-              onReject={onReject}
-              onRestore={onRestore}
-              onRollback={onRollback}
-              onView={onView}
-              onRefresh={onRefresh}
-              refreshingMatchIds={refreshingMatchIds}
-              isAdmin={isAdmin}
-              settings={settings}
-            />
-          </Panel>
-        )}
-
-        <div className="note-grid">
-          {reviewableMatches.slice(0, 3).map((match) => {
-            const recognition = buildMatchRecognition(match, settings);
-            const reviewHint = buildReviewActionHint(match, recognition);
+        {activeMatches.length > 0 && (
+          <div className="note-grid">
+            {activeMatches.slice(0, 3).map((match) => {
+              const diagnostic = buildMatchDiagnostic(match, settings);
+              const recognition = diagnostic.recognition;
+              const reviewHint = buildReviewActionHint(match, recognition);
             return (
               <article className="review-note" key={`note-${match.id}`}>
                 <div>
                   <span className={`status-pill status-${recognition.tone}`}>{recognition.label}</span>
-                  <span className={`status-pill status-${reviewHint.tone}`}>{reviewHint.title}</span>
+                  <span className={`status-pill status-${diagnostic.queue.tone}`}>{diagnostic.queue.label}</span>
                   <strong>{match.id}</strong>
                 </div>
-                <p>{match.notes || recognition.verdict}</p>
+                <p>{diagnostic.reasons[0] || match.notes || reviewHint.body}</p>
               </article>
             );
-          })}
-        </div>
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

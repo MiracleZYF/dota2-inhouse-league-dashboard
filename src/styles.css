@@ -1105,6 +1105,66 @@ button:disabled {
   align-items: center;
 }
 
+.workbench-tabs {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 18px 12px;
+}
+
+.workbench-tabs button {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 5px;
+  color: var(--muted);
+  background: rgba(7, 16, 24, 0.42);
+  text-align: left;
+}
+
+.workbench-tabs button.active {
+  border-color: rgba(52, 215, 181, 0.42);
+  color: var(--text);
+  background: rgba(52, 215, 181, 0.1);
+}
+
+.workbench-tabs span,
+.workbench-tabs strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-tabs span {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.workbench-tabs strong {
+  min-width: 28px;
+  color: var(--teal);
+  font-size: 20px;
+  text-align: right;
+}
+
+.workbench-subhead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 18px 14px;
+}
+
+.workbench-subhead p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .match-table .ghost-button,
 .match-table .danger-button,
 .match-table .primary-button {
@@ -1152,11 +1212,11 @@ button:disabled {
 }
 
 .recognition-cell {
-  min-width: 190px;
+  min-width: 240px;
 }
 
 .review-hint-cell {
-  min-width: 132px;
+  min-width: 168px;
 }
 
 .review-hint-cell small {
@@ -1176,6 +1236,20 @@ button:disabled {
   font-size: 12px;
   line-height: 1.45;
   white-space: normal;
+}
+
+.diagnostic-tags {
+  max-width: 360px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.diagnostic-tags .status-pill {
+  min-height: 24px;
+  padding: 0 7px;
+  font-size: 11px;
 }
 
 .match-hit-cell strong {
@@ -2865,6 +2939,10 @@ input[type="range"] {
   .review-workbench {
     grid-template-columns: 1fr;
   }
+
+  .workbench-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
@@ -2984,6 +3062,15 @@ input[type="range"] {
   .sync-run-main small,
   .audit-item-main p {
     grid-column: 1 / -1;
+  }
+
+  .workbench-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workbench-subhead {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .kpi-card {

@@ -355,6 +355,8 @@ export async function logAuditAction(env, { action, matchId = "", actor = "ÁÆ°Áê
 }
 
 function rowToMatch(row) {
+  const detail = parseJson(row.detail_json, null);
+  const detailPlayers = Array.isArray(detail?.players) ? detail.players : [];
   return {
     id: Number(row.id) || row.id,
     time: row.time || "",
@@ -370,6 +372,9 @@ function rowToMatch(row) {
     hidden: Boolean(row.hidden),
     isRankedLadder: Boolean(row.is_ranked_ladder),
     registeredPlayers: parseJson(row.registered_players_json, []),
+    detailSource: detail?.data_source || "",
+    detailPlayerCount: detailPlayers.length,
+    hasKnownWinner: hasBooleanWinner(detail),
   };
 }
 
