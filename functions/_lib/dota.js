@@ -389,6 +389,15 @@ export function playerSide(playerSlot) {
   return Number(playerSlot) < 128 ? "天辉" : "夜魇";
 }
 
+function hasBooleanWinner(match) {
+  return typeof match?.radiant_win === "boolean";
+}
+
+function playerWon(side, match) {
+  if (!hasBooleanWinner(match)) return null;
+  return side === "天辉" ? match.radiant_win : !match.radiant_win;
+}
+
 export function isRankedLadderMatch(match) {
   return [6, 7].includes(Number(match?.lobby_type));
 }
@@ -496,7 +505,7 @@ export function normalizeSteamMatchDetail(payload, matchId) {
     leagueid: Number(result.leagueid || 0),
     lobby_type: result.lobby_type,
     game_mode: result.game_mode,
-    radiant_win: Boolean(result.radiant_win),
+    radiant_win: hasBooleanWinner(result) ? result.radiant_win : null,
     start_time: result.start_time,
     duration: result.duration,
     data_source: "steam",
@@ -713,7 +722,7 @@ export function buildCandidatesFromRecentMatches(players, recentRows, dateRange,
         kills: match.kills,
         deaths: match.deaths,
         assists: match.assists,
-        result: side === "天辉" ? Boolean(match.radiant_win) : !match.radiant_win,
+        result: playerWon(side, match),
       });
     }
   });
@@ -757,7 +766,6 @@ export function buildCandidatesFromLeagueMatches(players, leagueMatches, dateRan
           const knownPlayer = accountId ? playerByAccount.get(accountId) : null;
           if (!knownPlayer) return null;
           const side = playerSide(player.player_slot);
-          const hasWinner = typeof match.radiant_win === "boolean";
           return {
             accountId,
             name: knownPlayer.name,
@@ -767,7 +775,7 @@ export function buildCandidatesFromLeagueMatches(players, leagueMatches, dateRan
             kills: player.kills,
             deaths: player.deaths,
             assists: player.assists,
-            result: hasWinner ? (side === "天辉" ? Boolean(match.radiant_win) : !match.radiant_win) : null,
+            result: playerWon(side, match),
           };
         })
         .filter(Boolean);
@@ -850,7 +858,7 @@ export function resolveMatchPlayers(match, detail, players) {
       assists: player.assists,
       goldPerMin: player.gold_per_min,
       xpPerMin: player.xp_per_min,
-      result: side === "天辉" ? Boolean(detail.radiant_win) : !detail.radiant_win,
+      result: playerWon(side, detail),
       isRegistered: Boolean(knownPlayer),
       identifySource: rosterPlayer ? "玩家库 ID 匹配" : fallbackPlayer ? "同步记录匹配" : "未匹配",
     };

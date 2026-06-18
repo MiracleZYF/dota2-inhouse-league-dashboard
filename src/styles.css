@@ -2519,6 +2519,11 @@ input[type="range"] {
   background: rgba(242, 91, 85, 0.12);
 }
 
+.result-pill.unknown {
+  color: var(--muted);
+  background: rgba(148, 163, 184, 0.12);
+}
+
 .empty-cell {
   color: var(--muted);
   text-align: center;

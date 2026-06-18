@@ -79,6 +79,14 @@ export async function onRequestPatch({ request, params, env }) {
     const body = await readJson(request);
     const status = body.status;
     if (!["待确认", "已确认", "已入库", "已驳回"].includes(status)) return json({ error: "比赛状态无效" }, { status: 400 });
+    if (status === "已入库") {
+      const currentMatch = await getMatch(env, params.matchId);
+      const players = currentMatch?.registeredPlayers || [];
+      const hasUnknownResult = players.some((player) => typeof player.result !== "boolean");
+      if (!players.length || hasUnknownResult) {
+        return json({ error: "这场比赛还没有明确胜负，暂不能入库计分。请等待 OpenDota/Steam 返回完整详情，或后续添加手动胜负修正。" }, { status: 400 });
+      }
+    }
     const match = await updateMatchStatus(env, params.matchId, status);
     return json({ match, matches: await getMatches(env) });
   } catch (error) {

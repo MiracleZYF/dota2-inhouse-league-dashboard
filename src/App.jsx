@@ -424,6 +424,16 @@ function parseSideCounts(sides) {
   };
 }
 
+function hasKnownResult(value) {
+  return typeof value === "boolean";
+}
+
+function resultMeta(value) {
+  if (value === true) return { known: true, won: true, label: "胜", className: "win" };
+  if (value === false) return { known: true, won: false, label: "负", className: "loss" };
+  return { known: false, won: false, label: "待定", className: "unknown" };
+}
+
 function buildMatchRecognition(match, settings = DEFAULT_SETTINGS, detail) {
   const registered = Number(match?.registered || 0);
   const total = Number(detail?.players?.length || match?.total || 10);
@@ -528,14 +538,14 @@ function resolveMatchPlayers(match, detail, players, heroNames = {}) {
         heroName: formatHeroName(player.hero_id, heroNames),
         kills: player.kills,
         deaths: player.deaths,
-        assists: player.assists,
-        goldPerMin: player.gold_per_min,
-        xpPerMin: player.xp_per_min,
-        result: side === "天辉" ? Boolean(detail.radiant_win) : !detail.radiant_win,
-        isRegistered: Boolean(knownPlayer),
-        identifySource: rosterPlayer ? "玩家库 ID 匹配" : fallbackPlayer ? "同步记录匹配" : "未匹配",
-      };
-    });
+      assists: player.assists,
+      goldPerMin: player.gold_per_min,
+      xpPerMin: player.xp_per_min,
+      result: hasKnownResult(detail.radiant_win) ? (side === "天辉" ? detail.radiant_win : !detail.radiant_win) : null,
+      isRegistered: Boolean(knownPlayer),
+      identifySource: rosterPlayer ? "玩家库 ID 匹配" : fallbackPlayer ? "同步记录匹配" : "未匹配",
+    };
+  });
   }
 
   return fallbackPlayers.map((player) => {
@@ -592,7 +602,7 @@ function buildCandidatesFromRecentMatches(players, recentRows, dateRange, settin
         kills: match.kills,
         deaths: match.deaths,
         assists: match.assists,
-        result: playerSide(match.player_slot) === "天辉" ? Boolean(match.radiant_win) : !match.radiant_win,
+        result: hasKnownResult(match.radiant_win) ? (playerSide(match.player_slot) === "天辉" ? match.radiant_win : !match.radiant_win) : null,
       });
     }
   });
@@ -627,8 +637,9 @@ function buildScoreEntries(players, matches, settings) {
         const accountId = registeredAccountId(matchPlayer);
         const rosterPlayer = playerByAccount.get(accountId);
         if (!rosterPlayer) return null;
+        if (!hasKnownResult(matchPlayer.result)) return null;
 
-        const won = Boolean(matchPlayer.result);
+        const meta = resultMeta(matchPlayer.result);
         return {
           id: `${match.id}-${accountId}`,
           matchId: match.id,
@@ -642,9 +653,10 @@ function buildScoreEntries(players, matches, settings) {
           kills: matchPlayer.kills,
           deaths: matchPlayer.deaths,
           assists: matchPlayer.assists,
-          result: won ? "胜" : "负",
-          won,
-          points: won ? settings.winPoints : settings.lossPoints,
+          result: meta.label,
+          won: meta.won,
+          resultClass: meta.className,
+          points: meta.won ? settings.winPoints : settings.lossPoints,
         };
       })
       .filter(Boolean),
@@ -655,7 +667,7 @@ function buildMatchScorePreview(displayedPlayers, settings = DEFAULT_SETTINGS) {
   const entries = displayedPlayers
     .filter((player) => player.isRegistered)
     .map((player) => {
-      const won = Boolean(player.result);
+      const meta = resultMeta(player.result);
       return {
         accountId: player.accountId || "-",
         playerName: player.name,
@@ -664,9 +676,11 @@ function buildMatchScorePreview(displayedPlayers, settings = DEFAULT_SETTINGS) {
         kills: player.kills,
         deaths: player.deaths,
         assists: player.assists,
-        won,
-        result: won ? "胜" : "负",
-        points: won ? settings.winPoints : settings.lossPoints,
+        won: meta.won,
+        result: meta.label,
+        resultClass: meta.className,
+        knownResult: meta.known,
+        points: meta.known ? (meta.won ? settings.winPoints : settings.lossPoints) : 0,
       };
     })
     .sort((a, b) => {
@@ -675,8 +689,9 @@ function buildMatchScorePreview(displayedPlayers, settings = DEFAULT_SETTINGS) {
     });
 
   const missingPlayers = displayedPlayers.filter((player) => !player.isRegistered);
-  const winners = entries.filter((entry) => entry.won);
-  const losers = entries.filter((entry) => !entry.won);
+  const winners = entries.filter((entry) => entry.knownResult && entry.won);
+  const losers = entries.filter((entry) => entry.knownResult && !entry.won);
+  const unknowns = entries.filter((entry) => !entry.knownResult);
 
   return {
     entries,
@@ -686,6 +701,7 @@ function buildMatchScorePreview(displayedPlayers, settings = DEFAULT_SETTINGS) {
     loserPoints: losers.reduce((total, entry) => total + entry.points, 0),
     winnerCount: winners.length,
     loserCount: losers.length,
+    unknownCount: unknowns.length,
   };
 }
 
@@ -719,6 +735,7 @@ function buildReviewWarnings(recognition, scorePreview, status) {
   if (!recognition.meetsThreshold) warnings.push({ tone: "warning", title: "命中人数不足", body: `当前命中 ${recognition.registered}/${recognition.threshold}，未达到有效内战阈值。` });
   if (recognition.meetsThreshold && !recognition.fullInhouse) warnings.push({ tone: "warning", title: "不是完整 10 人", body: "已达到阈值，但仍建议核对未匹配玩家是否为群友小号或未登记账号。" });
   if (recognition.parsed && !recognition.balancedSides) warnings.push({ tone: "warning", title: "双方命中不均衡", body: `当前天辉 ${recognition.radiant} / 夜魇 ${recognition.dire}，可能存在缺失 ID。` });
+  if (scorePreview.unknownCount) warnings.push({ tone: "warning", title: "胜负尚未解析", body: `${scorePreview.unknownCount} 名命中玩家没有明确胜负；当前不会产生计分，等待完整详情后再入库。` });
   if (scorePreview.missingPlayers.length) warnings.push({ tone: "info", title: "存在未匹配玩家", body: `${scorePreview.missingPlayers.length} 名玩家没有匹配到玩家库，入库后不会给他们计分。` });
   if (status === "已入库") warnings.push({ tone: "success", title: "已入库", body: "这场比赛已经计入积分榜，后续重复确认不会新增计分流水。" });
   return warnings;
@@ -1606,6 +1623,11 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
                   <small>+{scorePreview.loserPoints}</small>
                 </div>
                 <div>
+                  <span>待定</span>
+                  <strong>{scorePreview.unknownCount} 人</strong>
+                  <small>+0</small>
+                </div>
+                <div>
                   <span>合计</span>
                   <strong>{scorePreview.totalPoints}</strong>
                   <small>积分</small>
@@ -1630,9 +1652,9 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
                           <td>{entry.side}</td>
                           <td>{entry.heroName}</td>
                           <td>
-                            <span className={`result-pill ${entry.won ? "win" : "loss"}`}>{entry.result}</span>
+                            <span className={`result-pill ${entry.resultClass}`}>{entry.result}</span>
                           </td>
-                          <td className="score">+{entry.points}</td>
+                          <td className="score">{entry.points ? `+${entry.points}` : "-"}</td>
                         </tr>
                       ))
                     ) : (
@@ -1719,7 +1741,7 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
                         <td>{player.goldPerMin ?? "-"}</td>
                         <td>{player.xpPerMin ?? "-"}</td>
                         <td>
-                          <span className={`result-pill ${player.result ? "win" : "loss"}`}>{player.result ? "胜" : "负"}</span>
+                          <span className={`result-pill ${resultMeta(player.result).className}`}>{resultMeta(player.result).label}</span>
                         </td>
                       </tr>
                     ))
@@ -2155,7 +2177,7 @@ function ScoreEntriesTable({ entries, limit = 30 }) {
               <td>{entry.playerName}</td>
               <td>{entry.side}</td>
               <td>
-                <span className={`result-pill ${entry.won ? "win" : "loss"}`}>{entry.result}</span>
+                <span className={`result-pill ${entry.resultClass || (entry.won ? "win" : "loss")}`}>{entry.result}</span>
               </td>
               <td>
                 {entry.kills ?? "-"} / {entry.deaths ?? "-"} / {entry.assists ?? "-"}
