@@ -9,6 +9,8 @@ export const DEFAULT_SETTINGS = {
   lossPoints: 3,
   autoSync: true,
   allowPartialMatches: true,
+  useLeagueScan: true,
+  leagueId: "19220",
 };
 
 const INITIAL_PLAYERS = [
@@ -552,6 +554,68 @@ export async function getSteamMatchDetail(env, matchId) {
   return { ok: true, status: response.status, detail, payload };
 }
 
+export async function getSteamLeagueMatches(env, leagueId, { matchesRequested = 100 } = {}) {
+  const cleanLeagueId = String(leagueId || "").trim();
+  if (!cleanLeagueId) return { ok: false, status: 0, error: "League ID 未配置", matches: [] };
+  if (!env.STEAM_API_KEY) return { ok: false, status: 0, error: "STEAM_API_KEY 未配置", matches: [] };
+
+  let response;
+  let payload = null;
+  let rawText = "";
+  try {
+    response = await steamDotaFetch(env, "GetMatchHistory", {
+      league_id: cleanLeagueId,
+      min_players: 10,
+      matches_requested: Math.min(Math.max(Number(matchesRequested) || 100, 1), 100),
+    });
+    rawText = await response.text().catch(() => "");
+    payload = parseJsonPayload(rawText);
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      error: error instanceof Error ? error.message : "Steam 联赛比赛列表请求失败",
+      matches: [],
+    };
+  }
+
+  if (!response.ok) {
+    const message = extractSteamApiMessage(payload, rawText);
+    return {
+      ok: false,
+      status: response.status,
+      error: message ? `Steam GetMatchHistory HTTP ${response.status}：${message}` : `Steam GetMatchHistory HTTP ${response.status}`,
+      matches: [],
+      payload,
+    };
+  }
+
+  const result = payload?.result || {};
+  const matches = Array.isArray(result.matches) ? result.matches : [];
+  const status = Number(result.status || 0);
+  if (status && status !== 1 && !matches.length) {
+    const message = extractSteamApiMessage(payload, rawText);
+    return {
+      ok: false,
+      status: response.status,
+      steamStatus: status,
+      error: message ? `Steam GetMatchHistory status=${status}：${message}` : `Steam GetMatchHistory status=${status}`,
+      matches: [],
+      payload,
+    };
+  }
+
+  return {
+    ok: true,
+    status: response.status,
+    steamStatus: status || 1,
+    matches,
+    totalResults: Number(result.total_results || matches.length || 0),
+    resultsRemaining: Number(result.results_remaining || 0),
+    payload,
+  };
+}
+
 export async function fetchMatchDetailWithFallback(env, matchId, { requestOpenDotaParse = false, useSteam = true } = {}) {
   const openDotaResponse = await openDotaFetch(env, `/matches/${matchId}`);
   let parseRequested = false;
@@ -674,6 +738,88 @@ export function buildCandidatesFromRecentMatches(players, recentRows, dateRange,
     })
     .filter((entry) => entry.registered >= settings.minRegisteredPlayers && (settings.allowPartialMatches || entry.registered >= 10))
     .sort((a, b) => b.startTime - a.startTime);
+}
+
+export function buildCandidatesFromLeagueMatches(players, leagueMatches, dateRange, settings, leagueId) {
+  const { startSeconds, endSeconds, valid } = getDateRangeSeconds(dateRange);
+  if (!valid) return [];
+  const playerByAccount = new Map(players.map((player) => [String(player.dotaId), player]));
+  const threshold = Number(settings?.minRegisteredPlayers || DEFAULT_SETTINGS.minRegisteredPlayers);
+
+  return (leagueMatches || [])
+    .filter((match) => match?.match_id && match.start_time)
+    .filter((match) => match.start_time >= startSeconds && match.start_time <= endSeconds)
+    .map((match) => {
+      const matchPlayers = Array.isArray(match.players) ? match.players : [];
+      const registeredPlayers = matchPlayers
+        .map((player) => {
+          const accountId = player.account_id ? String(player.account_id) : "";
+          const knownPlayer = accountId ? playerByAccount.get(accountId) : null;
+          if (!knownPlayer) return null;
+          const side = playerSide(player.player_slot);
+          const hasWinner = typeof match.radiant_win === "boolean";
+          return {
+            accountId,
+            name: knownPlayer.name,
+            side,
+            playerSlot: player.player_slot,
+            heroId: player.hero_id,
+            kills: player.kills,
+            deaths: player.deaths,
+            assists: player.assists,
+            result: hasWinner ? (side === "天辉" ? Boolean(match.radiant_win) : !match.radiant_win) : null,
+          };
+        })
+        .filter(Boolean);
+      const radiantCount = registeredPlayers.filter((player) => player.side === "天辉").length;
+      const direCount = registeredPlayers.filter((player) => player.side === "夜魇").length;
+      const registered = registeredPlayers.length;
+      const total = Math.max(matchPlayers.length || 0, 10);
+      const fullInhouse = registered >= 10;
+
+      return {
+        id: Number(match.match_id),
+        time: formatMatchTime(match.start_time),
+        startTime: match.start_time,
+        lobbyType: match.lobby_type,
+        gameMode: match.game_mode,
+        total,
+        status: "待确认",
+        score: fullInhouse ? "联赛房完整命中" : `联赛房命中 ${registered}`,
+        notes: fullInhouse
+          ? `Steam 联赛房 ${leagueId} 扫描到完整 10 人登记内战，等待管理员复核。`
+          : `Steam 联赛房 ${leagueId} 扫描到 ${registered} 名登记玩家，建议人工复核是否为群内战。`,
+        registered,
+        sides: `${radiantCount} : ${direCount}`,
+        hidden: false,
+        isRankedLadder: false,
+        registeredPlayers,
+      };
+    })
+    .filter((entry) => entry.registered >= threshold && (settings.allowPartialMatches || entry.registered >= 10))
+    .sort((a, b) => b.startTime - a.startTime);
+}
+
+export function mergeMatchCandidates(candidates) {
+  const grouped = new Map();
+
+  (candidates || []).forEach((candidate) => {
+    if (!candidate?.id) return;
+    const key = String(candidate.id);
+    const current = grouped.get(key);
+    if (!current || Number(candidate.registered || 0) > Number(current.registered || 0)) {
+      grouped.set(key, candidate);
+      return;
+    }
+    if (current && candidate.notes && !current.notes.includes(candidate.notes)) {
+      grouped.set(key, {
+        ...current,
+        notes: `${current.notes} 另有来源也识别到该场。`,
+      });
+    }
+  });
+
+  return Array.from(grouped.values()).sort((a, b) => Number(b.startTime || 0) - Number(a.startTime || 0));
 }
 
 export function resolveMatchPlayers(match, detail, players) {

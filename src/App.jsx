@@ -46,6 +46,8 @@ const DEFAULT_SETTINGS = {
   lossPoints: 3,
   autoSync: true,
   allowPartialMatches: true,
+  useLeagueScan: true,
+  leagueId: "19220",
 };
 const DATE_RANGE_PRESETS = [
   { id: "season", label: "本周期" },
@@ -1999,7 +2001,7 @@ function MatchesView({ matches, onAddMatch, onConfirm, onReject, onView, dateRan
       return;
     }
     setAddingMatch(true);
-    setManualMessage(`正在识别 Match ID ${cleanId}，会同时尝试拉取 OpenDota 详情...`);
+    setManualMessage(`正在识别 Match ID ${cleanId}，会同时尝试拉取 OpenDota/Steam 详情...`);
     try {
       const result = await onAddMatch?.(cleanId);
       setManualMessage(result?.message || `Match ID ${cleanId} 已加入候选队列。`);
@@ -2057,18 +2059,11 @@ function MatchesView({ matches, onAddMatch, onConfirm, onReject, onView, dateRan
             </div>
             <div className="rail-section">
               <span className="rail-label">识别来源</span>
-              <label className="check-row">
-                <input type="checkbox" defaultChecked />
-                OpenDota
-              </label>
-              <label className="check-row">
-                <input type="checkbox" defaultChecked />
-                Steam API
-              </label>
-              <label className="check-row">
-                <input type="checkbox" />
-                群截图佐证
-              </label>
+              <span className={`status-pill ${settings.useLeagueScan && settings.leagueId ? "status-success" : "status-muted"}`}>
+                联赛房 {settings.leagueId || "未设置"}
+              </span>
+              <span className="status-pill status-success">OpenDota recentMatches</span>
+              <span className="status-pill status-success">Steam MatchDetails 兜底</span>
             </div>
           </>
         ) : (
@@ -2561,6 +2556,16 @@ function SettingsModal({ settings, onChange, onClose, onReset }) {
           </label>
 
           <label className="setting-field">
+            <span>联赛房 League ID</span>
+            <input
+              inputMode="numeric"
+              value={settings.leagueId || ""}
+              onChange={(event) => updateSetting("leagueId", event.target.value.replace(/\D/g, ""))}
+              placeholder="19220"
+            />
+          </label>
+
+          <label className="setting-field">
             <span>有效内战最低登记人数</span>
             <strong>{settings.minRegisteredPlayers} / 10 人</strong>
             <input
@@ -2609,12 +2614,24 @@ function SettingsModal({ settings, onChange, onClose, onReset }) {
           <label className="switch-row">
             <span>
               <strong>自动同步</strong>
-              <small>每日 03:00 拉取测试 ID 的 recentMatches</small>
+              <small>每日 03:00 拉取联赛房与玩家 recentMatches</small>
             </span>
             <input
               type="checkbox"
               checked={settings.autoSync}
               onChange={(event) => updateSetting("autoSync", event.target.checked)}
+            />
+          </label>
+
+          <label className="switch-row">
+            <span>
+              <strong>启用 Steam 联赛房扫描</strong>
+              <small>优先按 League ID 查近期比赛，再用玩家记录补漏</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={settings.useLeagueScan}
+              onChange={(event) => updateSetting("useLeagueScan", event.target.checked)}
             />
           </label>
 
@@ -2935,7 +2952,7 @@ export function App() {
       return;
     }
     setSyncing(true);
-    setLastSync("正在拉取 OpenDota");
+    setLastSync("正在扫描联赛房与 OpenDota");
     try {
       const data = await apiRequest("/api/sync-recent", {
         method: "POST",
@@ -2945,13 +2962,17 @@ export function App() {
       const newCandidates = data.newCandidates || [];
       const duplicatedCount = data.duplicatedCount || 0;
       const failedCount = data.failedCount || 0;
+      const leagueScan = data.leagueScan || {};
+      const leagueSummary = leagueScan.enabled
+        ? `联赛房 ${leagueScan.leagueId || settings.leagueId} 扫到 ${leagueScan.fetched || 0} 场，命中 ${leagueScan.candidateCount || 0} 场`
+        : "联赛房扫描未启用";
       if (Array.isArray(data.matches)) setMatches(data.matches);
       setLastSync(data.message || `${newCandidates.length} 新增，${duplicatedCount} 重复已跳过`);
       setNotifications((current) => [
         {
           id: `sync-${Date.now()}`,
           title: `同步完成：${newCandidates.length} 场新增`,
-          body: `${dateRangeLabel}，${duplicatedCount} 场重复已跳过，${failedCount} 个账号拉取失败。`,
+          body: `${dateRangeLabel}，${leagueSummary}，${duplicatedCount} 场重复已跳过，${failedCount} 个账号拉取失败。`,
           time: "刚刚",
           read: false,
           action: "matches",
