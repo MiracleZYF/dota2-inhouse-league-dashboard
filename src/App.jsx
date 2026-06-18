@@ -1121,15 +1121,54 @@ function actionLabel(action) {
   return labels[action] || action || "操作";
 }
 
-function SyncStatusPanel({ syncRuns = [], onNavigate }) {
+function runKindLabel(kind) {
+  if (kind === "auto") return "自动";
+  if (kind === "manual") return "手动";
+  return kind || "-";
+}
+
+function compactJson(value) {
+  if (!value || typeof value !== "object") return "";
+  const json = JSON.stringify(value, null, 2);
+  return json.length > 1000 ? `${json.slice(0, 1000)}\n...` : json;
+}
+
+function syncRunIssueList(run) {
+  const details = run?.details || {};
+  const issues = [];
+  if (details.failedCount) issues.push(`${details.failedCount} 个玩家 recentMatches 拉取失败`);
+  if (details.leagueScan?.failed) issues.push(`联赛房扫描失败：${details.leagueScan.error || "未知错误"}`);
+  const retryResults = Array.isArray(details.retry?.results) ? details.retry.results : [];
+  const retryFailed = retryResults.filter((item) => item && !item.ok).length;
+  if (retryFailed) issues.push(`${retryFailed} 场重试解析仍未成功`);
+  return issues;
+}
+
+function SyncStatusPanel({ syncRuns = [], onNavigate, onSyncNow, syncing = false, dateRangeLabel, dateRangeValid = true, isAdmin = false }) {
+  const [expandedRunId, setExpandedRunId] = useState("");
   const latest = syncRuns[0];
   const meta = syncStatusMeta(latest);
   const details = latest?.details || {};
   const leagueScan = details.leagueScan || {};
   const retry = details.retry || {};
+  const issues = syncRunIssueList(latest);
 
   return (
-    <Panel title="自动同步状态" action={<span className={`status-pill status-${meta.tone}`}>{meta.label}</span>} className="ops-panel">
+    <Panel
+      title="自动同步状态"
+      action={
+        <div className="panel-actions">
+          <span className={`status-pill status-${meta.tone}`}>{meta.label}</span>
+          {isAdmin && (
+            <button className="ghost-button compact-button" type="button" onClick={onSyncNow} disabled={syncing || !dateRangeValid}>
+              <RefreshCw size={15} className={syncing ? "spin-icon" : ""} />
+              {syncing ? "同步中" : "立即同步"}
+            </button>
+          )}
+        </div>
+      }
+      className="ops-panel"
+    >
       {latest ? (
         <>
           <div className="sync-status-grid">
@@ -1155,6 +1194,43 @@ function SyncStatusPanel({ syncRuns = [], onNavigate }) {
             </div>
           </div>
           <p className="panel-note">{latest.summary}</p>
+          {issues.length > 0 && (
+            <div className="sync-issues">
+              {issues.map((issue) => (
+                <span key={issue}>{issue}</span>
+              ))}
+            </div>
+          )}
+          <div className="sync-run-list">
+            {syncRuns.slice(0, 5).map((run) => {
+              const runMeta = syncStatusMeta(run);
+              const isExpanded = String(expandedRunId) === String(run.id);
+              return (
+                <article className="sync-run-item" key={run.id}>
+                  <button className="sync-run-main" type="button" onClick={() => setExpandedRunId(isExpanded ? "" : run.id)}>
+                    <span className={`status-dot status-${runMeta.tone}`} />
+                    <strong>{runKindLabel(run.kind)}同步</strong>
+                    <span>{formatBackendTime(run.finishedAt)}</span>
+                    <small>{run.summary}</small>
+                    <ChevronDown size={15} className={isExpanded ? "rotate-icon" : ""} />
+                  </button>
+                  {isExpanded && (
+                    <div className="record-detail">
+                      <div>
+                        <span>运行结果</span>
+                        <strong>{runMeta.label}</strong>
+                      </div>
+                      <div>
+                        <span>当前检索段</span>
+                        <strong>{dateRangeLabel || "-"}</strong>
+                      </div>
+                      {compactJson(run.details) && <pre>{compactJson(run.details)}</pre>}
+                    </div>
+                  )}
+                </article>
+              );
+            })}
+          </div>
         </>
       ) : (
         <EmptyState title="暂无同步记录" body="首次手动同步或每日自动同步完成后，这里会显示结果。" />
@@ -1168,20 +1244,41 @@ function SyncStatusPanel({ syncRuns = [], onNavigate }) {
 }
 
 function AuditLogPanel({ auditLogs = [] }) {
+  const [expandedLogId, setExpandedLogId] = useState("");
   return (
     <Panel title="最近操作记录" action={<span className="status-pill status-info">{auditLogs.length} 条</span>} className="ops-panel">
       {auditLogs.length ? (
         <div className="audit-list">
-          {auditLogs.slice(0, 8).map((item) => (
-            <article className="audit-item" key={item.id}>
-              <div>
-                <strong>{actionLabel(item.action)}</strong>
-                <span>{item.matchId ? `Match ID ${item.matchId}` : item.actor}</span>
-              </div>
-              <p>{item.summary}</p>
-              <time>{formatBackendTime(item.createdAt)}</time>
-            </article>
-          ))}
+          {auditLogs.slice(0, 8).map((item) => {
+            const isExpanded = String(expandedLogId) === String(item.id);
+            const detail = compactJson(item.details);
+            return (
+              <article className="audit-item" key={item.id}>
+                <button className="audit-item-main" type="button" onClick={() => setExpandedLogId(isExpanded ? "" : item.id)}>
+                  <div>
+                    <strong>{actionLabel(item.action)}</strong>
+                    <span>{item.matchId ? `Match ID ${item.matchId}` : item.actor}</span>
+                  </div>
+                  <p>{item.summary}</p>
+                  <time>{formatBackendTime(item.createdAt)}</time>
+                  <ChevronDown size={15} className={isExpanded ? "rotate-icon" : ""} />
+                </button>
+                {isExpanded && (
+                  <div className="record-detail">
+                    <div>
+                      <span>执行人</span>
+                      <strong>{item.actor || "-"}</strong>
+                    </div>
+                    <div>
+                      <span>动作</span>
+                      <strong>{actionLabel(item.action)}</strong>
+                    </div>
+                    {detail && <pre>{detail}</pre>}
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </div>
       ) : (
         <EmptyState title="暂无操作记录" body="确认、入库、撤销、修正胜方等操作会记录在这里。" />
@@ -1965,7 +2062,26 @@ function MatchDetailModal({
   );
 }
 
-function Overview({ players, matches, captains, syncRuns, auditLogs, onNavigate, onConfirm, onReject, onRollback, onView, onRefresh, refreshingMatchIds = [], settings, isAdmin = false }) {
+function Overview({
+  players,
+  matches,
+  captains,
+  syncRuns,
+  auditLogs,
+  onNavigate,
+  onConfirm,
+  onReject,
+  onRollback,
+  onView,
+  onRefresh,
+  onSyncNow,
+  syncing = false,
+  dateRangeLabel,
+  dateRangeValid = true,
+  refreshingMatchIds = [],
+  settings,
+  isAdmin = false,
+}) {
   const pendingCount = matches.filter((match) => match.status === "待确认").length;
   const readyToStoreCount = matches.filter((match) => match.status === "已确认").length;
   const effectiveMatches = matches.filter(isScoredInhouseMatch);
@@ -1986,7 +2102,15 @@ function Overview({ players, matches, captains, syncRuns, auditLogs, onNavigate,
       </div>
 
       <div className="ops-grid">
-        <SyncStatusPanel syncRuns={syncRuns} onNavigate={onNavigate} />
+        <SyncStatusPanel
+          syncRuns={syncRuns}
+          onNavigate={onNavigate}
+          onSyncNow={onSyncNow}
+          syncing={syncing}
+          dateRangeLabel={dateRangeLabel}
+          dateRangeValid={dateRangeValid}
+          isAdmin={isAdmin}
+        />
         <AuditLogPanel auditLogs={auditLogs} />
       </div>
 
@@ -2947,6 +3071,7 @@ export function App() {
   const [refreshingMatchIds, setRefreshingMatchIds] = useState([]);
   const [backendReady, setBackendReady] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
+  const [dataRefreshing, setDataRefreshing] = useState(false);
   const [profileSyncing, setProfileSyncing] = useState(false);
   const [profileSyncMessage, setProfileSyncMessage] = useState("");
   const [matchDetails, setMatchDetails] = useState({});
@@ -3004,6 +3129,23 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!backendReady) return undefined;
+    const intervalId = window.setInterval(async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      try {
+        const data = await apiRequest("/api/bootstrap");
+        if (Array.isArray(data.players)) setPlayers(data.players);
+        applyServerState(data);
+        if (data.settings) setSettings((current) => ({ ...current, ...data.settings }));
+        setLastSync("状态已自动刷新");
+      } catch {
+        // 后台轮询失败不打扰正在操作的人，下一轮会继续尝试。
+      }
+    }, 120000);
+    return () => window.clearInterval(intervalId);
+  }, [backendReady]);
+
   function updateDateRangeField(field, value) {
     setDateRange((current) => ({ ...current, [field]: value, preset: "custom" }));
   }
@@ -3020,6 +3162,67 @@ export function App() {
     if (Array.isArray(data?.matches)) setMatches(data.matches);
     if (Array.isArray(data?.syncRuns)) setSyncRuns(data.syncRuns);
     if (Array.isArray(data?.auditLogs)) setAuditLogs(data.auditLogs);
+  }
+
+  async function refreshBackendData() {
+    if (dataRefreshing) return;
+    setDataRefreshing(true);
+    try {
+      const data = await apiRequest("/api/bootstrap");
+      if (Array.isArray(data.players)) setPlayers(data.players);
+      applyServerState(data);
+      if (data.settings) setSettings((current) => ({ ...current, ...data.settings }));
+      setBackendReady(true);
+      setLastSync("状态已刷新");
+    } catch (error) {
+      setNotifications((current) => [
+        {
+          id: `refresh-error-${Date.now()}`,
+          title: "刷新状态失败",
+          body: error instanceof Error ? error.message : "读取 D1 数据失败，请稍后重试。",
+          time: "刚刚",
+          read: false,
+          action: "overview",
+        },
+        ...current.slice(0, 5),
+      ]);
+    } finally {
+      setDataRefreshing(false);
+    }
+  }
+
+  function exportDataSnapshot() {
+    const exportedAt = new Date().toISOString();
+    const snapshot = {
+      exportedAt,
+      seasonName: settings.seasonName,
+      dateRange,
+      settings,
+      players,
+      matches,
+      syncRuns,
+      auditLogs,
+    };
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `dota2-inhouse-backup-${exportedAt.slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setNotifications((current) => [
+      {
+        id: `export-${Date.now()}`,
+        title: "数据已导出",
+        body: "已生成当前玩家、比赛、同步状态和操作记录的 JSON 备份。",
+        time: "刚刚",
+        read: false,
+        action: "overview",
+      },
+      ...current.slice(0, 5),
+    ]);
   }
 
   async function confirmMatch(matchId) {
@@ -3631,11 +3834,15 @@ export function App() {
           <div className="topbar-actions">
             {isAdmin ? (
               <>
+                <button className="ghost-button" type="button" onClick={refreshBackendData} disabled={dataRefreshing}>
+                  <RefreshCw size={16} className={dataRefreshing ? "spin-icon" : ""} />
+                  {dataRefreshing ? "刷新中" : "刷新状态"}
+                </button>
                 <button className="ghost-button" type="button" onClick={syncNow} disabled={syncing || !dateRangeStatus.valid}>
-                  <RefreshCw size={16} />
+                  <RefreshCw size={16} className={syncing ? "spin-icon" : ""} />
                   {syncing ? "同步中" : "手动同步"}
                 </button>
-                <button className="ghost-button" type="button">
+                <button className="ghost-button" type="button" onClick={exportDataSnapshot}>
                   <Download size={16} />
                   导出数据
                 </button>
@@ -3680,6 +3887,10 @@ export function App() {
             onRollback={rollbackMatch}
             onView={openMatch}
             onRefresh={refreshMatch}
+            onSyncNow={syncNow}
+            syncing={syncing}
+            dateRangeLabel={dateRangeLabel}
+            dateRangeValid={dateRangeStatus.valid}
             refreshingMatchIds={refreshingMatchIds}
             settings={settings}
             isAdmin={isAdmin}
