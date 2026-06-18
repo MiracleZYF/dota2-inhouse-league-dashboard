@@ -1,4 +1,4 @@
-import { ensureDatabase, getPlayers, json, readJson, requireAdmin, updatePlayer } from "../../_lib/dota.js";
+import { deletePlayer, ensureDatabase, getPlayers, json, readJson, requireAdmin, updatePlayer } from "../../_lib/dota.js";
 
 export async function onRequestPatch({ request, params, env }) {
   const authError = requireAdmin(request, env);
@@ -24,5 +24,20 @@ export async function onRequestPatch({ request, params, env }) {
     });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "更新玩家失败" }, { status: 500 });
+  }
+}
+
+export async function onRequestDelete({ request, params, env }) {
+  const authError = requireAdmin(request, env);
+  if (authError) return authError;
+
+  try {
+    await ensureDatabase(env);
+    const dotaId = String(params.dotaId || "").trim();
+    if (!/^\d+$/.test(dotaId)) return json({ error: "DOTA2 ID 无效" }, { status: 400 });
+    const players = await deletePlayer(env, dotaId);
+    return json({ players, message: `已将 ${dotaId} 从玩家库移除。` });
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : "移除玩家失败" }, { status: 500 });
   }
 }

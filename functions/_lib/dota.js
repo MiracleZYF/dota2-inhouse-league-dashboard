@@ -340,6 +340,24 @@ export async function upsertPlayers(env, players) {
   return getPlayers(env);
 }
 
+export async function replacePlayers(env, players) {
+  const desiredIds = new Set((players || []).map((player) => String(player.dotaId || player.dota_id || "").trim()).filter(Boolean));
+  if (!desiredIds.size) return getPlayers(env);
+
+  const current = await env.DB.prepare("SELECT dota_id FROM players").all();
+  const deleteStatements = (current.results || [])
+    .filter((row) => !desiredIds.has(String(row.dota_id)))
+    .map((row) => env.DB.prepare("DELETE FROM players WHERE dota_id = ?").bind(String(row.dota_id)));
+
+  if (deleteStatements.length) await env.DB.batch(deleteStatements);
+  return upsertPlayers(env, players);
+}
+
+export async function deletePlayer(env, dotaId) {
+  await env.DB.prepare("DELETE FROM players WHERE dota_id = ?").bind(String(dotaId)).run();
+  return getPlayers(env);
+}
+
 export async function updatePlayer(env, dotaId, patch = {}) {
   const current = await env.DB.prepare("SELECT * FROM players WHERE dota_id = ?").bind(String(dotaId)).first();
   if (!current) return null;

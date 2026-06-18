@@ -366,6 +366,37 @@ async function apiRequest(path, { method = "GET", body, admin = false, retryAuth
   return data;
 }
 
+function csvCell(value) {
+  const text = String(value ?? "");
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function buildPlayersCsv(players) {
+  const headers = ["群昵称", "DOTA2 ID", "常用位置", "游戏昵称", "Steam 主页", "公开资料", "状态"];
+  const rows = players.map((player) => [
+    player.name,
+    player.dotaId,
+    player.role,
+    player.gameName,
+    player.profileUrl,
+    player.publicData ? "已同步" : "待同步",
+    player.status,
+  ]);
+  return [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+}
+
+function downloadTextFile(filename, content, type = "text/plain;charset=utf-8") {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 function registeredSideSummary(players) {
   const registeredPlayers = players.filter((player) => player.isRegistered);
   const radiant = registeredPlayers.filter((player) => player.side === "天辉").length;
@@ -1730,19 +1761,46 @@ function BracketPreview({ captains }) {
 }
 
 function ImportModal({ onClose, onImport }) {
-  const [draft, setDraft] = useState("夜魇术士,901230011,4 / 5\n天辉猛男,901230012,1 / 3");
+  const [draft, setDraft] = useState("155292084\n1255889937\n群昵称,901230011,4 / 5");
+  const [mode, setMode] = useState("append");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  function submit() {
-    const parsed = draft
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line, index) => {
-        const [name, dotaId, role] = line.split(",").map((value) => value?.trim());
-        return rosterPlayer(Date.now() + index, name || `新玩家 ${index + 1}`, dotaId || "待补充", role || "全能");
-      });
-    onImport(parsed);
-    onClose();
+  const parsedPlayers = useMemo(
+    () =>
+      draft
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line, index) => {
+          const parts = line.split(",").map((value) => value?.trim()).filter(Boolean);
+          const [first, second, third] = parts;
+          const parsed = /^\d+$/.test(first || "") && !second
+            ? rosterPlayer(0, `待补昵称${index + 1}`, first, "待补")
+            : /^\d+$/.test(first || "") && second
+              ? rosterPlayer(0, second || `待补昵称${index + 1}`, first, third || "待补")
+              : rosterPlayer(0, first || `新玩家 ${index + 1}`, second || "", third || "待补");
+          return { ...parsed, id: undefined };
+        })
+        .filter((player) => /^\d+$/.test(String(player.dotaId || ""))),
+    [draft],
+  );
+
+  async function submit() {
+    if (!parsedPlayers.length) {
+      setError("没有识别到有效的 DOTA2 ID。");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await onImport(parsedPlayers, { replace: mode === "replace" });
+      onClose();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "导入失败");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -1750,21 +1808,34 @@ function ImportModal({ onClose, onImport }) {
       <div className="modal" role="dialog" aria-modal="true" aria-label="导入玩家">
         <div className="modal-head">
           <div>
-            <h2>导入玩家</h2>
-            <p>每行格式：群昵称,DOTA2 ID,常用位置</p>
+            <h2>批量导入玩家</h2>
+            <p>支持每行一个 ID，或：群昵称,DOTA2 ID,常用位置</p>
           </div>
           <button className="icon-button" type="button" onClick={onClose} aria-label="关闭">
             <X size={18} />
           </button>
         </div>
+        <div className="segmented import-mode-tabs">
+          <button className={mode === "append" ? "active" : ""} type="button" onClick={() => setMode("append")}>
+            追加/更新
+          </button>
+          <button className={mode === "replace" ? "active" : ""} type="button" onClick={() => setMode("replace")}>
+            替换整份名单
+          </button>
+        </div>
+        {mode === "replace" && <p className="inline-warning">替换会移除未出现在本次导入内容里的玩家；已入库比赛仍会保留原始记录，但积分榜会按当前玩家库重新计算。</p>}
         <textarea value={draft} onChange={(event) => setDraft(event.target.value)} />
+        <div className="modal-meta-row">
+          <span>已识别 {parsedPlayers.length} 个有效 ID</span>
+          {error && <span className="form-error">{error}</span>}
+        </div>
         <div className="modal-actions">
-          <button className="ghost-button" type="button" onClick={onClose}>
+          <button className="ghost-button" type="button" onClick={onClose} disabled={saving}>
             取消
           </button>
-          <button className="primary-button" type="button" onClick={submit}>
+          <button className="primary-button" type="button" onClick={submit} disabled={saving || !parsedPlayers.length}>
             <Upload size={16} />
-            导入到玩家库
+            {saving ? "保存中" : mode === "replace" ? "替换玩家库" : "导入到玩家库"}
           </button>
         </div>
       </div>
@@ -1773,13 +1844,15 @@ function ImportModal({ onClose, onImport }) {
 }
 
 function PlayerEditModal({ player, onClose, onSave }) {
+  const isNew = Boolean(player?.isNew);
   const [draft, setDraft] = useState({
     name: player?.name || "",
+    dotaId: player?.dotaId || "",
     role: player?.role || "",
     gameName: player?.gameName || "",
     profileUrl: player?.profileUrl || "",
     avatarUrl: player?.avatarUrl || "",
-    status: player?.status || "资料已手动修正",
+    status: player?.status || (isNew ? "待内战统计" : "资料已手动修正"),
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -1790,10 +1863,14 @@ function PlayerEditModal({ player, onClose, onSave }) {
 
   async function submit(event) {
     event.preventDefault();
+    if (!/^\d+$/.test(String(draft.dotaId || ""))) {
+      setError("DOTA2 ID 只能填写数字。");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
-      await onSave?.({ ...draft, dotaId: player.dotaId });
+      await onSave?.({ ...draft, dotaId: draft.dotaId, isNew });
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : "保存失败，请稍后重试。");
       setSaving(false);
@@ -1802,11 +1879,11 @@ function PlayerEditModal({ player, onClose, onSave }) {
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <form className="modal settings-modal player-edit-modal" role="dialog" aria-modal="true" aria-label="编辑玩家资料" onSubmit={submit}>
+      <form className="modal settings-modal player-edit-modal" role="dialog" aria-modal="true" aria-label={isNew ? "新增玩家" : "编辑玩家资料"} onSubmit={submit}>
         <div className="modal-head">
           <div>
-            <h2>编辑玩家资料</h2>
-            <p>DOTA2 ID 作为比赛识别主键，只读展示；昵称、位置和资料链接会写入 D1。</p>
+            <h2>{isNew ? "新增玩家" : "编辑玩家资料"}</h2>
+            <p>{isNew ? "新增后会进入内战识别名单；之后可同步游戏昵称和头像。" : "DOTA2 ID 作为比赛识别主键，只读展示；昵称、位置和资料链接会写入 D1。"}</p>
           </div>
           <button className="icon-button" type="button" onClick={onClose} aria-label="关闭">
             <X size={18} />
@@ -1816,7 +1893,14 @@ function PlayerEditModal({ player, onClose, onSave }) {
         <div className="settings-grid">
           <label className="setting-field">
             <span>DOTA2 ID</span>
-            <input className="readonly-input" type="text" value={player.dotaId} readOnly />
+            <input
+              className={isNew ? "" : "readonly-input"}
+              type="text"
+              value={draft.dotaId}
+              onChange={(event) => updateField("dotaId", event.target.value.replace(/\D/g, ""))}
+              readOnly={!isNew}
+              required
+            />
           </label>
           <label className="setting-field">
             <span>群昵称</span>
@@ -1852,7 +1936,7 @@ function PlayerEditModal({ player, onClose, onSave }) {
           </button>
           <button className="primary-button" type="submit" disabled={saving}>
             <Check size={16} />
-            {saving ? "保存中" : "保存资料"}
+            {saving ? "保存中" : isNew ? "新增玩家" : "保存资料"}
           </button>
         </div>
       </form>
@@ -2559,7 +2643,7 @@ function Overview({
   );
 }
 
-function PlayersView({ players, openImport, onEditPlayer, onSyncProfiles, profileSyncing = false, profileSyncMessage = "", isAdmin = false }) {
+function PlayersView({ players, openImport, onAddPlayer, onEditPlayer, onRemovePlayer, onExportPlayers, onSyncProfiles, profileSyncing = false, profileSyncMessage = "", isAdmin = false }) {
   const [query, setQuery] = useState("");
   const [role, setRole] = useState("全部");
   const filtered = players.filter((player) => {
@@ -2579,9 +2663,13 @@ function PlayersView({ players, openImport, onEditPlayer, onSyncProfiles, profil
                 <RefreshCw size={16} />
                 {profileSyncing ? "同步昵称中" : "同步游戏昵称"}
               </button>
-              <button className="primary-button" type="button" onClick={openImport}>
+              <button className="ghost-button" type="button" onClick={openImport}>
                 <UserPlus size={16} />
-                导入玩家
+                批量导入
+              </button>
+              <button className="primary-button" type="button" onClick={onAddPlayer}>
+                <Plus size={16} />
+                新增玩家
               </button>
             </div>
           ) : (
@@ -2602,7 +2690,7 @@ function PlayersView({ players, openImport, onEditPlayer, onSyncProfiles, profil
             ))}
           </div>
           {isAdmin && (
-            <button className="ghost-button" type="button">
+            <button className="ghost-button" type="button" onClick={onExportPlayers}>
               <FileDown size={16} />
               导出 CSV
             </button>
@@ -2660,10 +2748,16 @@ function PlayersView({ players, openImport, onEditPlayer, onSyncProfiles, profil
                   </td>
                   {isAdmin && (
                     <td>
-                      <button className="ghost-button compact-button" type="button" onClick={() => onEditPlayer?.(player)}>
-                        <Pencil size={14} />
-                        编辑
-                      </button>
+                      <div className="row-actions">
+                        <button className="ghost-button compact-button" type="button" onClick={() => onEditPlayer?.(player)}>
+                          <Pencil size={14} />
+                          编辑
+                        </button>
+                        <button className="danger-button compact-button" type="button" onClick={() => onRemovePlayer?.(player)}>
+                          <X size={14} />
+                          移除
+                        </button>
+                      </div>
                     </td>
                   )}
                 </tr>
@@ -3579,15 +3673,7 @@ export function App() {
       syncRuns,
       auditLogs,
     };
-    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `dota2-inhouse-backup-${exportedAt.slice(0, 10)}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    downloadTextFile(`dota2-inhouse-backup-${exportedAt.slice(0, 10)}.json`, JSON.stringify(snapshot, null, 2), "application/json;charset=utf-8");
     setNotifications((current) => [
       {
         id: `export-${Date.now()}`,
@@ -3596,6 +3682,22 @@ export function App() {
         time: "刚刚",
         read: false,
         action: "overview",
+      },
+      ...current.slice(0, 5),
+    ]);
+  }
+
+  function exportPlayersCsv() {
+    const exportedAt = new Date().toISOString();
+    downloadTextFile(`dota2-player-roster-${exportedAt.slice(0, 10)}.csv`, `\uFEFF${buildPlayersCsv(players)}`, "text/csv;charset=utf-8");
+    setNotifications((current) => [
+      {
+        id: `players-export-${Date.now()}`,
+        title: "玩家库 CSV 已导出",
+        body: `已导出 ${players.length} 名玩家，可用 Excel 或腾讯文档打开。`,
+        time: "刚刚",
+        read: false,
+        action: "players",
       },
       ...current.slice(0, 5),
     ]);
@@ -3772,13 +3874,24 @@ export function App() {
     return data;
   }
 
-  async function importPlayers(importedPlayers) {
+  async function importPlayers(importedPlayers, options = {}) {
     try {
-      const data = await apiRequest("/api/players/import", { method: "POST", admin: true, body: { players: importedPlayers } });
+      const data = await apiRequest("/api/players/import", { method: "POST", admin: true, body: { players: importedPlayers, replace: Boolean(options.replace) } });
       if (Array.isArray(data.players)) setPlayers(data.players);
       setLastSync("玩家库已保存");
+      setNotifications((current) => [
+        {
+          id: `import-${Date.now()}`,
+          title: options.replace ? "玩家库已替换" : "玩家已导入",
+          body: data.message || `已保存 ${importedPlayers.length} 名玩家。`,
+          time: "刚刚",
+          read: false,
+          action: "players",
+        },
+        ...current.slice(0, 5),
+      ]);
+      return data;
     } catch (error) {
-      setPlayers((current) => [...current, ...importedPlayers]);
       setNotifications((current) => [
         {
           id: `import-error-${Date.now()}`,
@@ -3790,11 +3903,14 @@ export function App() {
         },
         ...current.slice(0, 5),
       ]);
+      throw error;
     }
   }
 
   async function savePlayerEdit(playerDraft) {
-    const data = await apiRequest(`/api/players/${playerDraft.dotaId}`, { method: "PATCH", admin: true, body: playerDraft });
+    const data = playerDraft.isNew
+      ? await apiRequest("/api/players/import", { method: "POST", admin: true, body: { players: [playerDraft] } })
+      : await apiRequest(`/api/players/${playerDraft.dotaId}`, { method: "PATCH", admin: true, body: playerDraft });
     if (Array.isArray(data.players)) setPlayers(data.players);
     setLastSync("玩家资料已保存");
     setEditingPlayer(null);
@@ -3806,10 +3922,43 @@ export function App() {
         time: "刚刚",
         read: false,
         action: "players",
-      },
-      ...current.slice(0, 5),
-    ]);
+        },
+        ...current.slice(0, 5),
+      ]);
     return data;
+  }
+
+  async function removePlayer(player) {
+    const ok = confirmAdminAction(`确认将 ${player.name || player.dotaId} 从玩家库移除？\n\n移除后这个 DOTA2 ID 不再参与内战识别和积分榜计算；已入库比赛记录仍会保留。`);
+    if (!ok) return;
+    try {
+      const data = await apiRequest(`/api/players/${player.dotaId}`, { method: "DELETE", admin: true });
+      if (Array.isArray(data.players)) setPlayers(data.players);
+      setLastSync("玩家已移除");
+      setNotifications((current) => [
+        {
+          id: `player-remove-${Date.now()}`,
+          title: "玩家已移除",
+          body: data.message || `${player.name || player.dotaId} 已从玩家库移除。`,
+          time: "刚刚",
+          read: false,
+          action: "players",
+        },
+        ...current.slice(0, 5),
+      ]);
+    } catch (error) {
+      setNotifications((current) => [
+        {
+          id: `player-remove-error-${Date.now()}`,
+          title: "移除玩家失败",
+          body: error instanceof Error ? error.message : "保存到 D1 失败，请稍后重试。",
+          time: "刚刚",
+          read: false,
+          action: "players",
+        },
+        ...current.slice(0, 5),
+      ]);
+    }
   }
 
   async function addManualMatch(matchId) {
@@ -4316,7 +4465,10 @@ export function App() {
           <PlayersView
             players={players}
             openImport={() => setShowImport(true)}
+            onAddPlayer={() => setEditingPlayer({ isNew: true, name: "", dotaId: "", role: "待补", gameName: "", profileUrl: "", avatarUrl: "", status: "待内战统计" })}
             onEditPlayer={setEditingPlayer}
+            onRemovePlayer={removePlayer}
+            onExportPlayers={exportPlayersCsv}
             onSyncProfiles={syncPlayerProfiles}
             profileSyncing={profileSyncing}
             profileSyncMessage={profileSyncMessage}

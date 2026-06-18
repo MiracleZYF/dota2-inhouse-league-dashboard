@@ -395,6 +395,12 @@ button:disabled {
   padding: 0 10px;
 }
 
+.row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .icon-button {
   position: relative;
   width: 40px;
@@ -2112,6 +2118,36 @@ input[type="range"] {
   color: var(--text);
   background: #071018;
   line-height: 1.6;
+}
+
+.import-mode-tabs {
+  margin: 16px 18px 0;
+  padding: 4px;
+  background: rgba(7, 16, 24, 0.82);
+}
+
+.inline-warning {
+  margin: 12px 18px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(245, 209, 77, 0.28);
+  border-radius: var(--radius);
+  color: #ffe5a8;
+  background: rgba(120, 88, 20, 0.16);
+  font-size: 13px;
+}
+
+.modal-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  margin: -6px 18px 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.form-error {
+  color: #ffc5c1;
 }
 
 .match-detail-modal {
