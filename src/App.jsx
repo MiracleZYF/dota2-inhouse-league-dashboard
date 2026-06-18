@@ -21,6 +21,7 @@ import {
   Medal,
   Pencil,
   Plus,
+  RotateCcw,
   RefreshCw,
   ScrollText,
   Search,
@@ -320,6 +321,11 @@ function askForAdminToken() {
   return token || "";
 }
 
+function confirmAdminAction(message) {
+  if (typeof window === "undefined") return true;
+  return window.confirm(message);
+}
+
 async function apiRequest(path, { method = "GET", body, admin = false, retryAuth = true } = {}) {
   const headers = {};
   if (body !== undefined) headers["content-type"] = "application/json";
@@ -529,6 +535,7 @@ function resolveMatchPlayers(match, detail, players, heroNames = {}) {
       const fallbackPlayer = (accountId && fallbackByAccount.get(accountId)) || (!accountId ? fallbackBySlotHero.get(`${player.player_slot}-${player.hero_id}`) : null);
       const knownPlayer = rosterPlayer || fallbackPlayer;
       const side = playerSide(player.player_slot);
+      const fallbackResult = hasKnownResult(fallbackPlayer?.result) ? fallbackPlayer.result : null;
       return {
         accountId: accountId || registeredAccountId(knownPlayer),
         name: knownPlayer?.name || player.personaname || player.name || (accountId ? `未登记玩家 ${accountId}` : "匿名玩家"),
@@ -541,13 +548,13 @@ function resolveMatchPlayers(match, detail, players, heroNames = {}) {
         assists: player.assists,
         goldPerMin: player.gold_per_min,
         xpPerMin: player.xp_per_min,
-        result: hasKnownResult(detail.radiant_win)
+        result: hasKnownResult(fallbackResult)
+          ? fallbackResult
+          : hasKnownResult(detail.radiant_win)
           ? side === "天辉"
             ? detail.radiant_win
             : !detail.radiant_win
-          : hasKnownResult(fallbackPlayer?.result)
-            ? fallbackPlayer.result
-            : null,
+          : null,
         isRegistered: Boolean(knownPlayer),
         identifySource: rosterPlayer ? "玩家库 ID 匹配" : fallbackPlayer ? "同步记录匹配" : "未匹配",
       };
@@ -1149,7 +1156,7 @@ function LeaderboardTable({ players, limit, compact = false }) {
   );
 }
 
-function MatchQueue({ matches, onConfirm, onReject, onRestore, onView, onRefresh, refreshingMatchIds = [], compact = false, isAdmin = false, settings = DEFAULT_SETTINGS }) {
+function MatchQueue({ matches, onConfirm, onReject, onRestore, onRollback, onView, onRefresh, refreshingMatchIds = [], compact = false, isAdmin = false, settings = DEFAULT_SETTINGS }) {
   if (!matches.length) {
     return (
       <EmptyState
@@ -1242,6 +1249,12 @@ function MatchQueue({ matches, onConfirm, onReject, onRestore, onView, onRefresh
                       <button className={`primary-button compact-button ${compact ? "icon-action" : ""}`} type="button" onClick={() => onConfirm(match.id)} title="入库">
                         <Database size={15} />
                         {!compact && "入库"}
+                      </button>
+                    )}
+                    {isAdmin && match.status === "已入库" && !compact && (
+                      <button className="ghost-button compact-button" type="button" onClick={() => onRollback?.(match.id)}>
+                        <RotateCcw size={15} />
+                        撤销入库
                       </button>
                     )}
                     {isAdmin && match.status === "已驳回" && !compact && (
@@ -1444,6 +1457,7 @@ function MatchDetailModal({
   onClose,
   onConfirm,
   onReject,
+  onRollback,
   onRefresh,
   refreshing = false,
   onSetWinner,
@@ -1454,6 +1468,7 @@ function MatchDetailModal({
 
   const canConfirm = isAdmin && match.status === "待确认";
   const canStore = isAdmin && match.status === "已确认";
+  const canRollback = isAdmin && match.status === "已入库";
   const detailPlayers = detail?.players || [];
   const displayedPlayers = resolveMatchPlayers(match, detail, players, heroNames);
   const radiantPlayers = displayedPlayers.filter((player) => player.side === "天辉");
@@ -1478,7 +1493,7 @@ function MatchDetailModal({
   );
   const scorePreview = buildMatchScorePreview(displayedPlayers, settings);
   const manualWinner = displayedPlayers.find((player) => player.isRegistered && player.result === true)?.side || "";
-  const winner = detail && hasKnownResult(detail.radiant_win) ? (detail.radiant_win ? "天辉" : "夜魇") : manualWinner || "-";
+  const winner = manualWinner || (detail && hasKnownResult(detail.radiant_win) ? (detail.radiant_win ? "天辉" : "夜魇") : "-");
   const storeBlockedByUnknownResult = canStore && scorePreview.unknownCount > 0;
   const reviewSteps = buildReviewSteps(recognition, match.status);
   const reviewWarnings = buildReviewWarnings(recognition, scorePreview, match.status);
@@ -1808,15 +1823,21 @@ function MatchDetailModal({
               {refreshing ? "刷新中" : "刷新状态"}
             </button>
           )}
-          {isAdmin && scorePreview.unknownCount > 0 && match.status !== "已入库" && (
+          {isAdmin && scorePreview.entries.length > 0 && match.status !== "已驳回" && (
             <>
               <button className="ghost-button" type="button" onClick={() => onSetWinner?.(match.id, "天辉")}>
-                天辉胜
+                {winner === "-" ? "天辉胜" : "改为天辉胜"}
               </button>
               <button className="ghost-button" type="button" onClick={() => onSetWinner?.(match.id, "夜魇")}>
-                夜魇胜
+                {winner === "-" ? "夜魇胜" : "改为夜魇胜"}
               </button>
             </>
+          )}
+          {canRollback && (
+            <button className="danger-button" type="button" onClick={() => onRollback?.(match.id)}>
+              <RotateCcw size={16} />
+              撤销入库
+            </button>
           )}
           {canConfirm && (
             <button className="danger-button" type="button" onClick={() => onReject(match.id)}>
@@ -1836,7 +1857,7 @@ function MatchDetailModal({
   );
 }
 
-function Overview({ players, matches, captains, onNavigate, onConfirm, onReject, onView, onRefresh, refreshingMatchIds = [], settings, isAdmin = false }) {
+function Overview({ players, matches, captains, onNavigate, onConfirm, onReject, onRollback, onView, onRefresh, refreshingMatchIds = [], settings, isAdmin = false }) {
   const pendingCount = matches.filter((match) => match.status === "待确认").length;
   const readyToStoreCount = matches.filter((match) => match.status === "已确认").length;
   const effectiveMatches = matches.filter(isScoredInhouseMatch);
@@ -1887,6 +1908,7 @@ function Overview({ players, matches, captains, onNavigate, onConfirm, onReject,
             matches={matches}
             onConfirm={onConfirm}
             onReject={onReject}
+            onRollback={onRollback}
             onView={onView}
             onRefresh={onRefresh}
             refreshingMatchIds={refreshingMatchIds}
@@ -2069,6 +2091,7 @@ function MatchesView({
   onConfirm,
   onReject,
   onRestore,
+  onRollback,
   onView,
   onRefresh,
   refreshingMatchIds = [],
@@ -2208,6 +2231,7 @@ function MatchesView({
             matches={reviewableMatches}
             onConfirm={onConfirm}
             onReject={onReject}
+            onRollback={onRollback}
             onView={onView}
             onRefresh={onRefresh}
             refreshingMatchIds={refreshingMatchIds}
@@ -2224,6 +2248,7 @@ function MatchesView({
               onConfirm={onConfirm}
               onReject={onReject}
               onRestore={onRestore}
+              onRollback={onRollback}
               onView={onView}
               onRefresh={onRefresh}
               refreshingMatchIds={refreshingMatchIds}
@@ -2878,6 +2903,11 @@ export function App() {
     const target = matches.find((match) => String(match.id) === String(matchId));
     const nextStatus = target?.status === "待确认" ? "已确认" : target?.status === "已确认" ? "已入库" : target?.status;
     if (!nextStatus) return;
+    if (nextStatus === "已入库") {
+      const count = target?.registeredPlayers?.length || target?.registered || 0;
+      const ok = confirmAdminAction(`确认将 Match ID ${matchId} 入库计分？\n\n这会立刻影响积分榜，共计 ${count} 名命中玩家会按当前胜负获得积分。`);
+      if (!ok) return;
+    }
 
     try {
       const data = await apiRequest(`/api/matches/${matchId}`, { method: "PATCH", admin: true, body: { status: nextStatus } });
@@ -2899,6 +2929,7 @@ export function App() {
   }
 
   async function rejectMatch(matchId) {
+    if (!confirmAdminAction(`确认驳回 Match ID ${matchId}？\n\n驳回后它不会进入公开候选和积分榜，可以之后从隐藏记录恢复。`)) return;
     try {
       const data = await apiRequest(`/api/matches/${matchId}`, { method: "PATCH", admin: true, body: { status: "已驳回" } });
       if (Array.isArray(data.matches)) setMatches(data.matches);
@@ -2938,10 +2969,57 @@ export function App() {
     }
   }
 
+  async function rollbackMatch(matchId) {
+    if (!confirmAdminAction(`确认撤销 Match ID ${matchId} 的入库计分？\n\n这场比赛会回到“已确认”，积分榜会立即扣回本场产生的分数。`)) return;
+    try {
+      const data = await apiRequest(`/api/matches/${matchId}`, { method: "PATCH", admin: true, body: { status: "已确认" } });
+      if (Array.isArray(data.matches)) setMatches(data.matches);
+      setLastSync("已撤销入库，积分已回滚");
+      setNotifications((current) => [
+        {
+          id: `rollback-${Date.now()}`,
+          title: "入库已撤销",
+          body: `Match ID ${matchId} 已回到已确认，积分榜已自动回滚。`,
+          time: "刚刚",
+          read: false,
+          action: "matches",
+        },
+        ...current.slice(0, 5),
+      ]);
+    } catch (error) {
+      setNotifications((current) => [
+        {
+          id: `rollback-error-${Date.now()}`,
+          title: "撤销入库失败",
+          body: error instanceof Error ? error.message : "保存到 D1 失败，请稍后重试。",
+          time: "刚刚",
+          read: false,
+          action: "matches",
+        },
+        ...current.slice(0, 5),
+      ]);
+    }
+  }
+
   async function setMatchWinner(matchId, winnerSide) {
+    const target = matches.find((match) => String(match.id) === String(matchId));
+    const storedText = target?.status === "已入库" ? "\n\n这场比赛已经入库，修改胜方会立即重算积分榜。" : "";
+    if (!confirmAdminAction(`确认将 Match ID ${matchId} 的胜方设为${winnerSide}？${storedText}`)) return;
     try {
       const data = await apiRequest(`/api/matches/${matchId}`, { method: "PATCH", admin: true, body: { winnerSide } });
       if (Array.isArray(data.matches)) setMatches(data.matches);
+      setMatchDetails((current) => {
+        const detail = current[matchId];
+        if (!detail) return current;
+        return {
+          ...current,
+          [matchId]: {
+            ...detail,
+            radiant_win: winnerSide === "天辉",
+            manual_winner_override: true,
+          },
+        };
+      });
       setLastSync(data.message || `已指定${winnerSide}胜`);
       setNotifications((current) => [
         {
@@ -3474,6 +3552,7 @@ export function App() {
             onNavigate={setActiveView}
             onConfirm={confirmMatch}
             onReject={rejectMatch}
+            onRollback={rollbackMatch}
             onView={openMatch}
             onRefresh={refreshMatch}
             refreshingMatchIds={refreshingMatchIds}
@@ -3499,6 +3578,7 @@ export function App() {
             onConfirm={confirmMatch}
             onReject={rejectMatch}
             onRestore={restoreMatch}
+            onRollback={rollbackMatch}
             onView={openMatch}
             onRefresh={refreshMatch}
             refreshingMatchIds={refreshingMatchIds}
@@ -3530,6 +3610,7 @@ export function App() {
           onClose={() => setSelectedMatchId(null)}
           onConfirm={confirmMatch}
           onReject={rejectMatch}
+          onRollback={rollbackMatch}
           onRefresh={refreshMatch}
           refreshing={refreshingMatchIds.includes(String(selectedMatchId))}
           onSetWinner={setMatchWinner}
