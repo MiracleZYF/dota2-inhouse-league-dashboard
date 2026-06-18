@@ -113,7 +113,7 @@ export async function onRequest({ request, env }) {
     });
     const retryResult = retryLimit > 0 ? await retryUnresolvedMatches(env, retryLimit) : { attempted: 0, succeeded: 0, results: [] };
     const matches = await getMatches(env);
-    const status = syncResult.leagueScan?.failed || syncResult.failedCount || retryResult.results.some((item) => !item.ok) ? "warning" : "success";
+    const status = syncResult.leagueScan?.failed || syncResult.leagueScan?.partial || syncResult.failedCount || retryResult.results.some((item) => !item.ok) ? "warning" : "success";
     const syncRun = await recordSyncRun(env, {
       kind: "auto",
       status,

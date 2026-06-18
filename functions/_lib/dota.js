@@ -800,65 +800,129 @@ export async function getSteamMatchDetail(env, matchId) {
   return { ok: true, status: response.status, detail, payload };
 }
 
-export async function getSteamLeagueMatches(env, leagueId, { matchesRequested = 100 } = {}) {
+export async function getSteamLeagueMatches(env, leagueId, { matchesRequested = 100, maxPages = 6 } = {}) {
   const cleanLeagueId = String(leagueId || "").trim();
   if (!cleanLeagueId) return { ok: false, status: 0, error: "League ID 未配置", matches: [] };
   if (!env.STEAM_API_KEY) return { ok: false, status: 0, error: "STEAM_API_KEY 未配置", matches: [] };
 
-  let response;
-  let payload = null;
-  let rawText = "";
-  try {
-    response = await steamDotaFetch(env, "GetMatchHistory", {
-      league_id: cleanLeagueId,
-      min_players: 10,
-      matches_requested: Math.min(Math.max(Number(matchesRequested) || 100, 1), 100),
-    });
-    rawText = await response.text().catch(() => "");
-    payload = parseJsonPayload(rawText);
-  } catch (error) {
-    return {
-      ok: false,
-      status: 0,
-      error: error instanceof Error ? error.message : "Steam 联赛比赛列表请求失败",
-      matches: [],
-    };
+  const pageSize = Math.min(Math.max(Number(matchesRequested) || 100, 1), 100);
+  const pageLimit = Math.min(Math.max(Number(maxPages) || 6, 1), 10);
+  const allMatches = [];
+  const seenMatchIds = new Set();
+  let startAtMatchId = "";
+  let lastPayload = null;
+  let lastStatus = 0;
+  let lastSteamStatus = 1;
+  let totalResults = 0;
+  let resultsRemaining = 0;
+  let pagesFetched = 0;
+  let partial = false;
+  let partialError = "";
+
+  for (let page = 0; page < pageLimit; page += 1) {
+    let response;
+    let payload = null;
+    let rawText = "";
+    const beforeCount = allMatches.length;
+
+    try {
+      const params = {
+        league_id: cleanLeagueId,
+        min_players: 10,
+        matches_requested: pageSize,
+      };
+      if (startAtMatchId) params.start_at_match_id = startAtMatchId;
+      response = await steamDotaFetch(env, "GetMatchHistory", params);
+      rawText = await response.text().catch(() => "");
+      payload = parseJsonPayload(rawText);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Steam 联赛比赛列表请求失败";
+      if (allMatches.length) {
+        partial = true;
+        partialError = errorMessage;
+        break;
+      }
+      return {
+        ok: false,
+        status: 0,
+        error: errorMessage,
+        matches: [],
+      };
+    }
+
+    lastStatus = response.status;
+    lastPayload = payload;
+
+    if (!response.ok) {
+      const message = extractSteamApiMessage(payload, rawText);
+      const errorMessage = message ? `Steam GetMatchHistory HTTP ${response.status}：${message}` : `Steam GetMatchHistory HTTP ${response.status}`;
+      if (allMatches.length) {
+        partial = true;
+        partialError = errorMessage;
+        break;
+      }
+      return {
+        ok: false,
+        status: response.status,
+        error: errorMessage,
+        matches: [],
+        payload,
+      };
+    }
+
+    const result = payload?.result || {};
+    const matches = Array.isArray(result.matches) ? result.matches : [];
+    const status = Number(result.status || 0);
+    lastSteamStatus = status || 1;
+    totalResults = Number(result.total_results || totalResults || matches.length || 0);
+    resultsRemaining = Number(result.results_remaining || 0);
+    pagesFetched += 1;
+
+    if (status && status !== 1 && !matches.length) {
+      const message = extractSteamApiMessage(payload, rawText);
+      const errorMessage = message ? `Steam GetMatchHistory status=${status}：${message}` : `Steam GetMatchHistory status=${status}`;
+      if (allMatches.length) {
+        partial = true;
+        partialError = errorMessage;
+        break;
+      }
+      return {
+        ok: false,
+        status: response.status,
+        steamStatus: status,
+        error: errorMessage,
+        matches: [],
+        payload,
+      };
+    }
+
+    for (const match of matches) {
+      const matchId = String(match?.match_id || "");
+      if (!matchId || seenMatchIds.has(matchId)) continue;
+      seenMatchIds.add(matchId);
+      allMatches.push(match);
+    }
+
+    const lastMatchId = String(matches[matches.length - 1]?.match_id || "");
+    if (!matches.length || !lastMatchId || resultsRemaining <= 0) break;
+    if (page > 0 && allMatches.length === beforeCount) break;
+    startAtMatchId = lastMatchId;
   }
 
-  if (!response.ok) {
-    const message = extractSteamApiMessage(payload, rawText);
-    return {
-      ok: false,
-      status: response.status,
-      error: message ? `Steam GetMatchHistory HTTP ${response.status}：${message}` : `Steam GetMatchHistory HTTP ${response.status}`,
-      matches: [],
-      payload,
-    };
-  }
-
-  const result = payload?.result || {};
-  const matches = Array.isArray(result.matches) ? result.matches : [];
-  const status = Number(result.status || 0);
-  if (status && status !== 1 && !matches.length) {
-    const message = extractSteamApiMessage(payload, rawText);
-    return {
-      ok: false,
-      status: response.status,
-      steamStatus: status,
-      error: message ? `Steam GetMatchHistory status=${status}：${message}` : `Steam GetMatchHistory status=${status}`,
-      matches: [],
-      payload,
-    };
-  }
+  if (resultsRemaining > 0 && pagesFetched >= pageLimit) partial = true;
 
   return {
     ok: true,
-    status: response.status,
-    steamStatus: status || 1,
-    matches,
-    totalResults: Number(result.total_results || matches.length || 0),
-    resultsRemaining: Number(result.results_remaining || 0),
-    payload,
+    status: lastStatus,
+    steamStatus: lastSteamStatus,
+    matches: allMatches,
+    totalResults: totalResults || allMatches.length || 0,
+    resultsRemaining,
+    pagesFetched,
+    pageSize,
+    partial,
+    error: partialError,
+    payload: lastPayload,
   };
 }
 
@@ -1071,6 +1135,55 @@ export function buildCandidatesFromLeagueMatches(players, leagueMatches, dateRan
     .sort((a, b) => b.startTime - a.startTime);
 }
 
+export function buildLeagueScanDiagnostics(players, leagueMatches, dateRange, settings, limit = 20) {
+  const { startSeconds, endSeconds, valid } = getDateRangeSeconds(dateRange);
+  const playerByAccount = new Map(players.map((player) => [String(player.dotaId), player]));
+  const threshold = Number(settings?.minRegisteredPlayers || DEFAULT_SETTINGS.minRegisteredPlayers);
+  const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
+
+  return (leagueMatches || [])
+    .filter((match) => match?.match_id)
+    .map((match) => {
+      const matchPlayers = Array.isArray(match.players) ? match.players : [];
+      const registeredPlayers = matchPlayers
+        .map((player) => {
+          const accountId = player?.account_id ? String(player.account_id) : "";
+          const knownPlayer = accountId ? playerByAccount.get(accountId) : null;
+          return knownPlayer
+            ? {
+                accountId,
+                name: knownPlayer.name,
+                side: playerSide(player.player_slot),
+                heroId: player.hero_id,
+              }
+            : null;
+        })
+        .filter(Boolean);
+      const inRange = valid && Number(match.start_time || 0) >= startSeconds && Number(match.start_time || 0) <= endSeconds;
+      const reasons = [];
+      if (!valid) reasons.push("invalid_date_range");
+      if (valid && !inRange) reasons.push("outside_date_range");
+      if (!matchPlayers.length) reasons.push("no_player_list");
+      if (registeredPlayers.length < threshold) reasons.push(`registered_below_threshold:${registeredPlayers.length}/${threshold}`);
+      if (registeredPlayers.length >= threshold && !settings.allowPartialMatches && registeredPlayers.length < 10) reasons.push("partial_matches_disabled");
+      if (!reasons.length) reasons.push("candidate_or_duplicate");
+
+      return {
+        id: Number(match.match_id),
+        time: formatMatchTime(match.start_time),
+        startTime: match.start_time || 0,
+        lobbyType: match.lobby_type,
+        gameMode: match.game_mode,
+        registered: registeredPlayers.length,
+        total: Math.max(matchPlayers.length || 0, 10),
+        registeredNames: registeredPlayers.map((player) => player.name),
+        reasons,
+      };
+    })
+    .sort((a, b) => Number(b.startTime || 0) - Number(a.startTime || 0))
+    .slice(0, safeLimit);
+}
+
 export function mergeMatchCandidates(candidates) {
   const grouped = new Map();
 
@@ -1119,11 +1232,19 @@ export async function syncRecentMatches(env, { dateRange = makeRecentDateRange()
   if (leagueScan.enabled) {
     const leagueResult = await getSteamLeagueMatches(env, leagueId);
     if (leagueResult.ok) {
+      const leagueStartTimes = leagueResult.matches.map((match) => Number(match?.start_time || 0)).filter(Boolean);
       leagueScan = {
         ...leagueScan,
         fetched: leagueResult.matches.length,
         totalResults: leagueResult.totalResults,
         resultsRemaining: leagueResult.resultsRemaining,
+        pagesFetched: leagueResult.pagesFetched,
+        pageSize: leagueResult.pageSize,
+        partial: leagueResult.partial,
+        error: leagueResult.error || "",
+        latestStartTime: leagueStartTimes.length ? Math.max(...leagueStartTimes) : 0,
+        oldestStartTime: leagueStartTimes.length ? Math.min(...leagueStartTimes) : 0,
+        diagnostics: buildLeagueScanDiagnostics(players, leagueResult.matches, dateRange, settings),
       };
       leagueCandidates = buildCandidatesFromLeagueMatches(players, leagueResult.matches, dateRange, settings, leagueId);
       leagueScan.candidateCount = leagueCandidates.length;
@@ -1159,7 +1280,7 @@ export async function syncRecentMatches(env, { dateRange = makeRecentDateRange()
   const duplicatedCount = candidates.length - newCandidates.length;
   const sourceDuplicateCount = leagueCandidates.length + recentCandidates.length - candidates.length;
   const leagueMessage = leagueScan.enabled
-    ? `联赛房 ${leagueId} 扫到 ${leagueScan.fetched} 场，命中 ${leagueScan.candidateCount} 场`
+    ? `联赛房 ${leagueId} 扫到 ${leagueScan.fetched} 场（${leagueScan.pagesFetched || 0} 页），命中 ${leagueScan.candidateCount} 场`
     : "未启用联赛房扫描";
 
   return {

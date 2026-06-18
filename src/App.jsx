@@ -1266,6 +1266,11 @@ function syncRunIssueList(run) {
   const issues = [];
   if (details.failedCount) issues.push(`${details.failedCount} 个玩家 recentMatches 拉取失败`);
   if (details.leagueScan?.failed) issues.push(`联赛房扫描失败：${details.leagueScan.error || "未知错误"}`);
+  if (details.leagueScan?.partial) {
+    const pages = details.leagueScan.pagesFetched ?? "-";
+    const remaining = details.leagueScan.resultsRemaining ?? 0;
+    issues.push(`联赛房只完成 ${pages} 页扫描，剩余 ${remaining} 条未扫`);
+  }
   const retryResults = Array.isArray(details.retry?.results) ? details.retry.results : [];
   const retryFailed = retryResults.filter((item) => item && !item.ok).length;
   if (retryFailed) issues.push(`${retryFailed} 场重试解析仍未成功`);
@@ -1313,7 +1318,7 @@ function SyncStatusPanel({ syncRuns = [], onNavigate, onSyncNow, syncing = false
             <div>
               <span>联赛扫描</span>
               <strong>{leagueScan.fetched ?? 0}</strong>
-              <small>命中 {leagueScan.candidateCount ?? 0}</small>
+              <small>命中 {leagueScan.candidateCount ?? 0} · {leagueScan.pagesFetched ?? 1} 页</small>
             </div>
             <div>
               <span>重试解析</span>
@@ -3879,9 +3884,9 @@ export function App() {
       const failedCount = data.failedCount || 0;
       const leagueScan = data.leagueScan || {};
       const leagueSummary = leagueScan.enabled
-        ? `联赛房 ${leagueScan.leagueId || settings.leagueId} 扫到 ${leagueScan.fetched || 0} 场，命中 ${leagueScan.candidateCount || 0} 场`
+        ? `联赛房 ${leagueScan.leagueId || settings.leagueId} 扫到 ${leagueScan.fetched || 0} 场（${leagueScan.pagesFetched || 0} 页），命中 ${leagueScan.candidateCount || 0} 场`
         : "联赛房扫描未启用";
-      const partialWarning = Boolean(failedCount || leagueScan.failed);
+      const partialWarning = Boolean(failedCount || leagueScan.failed || leagueScan.partial);
       applyServerState(data);
       setLastSync(`${partialWarning ? "部分异常：" : ""}${data.message || `${newCandidates.length} 新增，${duplicatedCount} 重复已跳过`}`);
       setNotifications((current) => [

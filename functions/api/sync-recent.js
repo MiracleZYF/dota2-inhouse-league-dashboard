@@ -23,7 +23,7 @@ export async function onRequestPost({ request, env }) {
       dateRange: body.dateRange || {},
       settingsOverride: body.settings || {},
     });
-    const status = result.leagueScan?.failed || result.failedCount ? "warning" : "success";
+    const status = result.leagueScan?.failed || result.leagueScan?.partial || result.failedCount ? "warning" : "success";
     const syncRun = await recordSyncRun(env, {
       kind: "manual",
       status,
