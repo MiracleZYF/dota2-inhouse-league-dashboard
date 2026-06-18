@@ -2,12 +2,14 @@ import {
   ensureDatabase,
   getAuditLogs,
   getMatch,
+  getMatchDetail,
   getMatches,
   json,
   logAuditAction,
   refreshStoredMatch,
   readJson,
   requireAdmin,
+  updateMatchManualRoster,
   updateMatchStatus,
   updateMatchWinner,
 } from "../../_lib/dota.js";
@@ -70,6 +72,19 @@ export async function onRequestPatch({ request, params, env }) {
   try {
     await ensureDatabase(env);
     const body = await readJson(request);
+    if (Array.isArray(body.manualRoster)) {
+      const before = await getMatch(env, params.matchId);
+      const match = await updateMatchManualRoster(env, params.matchId, body.manualRoster);
+      if (!match) return json({ error: "比赛不存在" }, { status: 404 });
+      await logAuditAction(env, {
+        action: "manual_roster",
+        matchId: params.matchId,
+        actor: "管理员",
+        summary: `手动补全阵容：玩家库命中 ${match.registered}/${match.total}`,
+        details: { previousStatus: before?.status, rows: body.manualRoster.length, registered: match.registered, total: match.total },
+      });
+      return json({ match, matches: await getMatches(env), auditLogs: await getAuditLogs(env), detail: await getMatchDetail(env, params.matchId), message: "已保存手动补全阵容" });
+    }
     if (body.winnerSide) {
       const before = await getMatch(env, params.matchId);
       const match = await updateMatchWinner(env, params.matchId, body.winnerSide);

@@ -478,6 +478,122 @@ export async function updateMatchWinner(env, matchId, winnerSide) {
   return getMatch(env, matchId);
 }
 
+function normalizeManualRosterRows(rows) {
+  return (Array.isArray(rows) ? rows : [])
+    .map((row, index) => {
+      const side = row?.side === "夜魇" ? "夜魇" : "天辉";
+      const sideIndex = Number.isFinite(Number(row?.sideIndex)) ? Number(row.sideIndex) : index % 5;
+      const playerSlot = side === "天辉" ? sideIndex : 128 + sideIndex;
+      return {
+        side,
+        sideIndex,
+        playerSlot,
+        accountId: String(row?.accountId || "").trim(),
+        name: String(row?.name || "").trim(),
+        heroId: Number(row?.heroId) || 0,
+        kills: Number.isFinite(Number(row?.kills)) ? Number(row.kills) : null,
+        deaths: Number.isFinite(Number(row?.deaths)) ? Number(row.deaths) : null,
+        assists: Number.isFinite(Number(row?.assists)) ? Number(row.assists) : null,
+      };
+    })
+    .filter((row) => row.accountId || row.name || row.heroId);
+}
+
+export async function updateMatchManualRoster(env, matchId, manualRoster = []) {
+  const row = await env.DB.prepare("SELECT * FROM matches WHERE id = ?").bind(String(matchId)).first();
+  if (!row) return null;
+
+  const rosterRows = normalizeManualRosterRows(manualRoster);
+  const playerLibrary = await getPlayers(env);
+  const playerByAccount = new Map(playerLibrary.map((player) => [String(player.dotaId), player]));
+  const currentDetail = parseJson(row.detail_json, null);
+  const currentPlayers = Array.isArray(currentDetail?.players) ? currentDetail.players : [];
+  const mergedPlayers = new Map(currentPlayers.map((player, index) => [String(player.player_slot ?? index), player]));
+
+  rosterRows.forEach((entry) => {
+    const libraryPlayer = entry.accountId ? playerByAccount.get(entry.accountId) : null;
+    const personaname = libraryPlayer?.name || entry.name || (entry.accountId ? `非名单玩家 ${entry.accountId}` : `手动玩家 ${entry.sideIndex + 1}`);
+    const key = String(entry.playerSlot);
+    mergedPlayers.set(key, {
+      account_id: entry.accountId || undefined,
+      personaname,
+      name: personaname,
+      player_slot: entry.playerSlot,
+      hero_id: entry.heroId,
+      kills: entry.kills,
+      deaths: entry.deaths,
+      assists: entry.assists,
+      manual_player: true,
+      registered_roster_player: Boolean(libraryPlayer),
+    });
+  });
+
+  const nextPlayers = Array.from(mergedPlayers.values()).sort((a, b) => Number(a.player_slot || 0) - Number(b.player_slot || 0));
+  const nextDetail = {
+    ...(currentDetail || {}),
+    match_id: Number(matchId) || matchId,
+    lobby_type: currentDetail?.lobby_type ?? row.lobby_type ?? undefined,
+    game_mode: currentDetail?.game_mode ?? row.game_mode ?? undefined,
+    start_time: currentDetail?.start_time ?? row.start_time ?? undefined,
+    data_source: currentDetail?.data_source || "manual-roster",
+    manual_roster_override: true,
+    players: nextPlayers,
+  };
+
+  const seenRegisteredAccounts = new Set();
+  const registeredPlayers = nextPlayers
+    .map((player) => {
+      const accountId = String(player.account_id || "");
+      const libraryPlayer = accountId ? playerByAccount.get(accountId) : null;
+      if (!libraryPlayer) return null;
+      if (seenRegisteredAccounts.has(accountId)) return null;
+      seenRegisteredAccounts.add(accountId);
+      const side = playerSide(player.player_slot);
+      return {
+        accountId,
+        name: libraryPlayer.name,
+        side,
+        playerSlot: player.player_slot,
+        heroId: player.hero_id,
+        kills: player.kills,
+        deaths: player.deaths,
+        assists: player.assists,
+        result: playerWon(side, nextDetail),
+      };
+    })
+    .filter(Boolean);
+
+  const radiantCount = registeredPlayers.filter((player) => player.side === "天辉").length;
+  const direCount = registeredPlayers.filter((player) => player.side === "夜魇").length;
+  const currentNotes = row.notes || "";
+  const cleanNotes = currentNotes.replace(/^管理员手动补全阵容；?/, "");
+  const notes = `管理员手动补全阵容；${cleanNotes || "非玩家库人员只用于展示，不进入积分统计。"}`;
+
+  await env.DB.prepare(`UPDATE matches SET
+    total = ?,
+    registered = ?,
+    sides = ?,
+    score = ?,
+    notes = ?,
+    registered_players_json = ?,
+    detail_json = ?,
+    updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?`)
+    .bind(
+      Math.max(nextPlayers.length, Number(row.total || 10), 10),
+      registeredPlayers.length,
+      `${radiantCount} : ${direCount}`,
+      registeredPlayers.length >= 10 ? "手动补全 10 人内战" : `手动补全，玩家库命中 ${registeredPlayers.length}`,
+      notes,
+      JSON.stringify(registeredPlayers),
+      JSON.stringify(nextDetail),
+      String(matchId),
+    )
+    .run();
+
+  return getMatch(env, matchId);
+}
+
 export function isPlaceholderPlayerName(name) {
   return !name || /^待补昵称\d*$/i.test(name) || /^新玩家\s*\d+$/i.test(name);
 }

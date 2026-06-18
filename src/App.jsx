@@ -536,6 +536,7 @@ function matchSourceMeta(match, detail) {
   const source = detail?.data_source || match?.detailSource || "";
   if (source === "steam") return { label: "Steam MatchDetails", tone: "success" };
   if (source === "steam-history") return { label: "Steam 联赛列表", tone: "info" };
+  if (source === "manual-roster") return { label: "手动补全阵容", tone: "warning" };
   if (source === "opendota") return { label: "OpenDota 详情", tone: "success" };
   const notes = `${match?.notes || ""} ${match?.score || ""}`;
   if (notes.includes("Steam 联赛房")) return { label: "Steam 联赛房", tone: "info" };
@@ -822,6 +823,41 @@ function buildMatchScorePreview(displayedPlayers, settings = DEFAULT_SETTINGS) {
     loserCount: losers.length,
     unknownCount: unknowns.length,
   };
+}
+
+function manualRosterRowsFromPlayers(displayedPlayers = []) {
+  const sides = ["天辉", "夜魇"];
+  return sides.flatMap((side) => {
+    const sidePlayers = displayedPlayers
+      .filter((player) => player.side === side)
+      .sort((a, b) => Number(a.playerSlot || 0) - Number(b.playerSlot || 0));
+    return Array.from({ length: 5 }, (_, sideIndex) => {
+      const player = sidePlayers[sideIndex];
+      return {
+        side,
+        sideIndex,
+        accountId: player?.accountId || "",
+        name: player?.name || "",
+        heroId: player?.heroId || "",
+        kills: player?.kills ?? "",
+        deaths: player?.deaths ?? "",
+        assists: player?.assists ?? "",
+      };
+    });
+  });
+}
+
+function normalizeManualRosterForSave(rows) {
+  return rows.map((row) => ({
+    side: row.side,
+    sideIndex: row.sideIndex,
+    accountId: String(row.accountId || "").trim(),
+    name: String(row.name || "").trim(),
+    heroId: row.heroId === "" ? null : Number(row.heroId),
+    kills: row.kills === "" ? null : Number(row.kills),
+    deaths: row.deaths === "" ? null : Number(row.deaths),
+    assists: row.assists === "" ? null : Number(row.assists),
+  }));
 }
 
 function buildReviewSteps(recognition, status) {
@@ -1208,6 +1244,7 @@ function actionLabel(action) {
     reject_match: "驳回比赛",
     manual_add_match: "手动添加",
     manual_reidentify_match: "手动重识别",
+    manual_roster: "手动补全阵容",
   };
   return labels[action] || action || "操作";
 }
@@ -1765,6 +1802,133 @@ function PlayerEditModal({ player, onClose, onSave }) {
   );
 }
 
+function ManualRosterEditor({ matchId, displayedPlayers, players, onSave, disabled = false }) {
+  const [rows, setRows] = useState(() => manualRosterRowsFromPlayers(displayedPlayers));
+  const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const playerOptions = useMemo(
+    () => players.map((player) => ({ id: String(player.dotaId), label: `${player.name}${player.gameName ? ` / ${player.gameName}` : ""}` })),
+    [players],
+  );
+  const playerById = useMemo(() => new Map(players.map((player) => [String(player.dotaId), player])), [players]);
+  const sourceSignature = useMemo(
+    () => displayedPlayers.map((player) => `${player.side}-${player.accountId}-${player.heroId}-${player.kills}-${player.deaths}-${player.assists}`).join("|"),
+    [displayedPlayers],
+  );
+
+  useEffect(() => {
+    if (!dirty) setRows(manualRosterRowsFromPlayers(displayedPlayers));
+  }, [sourceSignature, dirty]);
+
+  function updateRow(index, patch) {
+    setDirty(true);
+    setRows((current) => current.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)));
+  }
+
+  function selectPlayer(index, dotaId) {
+    const selected = playerById.get(String(dotaId));
+    if (!selected) {
+      updateRow(index, { accountId: "", name: "" });
+      return;
+    }
+    updateRow(index, { accountId: String(selected.dotaId), name: selected.name });
+  }
+
+  function resetRows() {
+    setRows(manualRosterRowsFromPlayers(displayedPlayers));
+    setDirty(false);
+    setMessage("");
+  }
+
+  async function submit() {
+    setSaving(true);
+    setMessage("");
+    try {
+      const result = await onSave?.(matchId, normalizeManualRosterForSave(rows));
+      setDirty(false);
+      setMessage(result?.message || "手动阵容已保存");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "保存手动阵容失败");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const rosterCount = rows.filter((row) => playerById.has(String(row.accountId))).length;
+  const filledCount = rows.filter((row) => row.accountId || row.name || row.heroId).length;
+
+  return (
+    <details className="manual-roster-editor">
+      <summary>
+        <span>手动补全阵容</span>
+        <strong>{rosterCount} 人可计分</strong>
+      </summary>
+      <div className="manual-roster-note">
+        规则已锁定：只有选择或填写玩家库中的 DOTA2 ID 才进入积分统计；非名单玩家只用于补全 10 人展示。
+      </div>
+      <div className="manual-roster-grid">
+        {rows.map((row, index) => {
+          const registered = playerById.has(String(row.accountId));
+          return (
+            <article className="manual-roster-row" key={`${row.side}-${row.sideIndex}`}>
+              <div className="manual-roster-slot">
+                <span>{row.side}</span>
+                <strong>{row.sideIndex + 1}</strong>
+              </div>
+              <label>
+                <span>玩家库</span>
+                <select value={registered ? row.accountId : ""} onChange={(event) => selectPlayer(index, event.target.value)} disabled={disabled || saving}>
+                  <option value="">手动输入/非名单</option>
+                  {playerOptions.map((player) => (
+                    <option key={player.id} value={player.id}>
+                      {player.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>DOTA2 ID</span>
+                <input value={row.accountId} onChange={(event) => updateRow(index, { accountId: event.target.value })} disabled={disabled || saving} />
+              </label>
+              <label>
+                <span>显示名</span>
+                <input value={row.name} onChange={(event) => updateRow(index, { name: event.target.value })} disabled={disabled || saving} />
+              </label>
+              <label>
+                <span>英雄ID</span>
+                <input type="number" min="0" value={row.heroId} onChange={(event) => updateRow(index, { heroId: event.target.value })} disabled={disabled || saving} />
+              </label>
+              <label>
+                <span>K/D/A</span>
+                <div className="kda-inputs">
+                  <input type="number" min="0" value={row.kills} onChange={(event) => updateRow(index, { kills: event.target.value })} disabled={disabled || saving} />
+                  <input type="number" min="0" value={row.deaths} onChange={(event) => updateRow(index, { deaths: event.target.value })} disabled={disabled || saving} />
+                  <input type="number" min="0" value={row.assists} onChange={(event) => updateRow(index, { assists: event.target.value })} disabled={disabled || saving} />
+                </div>
+              </label>
+              <span className={`member-badge ${registered ? "registered" : "outsider"}`}>{registered ? "计分" : "展示"}</span>
+            </article>
+          );
+        })}
+      </div>
+      <div className="manual-roster-actions">
+        <span>
+          已填写 {filledCount}/10，玩家库命中 {rosterCount}/10
+        </span>
+        {message && <strong>{message}</strong>}
+        <button className="ghost-button compact-button" type="button" onClick={resetRows} disabled={disabled || saving}>
+          重置
+        </button>
+        <button className="primary-button compact-button" type="button" onClick={submit} disabled={disabled || saving}>
+          <Check size={15} />
+          {saving ? "保存中" : "保存阵容"}
+        </button>
+      </div>
+    </details>
+  );
+}
+
 function MatchDetailModal({
   match,
   detail,
@@ -1779,6 +1943,7 @@ function MatchDetailModal({
   onRefresh,
   refreshing = false,
   onSetWinner,
+  onSaveManualRoster,
   settings = DEFAULT_SETTINGS,
   isAdmin = false,
 }) {
@@ -1794,7 +1959,16 @@ function MatchDetailModal({
   const sideSummary = registeredSideSummary(displayedPlayers);
   const registeredCount = sideSummary.registered;
   const totalPlayers = detailPlayers.length || match.total || 10;
-  const detailSourceLabel = detail?.data_source === "steam" ? "Steam Web API" : detail?.data_source === "steam-history" ? "Steam 联赛列表" : detail ? "OpenDota" : "-";
+  const detailSourceLabel =
+    detail?.data_source === "steam"
+      ? "Steam Web API"
+      : detail?.data_source === "steam-history"
+        ? "Steam 联赛列表"
+        : detail?.data_source === "manual-roster"
+          ? "手动补全阵容"
+          : detail
+            ? "OpenDota"
+            : "-";
   const leagueId = detail?.leagueid || detail?.league_id || 0;
   const recognition = buildMatchRecognition(
     {
@@ -2069,6 +2243,16 @@ function MatchDetailModal({
             <div className="detail-alert detail-alert-info">
               未匹配不等于不是群友；它只表示当前玩家库里没有对应 DOTA2 ID，或完整对局详情隐藏了账号。补充玩家 ID 后重新同步/查看即可重算。
             </div>
+          )}
+
+          {isAdmin && (
+            <ManualRosterEditor
+              matchId={match.id}
+              displayedPlayers={displayedPlayers}
+              players={players}
+              onSave={onSaveManualRoster}
+              disabled={refreshing}
+            />
           )}
 
           <div className="team-detail-layout">
@@ -3507,6 +3691,29 @@ export function App() {
     }
   }
 
+  async function saveManualRoster(matchId, manualRoster) {
+    const target = matches.find((match) => String(match.id) === String(matchId));
+    const storedText = target?.status === "已入库" ? "\n\n这场比赛已经入库，保存后会按玩家库命中结果立即重算积分榜。" : "";
+    const ok = confirmAdminAction(`确认保存 Match ID ${matchId} 的手动阵容？\n\n只有玩家库中的 DOTA2 ID 会计分，非名单玩家只展示。${storedText}`);
+    if (!ok) throw new Error("已取消保存");
+    const data = await apiRequest(`/api/matches/${matchId}`, { method: "PATCH", admin: true, body: { manualRoster } });
+    applyServerState(data);
+    if (data.detail) setMatchDetails((current) => ({ ...current, [matchId]: data.detail }));
+    setLastSync(data.message || "手动阵容已保存");
+    setNotifications((current) => [
+      {
+        id: `manual-roster-${Date.now()}`,
+        title: "手动阵容已保存",
+        body: data.message || `Match ID ${matchId} 已补全阵容；玩家库外人员只展示不计分。`,
+        time: "刚刚",
+        read: false,
+        action: "matches",
+      },
+      ...current.slice(0, 5),
+    ]);
+    return data;
+  }
+
   async function importPlayers(importedPlayers) {
     try {
       const data = await apiRequest("/api/players/import", { method: "POST", admin: true, body: { players: importedPlayers } });
@@ -4084,6 +4291,7 @@ export function App() {
           onRefresh={refreshMatch}
           refreshing={refreshingMatchIds.includes(String(selectedMatchId))}
           onSetWinner={setMatchWinner}
+          onSaveManualRoster={saveManualRoster}
           settings={settings}
           isAdmin={isAdmin}
         />
