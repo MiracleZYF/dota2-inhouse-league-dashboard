@@ -3881,12 +3881,13 @@ export function App() {
       const leagueSummary = leagueScan.enabled
         ? `联赛房 ${leagueScan.leagueId || settings.leagueId} 扫到 ${leagueScan.fetched || 0} 场，命中 ${leagueScan.candidateCount || 0} 场`
         : "联赛房扫描未启用";
+      const partialWarning = Boolean(failedCount || leagueScan.failed);
       applyServerState(data);
-      setLastSync(data.message || `${newCandidates.length} 新增，${duplicatedCount} 重复已跳过`);
+      setLastSync(`${partialWarning ? "部分异常：" : ""}${data.message || `${newCandidates.length} 新增，${duplicatedCount} 重复已跳过`}`);
       setNotifications((current) => [
         {
           id: `sync-${Date.now()}`,
-          title: `同步完成：${newCandidates.length} 场新增`,
+          title: `${partialWarning ? "同步部分异常" : "同步完成"}：${newCandidates.length} 场新增`,
           body: `${dateRangeLabel}，${leagueSummary}，${duplicatedCount} 场重复已跳过，${failedCount} 个账号拉取失败。`,
           time: "刚刚",
           read: false,
@@ -3895,12 +3896,28 @@ export function App() {
         ...current.slice(0, 5),
       ]);
     } catch (error) {
-      setLastSync("同步失败");
+      let recovered = false;
+      try {
+        const latestData = await apiRequest("/api/bootstrap");
+        applyServerState(latestData);
+        const latestRun = Array.isArray(latestData.syncRuns) ? latestData.syncRuns[0] : null;
+        if (latestRun) {
+          setLastSync(`已刷新同步记录：${latestRun.summary || latestRun.status}`);
+          recovered = true;
+        }
+      } catch {
+        // 保留原始同步错误。
+      }
+      if (!recovered) setLastSync("同步失败");
       setNotifications((current) => [
         {
           id: `sync-error-${Date.now()}`,
-          title: "同步失败",
-          body: error instanceof Error ? error.message : "OpenDota 请求失败，请稍后重试。",
+          title: recovered ? "同步结果已刷新" : "同步失败",
+          body: recovered
+            ? "同步请求返回异常，但后端同步记录已经更新；请查看总览页的自动同步状态。"
+            : error instanceof Error
+              ? error.message
+              : "OpenDota 请求失败，请稍后重试。",
           time: "刚刚",
           read: false,
           action: "matches",
