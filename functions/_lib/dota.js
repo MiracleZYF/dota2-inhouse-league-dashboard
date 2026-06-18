@@ -1,4 +1,5 @@
 const OPENDOTA_BASE_URL = "https://api.opendota.com/api";
+const STEAM_DOTA_MATCH_BASE_URL = "https://api.steampowered.com/IDOTA2Match_570";
 
 export const DEFAULT_SETTINGS = {
   seasonName: "S1 积分周期",
@@ -445,6 +446,129 @@ export async function openDotaFetch(env, path, init) {
   return fetch(url.toString(), init);
 }
 
+export async function steamDotaFetch(env, method, params = {}, init) {
+  if (!env.STEAM_API_KEY) throw new Error("STEAM_API_KEY 未配置");
+  const url = new URL(`${STEAM_DOTA_MATCH_BASE_URL}/${method}/v1/`);
+  url.searchParams.set("key", env.STEAM_API_KEY);
+  url.searchParams.set("format", "json");
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, String(value));
+  });
+  return fetch(url.toString(), init);
+}
+
+export function normalizeSteamMatchDetail(payload, matchId) {
+  const result = payload?.result || payload;
+  if (!result || typeof result !== "object" || result.error) return null;
+  const players = Array.isArray(result.players) ? result.players : [];
+  if (!players.length) return null;
+
+  return {
+    ...result,
+    match_id: Number(result.match_id || matchId),
+    leagueid: Number(result.leagueid || 0),
+    lobby_type: result.lobby_type,
+    game_mode: result.game_mode,
+    radiant_win: Boolean(result.radiant_win),
+    start_time: result.start_time,
+    duration: result.duration,
+    data_source: "steam",
+    players: players.map((player) => ({
+      ...player,
+      account_id: player.account_id,
+      player_slot: player.player_slot,
+      hero_id: player.hero_id,
+      kills: player.kills,
+      deaths: player.deaths,
+      assists: player.assists,
+      gold_per_min: player.gold_per_min,
+      xp_per_min: player.xp_per_min,
+    })),
+  };
+}
+
+export async function getSteamMatchDetail(env, matchId) {
+  if (!env.STEAM_API_KEY) {
+    return { ok: false, status: 0, error: "STEAM_API_KEY 未配置" };
+  }
+
+  let response;
+  let payload = null;
+  try {
+    response = await steamDotaFetch(env, "GetMatchDetails", { match_id: matchId });
+    payload = await response.json().catch(() => null);
+  } catch (error) {
+    return { ok: false, status: 0, error: error instanceof Error ? error.message : "Steam API 请求失败" };
+  }
+
+  if (!response.ok) {
+    return { ok: false, status: response.status, error: `Steam API HTTP ${response.status}`, payload };
+  }
+
+  const detail = normalizeSteamMatchDetail(payload, matchId);
+  if (!detail) {
+    return { ok: false, status: response.status, error: "Steam API 未返回可用比赛详情", payload };
+  }
+
+  return { ok: true, status: response.status, detail, payload };
+}
+
+export async function fetchMatchDetailWithFallback(env, matchId, { requestOpenDotaParse = false, useSteam = true } = {}) {
+  const openDotaResponse = await openDotaFetch(env, `/matches/${matchId}`);
+  let parseRequested = false;
+
+  if (openDotaResponse.ok) {
+    const detail = await openDotaResponse.json();
+    return {
+      ok: true,
+      source: "opendota",
+      detail: { ...detail, data_source: "opendota" },
+      openDotaStatus: openDotaResponse.status,
+      steamStatus: null,
+      parseRequested,
+    };
+  }
+
+  if (requestOpenDotaParse && openDotaResponse.status === 404) {
+    await openDotaFetch(env, `/request/${matchId}`, { method: "POST" });
+    parseRequested = true;
+  }
+
+  if (useSteam) {
+    const steamResult = await getSteamMatchDetail(env, matchId);
+    if (steamResult.ok) {
+      return {
+        ok: true,
+        source: "steam",
+        detail: steamResult.detail,
+        openDotaStatus: openDotaResponse.status,
+        steamStatus: steamResult.status,
+        parseRequested,
+      };
+    }
+
+    return {
+      ok: false,
+      source: null,
+      detail: null,
+      openDotaStatus: openDotaResponse.status,
+      steamStatus: steamResult.status,
+      parseRequested,
+      error: `OpenDota HTTP ${openDotaResponse.status}；${steamResult.error}`,
+    };
+  }
+
+  return {
+    ok: false,
+    source: null,
+    detail: null,
+    openDotaStatus: openDotaResponse.status,
+    steamStatus: null,
+    parseRequested,
+    error: `OpenDota HTTP ${openDotaResponse.status}`,
+  };
+}
+
 export function buildCandidatesFromRecentMatches(players, recentRows, dateRange, settings) {
   const { startSeconds, endSeconds, valid } = getDateRangeSeconds(dateRange);
   if (!valid) return [];
@@ -580,9 +704,11 @@ export function buildMatchFromDetail(currentMatch, detail, players, settings = D
   const balancedSides = recognition.radiant > 0 && recognition.dire > 0 && Math.abs(recognition.radiant - recognition.dire) <= 1;
   const lobbyName = describeLobbyType(detail.lobby_type);
   const modeName = describeGameMode(detail.game_mode);
+  const sourceLabel = detail.data_source === "steam" ? "Steam Web API" : "OpenDota";
+  const leagueText = detail.leagueid ? `，League ID ${detail.leagueid}` : "";
 
   let score = `玩家库命中 ${recognition.registered}`;
-  let notes = `OpenDota 已解析：${lobbyName} / ${modeName}，玩家库命中 ${recognition.registered}/${total}，双方命中 ${recognition.sides}。`;
+  let notes = `${sourceLabel} 已解析：${lobbyName} / ${modeName}${leagueText}，玩家库命中 ${recognition.registered}/${total}，双方命中 ${recognition.sides}。`;
 
   if (rankedLadder) {
     score = "天梯跳过";

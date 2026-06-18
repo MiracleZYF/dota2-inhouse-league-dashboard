@@ -7,7 +7,7 @@ import {
   getPlayers,
   getSettings,
   json,
-  openDotaFetch,
+  fetchMatchDetailWithFallback,
   readJson,
   requireAdmin,
   upsertMatch,
@@ -31,41 +31,23 @@ export async function onRequestPost({ request, env }) {
     let parsed = false;
     let message = existing ? `Match ID ${matchId} 已在识别队列中，已尝试重新识别。` : `Match ID ${matchId} 已加入候选队列。`;
 
-    const response = await openDotaFetch(env, `/matches/${matchId}`);
-    if (response.ok) {
-      detail = await response.json();
+    const lookup = await fetchMatchDetailWithFallback(env, matchId, { requestOpenDotaParse: true, useSteam: true });
+    if (lookup.ok) {
+      detail = lookup.detail;
       const players = await getPlayers(env);
       const settings = await getSettings(env);
       const analyzed = buildMatchFromDetail(match, detail, players, settings);
       match = await upsertMatch(env, analyzed, { preserveStatus: false });
       parsed = true;
-      message = `${message} 已识别：${analyzed.score}，${analyzed.sides}。`;
+      const sourceName = lookup.source === "steam" ? "Steam Web API" : "OpenDota";
+      const leagueText = detail.leagueid ? `，League ID ${detail.leagueid}` : "";
+      message = `${message} 已通过 ${sourceName} 识别：${analyzed.score}，${analyzed.sides}${leagueText}。`;
     } else {
-      if (response.status === 404) {
-        await openDotaFetch(env, `/request/${matchId}`, { method: "POST" });
-        parseRequested = true;
-        match = await upsertMatch(
-          env,
-          {
-            ...match,
-            score: "已请求解析",
-            notes: "OpenDota 暂未返回这场比赛详情，已提交解析请求；稍后点击查看可重新识别。",
-          },
-          { preserveStatus: false },
-        );
-        message = `${message} OpenDota 暂未收录，已提交解析请求。`;
-      } else {
-        match = await upsertMatch(
-          env,
-          {
-            ...match,
-            score: "待解析",
-            notes: `OpenDota 暂时无法读取这场比赛详情（HTTP ${response.status}），稍后可点击查看重试。`,
-          },
-          { preserveStatus: false },
-        );
-        message = `${message} OpenDota 返回 HTTP ${response.status}，稍后可重试。`;
-      }
+      parseRequested = lookup.parseRequested;
+      const score = parseRequested ? "已请求解析" : "待解析";
+      const notes = `${lookup.error || "数据源暂未返回这场比赛详情"}；稍后点击查看可重新识别。`;
+      match = await upsertMatch(env, { ...match, score, notes }, { preserveStatus: false });
+      message = `${message} ${notes}`;
     }
 
     return json({
@@ -75,6 +57,10 @@ export async function onRequestPost({ request, env }) {
       duplicated: Boolean(existing),
       parsed,
       parseRequested,
+      source: lookup.source,
+      openDotaStatus: lookup.openDotaStatus,
+      steamStatus: lookup.steamStatus,
+      leagueId: detail?.leagueid || 0,
       message,
     });
   } catch (error) {

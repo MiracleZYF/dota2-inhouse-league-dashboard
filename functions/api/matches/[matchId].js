@@ -6,7 +6,7 @@ import {
   getMatches,
   getPlayers,
   json,
-  openDotaFetch,
+  fetchMatchDetailWithFallback,
   readJson,
   requireAdmin,
   getSettings,
@@ -20,20 +20,20 @@ export async function onRequestGet({ params, env }) {
     await ensureDatabase(env);
     const existingMatch = await getMatch(env, matchId);
     const currentMatch = existingMatch || createPendingMatch(matchId);
+    const lookup = await fetchMatchDetailWithFallback(env, matchId, {
+      requestOpenDotaParse: Boolean(existingMatch),
+      useSteam: Boolean(existingMatch),
+    });
 
-    const response = await openDotaFetch(env, `/matches/${matchId}`);
-    if (!response.ok) {
+    if (!lookup.ok) {
       let match = currentMatch;
-      let parseRequested = false;
-      if (response.status === 404 && existingMatch) {
-        await openDotaFetch(env, `/request/${matchId}`, { method: "POST" });
-        parseRequested = true;
+      if (existingMatch) {
         match = await upsertMatch(
           env,
           {
             ...currentMatch,
-            score: "已请求解析",
-            notes: "OpenDota 暂未返回这场比赛详情，已提交解析请求；稍后重新查看即可重试。",
+            score: lookup.parseRequested ? "已请求解析" : "待解析",
+            notes: `${lookup.error || "数据源暂未返回这场比赛详情"}；稍后重新查看即可重试。`,
           },
           { preserveStatus: false },
         );
@@ -42,17 +42,29 @@ export async function onRequestGet({ params, env }) {
         match,
         detail: null,
         matches: await getMatches(env),
-        parseRequested,
-        error: `OpenDota HTTP ${response.status}`,
+        parseRequested: lookup.parseRequested,
+        openDotaStatus: lookup.openDotaStatus,
+        steamStatus: lookup.steamStatus,
+        error: lookup.error || `OpenDota HTTP ${lookup.openDotaStatus}`,
       });
     }
 
-    const detail = await response.json();
+    const detail = lookup.detail;
     const players = await getPlayers(env);
     const settings = await getSettings(env);
     const updatedMatch = buildMatchFromDetail(currentMatch, detail, players, settings);
     const match = existingMatch ? await upsertMatch(env, updatedMatch, { preserveStatus: false }) : updatedMatch;
-    return json({ match, detail, analysis: updatedMatch.recognition, matches: await getMatches(env) });
+    return json({
+      match,
+      detail,
+      analysis: updatedMatch.recognition,
+      matches: await getMatches(env),
+      source: lookup.source,
+      openDotaStatus: lookup.openDotaStatus,
+      steamStatus: lookup.steamStatus,
+      parseRequested: lookup.parseRequested,
+      leagueId: detail?.leagueid || 0,
+    });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "读取比赛详情失败" }, { status: 500 });
   }

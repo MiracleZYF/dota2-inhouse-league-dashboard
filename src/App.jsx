@@ -435,7 +435,8 @@ function buildMatchRecognition(match, settings = DEFAULT_SETTINGS, detail) {
 
   let label = "待解析";
   let tone = "info";
-  let verdict = "还没有拿到 OpenDota 详情，先不要确认计分。";
+  const sourceLabel = detail?.data_source === "steam" ? "Steam Web API" : detail ? "OpenDota" : "数据源";
+  let verdict = "还没有拿到对局详情，先不要确认计分。";
 
   if (rankedLadder) {
     label = "天梯跳过";
@@ -459,7 +460,7 @@ function buildMatchRecognition(match, settings = DEFAULT_SETTINGS, detail) {
     {
       label: "已拿到对局详情",
       ok: parsed,
-      text: parsed ? "OpenDota 已返回时间、模式和阵容" : "等待 OpenDota 解析或收录",
+      text: parsed ? `${sourceLabel} 已返回时间、模式和阵容` : "等待 OpenDota/Steam 返回详情",
     },
     {
       label: "不是天梯",
@@ -1408,6 +1409,8 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
   const registeredCount = sideSummary.registered;
   const totalPlayers = detailPlayers.length || match.total || 10;
   const winner = detail ? (detail.radiant_win ? "天辉" : "夜魇") : "-";
+  const detailSourceLabel = detail?.data_source === "steam" ? "Steam Web API" : detail ? "OpenDota" : "-";
+  const leagueId = detail?.leagueid || detail?.league_id || 0;
   const recognition = buildMatchRecognition(
     {
       ...match,
@@ -1487,7 +1490,7 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
             </div>
             <p>
               <span className={`status-pill status-${recognition.tone}`}>{recognition.label}</span>
-              胜方：{winner} · 时长：{detail ? formatDuration(detail.duration) : "-"} · 玩家库命中：{registeredCount} / {totalPlayers}
+              数据源：{detailSourceLabel} · 胜方：{winner} · 时长：{detail ? formatDuration(detail.duration) : "-"} · 玩家库命中：{registeredCount} / {totalPlayers}
             </p>
           </div>
 
@@ -1531,12 +1534,12 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
               <strong>{match.score}</strong>
             </div>
             <div className="detail-card">
-              <span>复核结论</span>
-              <strong>{recognition.label}</strong>
+              <span>League ID</span>
+              <strong>{leagueId || "未绑定"}</strong>
             </div>
             <div className="detail-card">
-              <span>OpenDota</span>
-              <strong>{loading ? "拉取中" : detail ? "已拉取" : error ? "暂无详情" : "未请求"}</strong>
+              <span>数据源</span>
+              <strong>{loading ? "拉取中" : detail ? detailSourceLabel : error ? "暂无详情" : "未请求"}</strong>
             </div>
             <div className="detail-card">
               <span>时长</span>
@@ -1665,7 +1668,7 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
 
           {error && (
             <div className="detail-alert">
-              OpenDota 暂时没有返回这场比赛详情：{error}。如果这是手动输入或测试 match_id，可以继续按本地识别结果复核。
+              OpenDota/Steam 暂时没有返回这场比赛详情：{error}。如果这是手动输入或测试 match_id，可以继续按本地识别结果复核。
             </div>
           )}
 
@@ -1684,7 +1687,7 @@ function MatchDetailModal({ match, detail, loading, error, players, heroNames, o
             <summary>展开原始技术表</summary>
             <div className="section-title-row">
               <h3>原始技术记录</h3>
-              <span>{detail ? "来自 OpenDota /matches" : "来自已识别玩家记录"}</span>
+              <span>{detail ? `来自 ${detailSourceLabel}` : "来自已识别玩家记录"}</span>
             </div>
             <div className="table-wrap">
               <table className="data-table match-record-table">
@@ -2983,7 +2986,7 @@ export function App() {
     try {
       const data = await apiRequest(`/api/matches/${match.id}`);
       if (Array.isArray(data.matches)) setMatches(data.matches);
-      if (!data.detail) throw new Error(data.error || "OpenDota 暂未返回对局详情");
+      if (!data.detail) throw new Error(data.error || "OpenDota/Steam 暂未返回对局详情");
       const detail = data.detail;
       setMatchDetails((current) => ({ ...current, [match.id]: detail }));
     } catch (error) {
@@ -3047,7 +3050,7 @@ export function App() {
           }),
         );
       } catch {
-        setMatchDetailError(error instanceof Error ? error.message : "OpenDota 请求失败");
+        setMatchDetailError(error instanceof Error ? error.message : "OpenDota/Steam 请求失败");
       }
     } finally {
       setMatchDetailLoading(false);
