@@ -1,6 +1,7 @@
 const OPENDOTA_BASE_URL = "https://api.opendota.com/api";
 const STEAM_DOTA_MATCH_BASE_URL = "https://api.steampowered.com/IDOTA2Match_570";
 const ROSTER_VERSION = "2026-06-18-roster-38";
+export const DEFAULT_LEAGUE_SLUG = "pokemon-dota";
 
 export const DEFAULT_SETTINGS = {
   seasonName: "S1 积分周期",
@@ -96,6 +97,83 @@ export function requireAdmin(request, env) {
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : request.headers.get("x-admin-token");
   if (token !== expected) return json({ error: "管理员密码不正确" }, { status: 401 });
   return null;
+}
+
+function safeJsonParse(value, fallback) {
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function randomToken(prefix = "adm") {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const bytes = new Uint8Array(18);
+  if (globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) bytes[index] = Math.floor(Math.random() * 255);
+  }
+  return `${prefix}-${Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("")}`;
+}
+
+export function normalizeLeagueSlug(value, fallback = "") {
+  const clean = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+  return clean || fallback;
+}
+
+function leagueSpaceFromRow(row, { includeSecret = false, origin = "" } = {}) {
+  if (!row) return null;
+  const slug = String(row.slug || "");
+  const publicUrl = origin ? `${origin}/?league=${encodeURIComponent(slug)}` : `?league=${encodeURIComponent(slug)}`;
+  const adminUrl = origin ? `${publicUrl}&admin=1` : `${publicUrl}&admin=1`;
+  const settings = { ...DEFAULT_SETTINGS, ...safeJsonParse(row.settings_json, {}) };
+  return {
+    id: row.id,
+    slug,
+    name: row.name,
+    ownerName: row.owner_name || "",
+    contact: row.contact || "",
+    status: row.status || "setup",
+    settings,
+    playerCount: Number(row.player_count || 0),
+    matchCount: Number(row.match_count || 0),
+    dataReady: Number(row.data_ready || 0) === 1,
+    isDefault: slug === DEFAULT_LEAGUE_SLUG,
+    publicUrl,
+    adminUrl,
+    createdAt: row.created_at || "",
+    updatedAt: row.updated_at || "",
+    ...(includeSecret ? { adminKey: row.admin_key || "" } : {}),
+  };
+}
+
+async function ensureDefaultLeagueSpace(env) {
+  const settings = await getSettings(env);
+  await env.DB.prepare(`INSERT INTO league_spaces
+    (slug, name, owner_name, contact, admin_key, status, settings_json, data_ready, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT(slug) DO UPDATE SET
+      name = excluded.name,
+      settings_json = excluded.settings_json,
+      data_ready = 1,
+      updated_at = CURRENT_TIMESTAMP`)
+    .bind(
+      DEFAULT_LEAGUE_SLUG,
+      "第三届宝可梦 DOTA2 内战",
+      "MiracleZYF",
+      "",
+      "",
+      "active",
+      JSON.stringify(settings),
+    )
+    .run();
 }
 
 async function reconcileInitialPlayerRoster(env) {
@@ -239,10 +317,26 @@ export async function ensureDatabase(env) {
       value TEXT NOT NULL,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS league_spaces (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      owner_name TEXT NOT NULL DEFAULT '',
+      contact TEXT NOT NULL DEFAULT '',
+      admin_key TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'setup',
+      settings_json TEXT NOT NULL DEFAULT '{}',
+      player_count INTEGER NOT NULL DEFAULT 0,
+      match_count INTEGER NOT NULL DEFAULT 0,
+      data_ready INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_matches_start_time ON matches(start_time)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_matches_status ON matches(status)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_sync_runs_finished_at ON sync_runs(finished_at)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_league_spaces_status ON league_spaces(status)"),
   ]);
 
   const playerCount = await env.DB.prepare("SELECT COUNT(*) AS count FROM players").first();
@@ -273,6 +367,7 @@ export async function ensureDatabase(env) {
 
   const settingsRow = await env.DB.prepare("SELECT value FROM settings WHERE key = 'league'").first();
   if (!settingsRow) await saveSettings(env, DEFAULT_SETTINGS);
+  await ensureDefaultLeagueSpace(env);
 }
 
 export async function getSettings(env) {
@@ -293,6 +388,50 @@ export async function saveSettings(env, settings) {
     .bind(JSON.stringify(merged))
     .run();
   return merged;
+}
+
+export async function listLeagueSpaces(env, { origin = "" } = {}) {
+  const result = await env.DB.prepare("SELECT * FROM league_spaces ORDER BY data_ready DESC, updated_at DESC, id DESC").all();
+  return (result.results || []).map((row) => leagueSpaceFromRow(row, { origin }));
+}
+
+export async function getLeagueSpace(env, slug, { origin = "" } = {}) {
+  const cleanSlug = normalizeLeagueSlug(slug, DEFAULT_LEAGUE_SLUG);
+  const row = await env.DB.prepare("SELECT * FROM league_spaces WHERE slug = ?").bind(cleanSlug).first();
+  return leagueSpaceFromRow(row, { origin });
+}
+
+export async function createLeagueSpace(env, payload = {}, { origin = "" } = {}) {
+  const name = String(payload.name || payload.leagueName || "").trim();
+  if (name.length < 2) throw new Error("请填写至少 2 个字的小组或联赛名称");
+
+  const fallbackSlug = `league-${Math.random().toString(36).slice(2, 8)}`;
+  const slug = normalizeLeagueSlug(payload.slug, fallbackSlug).slice(0, 48);
+  if (slug === DEFAULT_LEAGUE_SLUG) throw new Error("这个页面路径已被默认联赛使用");
+
+  const existing = await env.DB.prepare("SELECT slug FROM league_spaces WHERE slug = ?").bind(slug).first();
+  if (existing) throw new Error("这个页面路径已经被使用，请换一个");
+
+  const ownerName = String(payload.ownerName || payload.owner || "").trim();
+  const contact = String(payload.contact || "").trim();
+  const adminKey = String(payload.adminKey || "").trim() || randomToken("adm");
+  if (adminKey.length < 6) throw new Error("管理密码至少 6 位");
+
+  const settings = {
+    ...DEFAULT_SETTINGS,
+    seasonName: String(payload.seasonName || `${name} S1`).trim(),
+    leagueId: String(payload.leagueId || "").trim(),
+    useLeagueScan: Boolean(String(payload.leagueId || "").trim()),
+  };
+
+  await env.DB.prepare(`INSERT INTO league_spaces
+    (slug, name, owner_name, contact, admin_key, status, settings_json, data_ready, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, 'setup', ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+    .bind(slug, name, ownerName, contact, adminKey, JSON.stringify(settings))
+    .run();
+
+  const row = await env.DB.prepare("SELECT * FROM league_spaces WHERE slug = ?").bind(slug).first();
+  return leagueSpaceFromRow(row, { includeSecret: true, origin });
 }
 
 function normalizePlayoffTeam(team, index = 0) {

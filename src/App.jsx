@@ -38,6 +38,7 @@ import {
 
 const OPENDOTA_BASE_URL = "https://api.opendota.com/api";
 const ADMIN_TOKEN_STORAGE_KEY = "dota2-inhouse-admin-token";
+const DEFAULT_LEAGUE_SLUG = "pokemon-dota";
 const DEFAULT_DATE_RANGE = { start: "2026-06-01T00:00", end: "2026-06-21T23:59", preset: "season" };
 const DEFAULT_SETTINGS = {
   seasonName: "S1 积分周期",
@@ -338,6 +339,28 @@ function getInitialAdminMode() {
   return new URLSearchParams(window.location.search).get("admin") === "1";
 }
 
+function normalizeLeagueSlugValue(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+function getInitialLeagueSlug() {
+  if (typeof window === "undefined") return DEFAULT_LEAGUE_SLUG;
+  return normalizeLeagueSlugValue(new URLSearchParams(window.location.search).get("league")) || DEFAULT_LEAGUE_SLUG;
+}
+
+function withLeagueQuery(path) {
+  if (typeof window === "undefined" || !path.startsWith("/api/")) return path;
+  const leagueSlug = getInitialLeagueSlug();
+  const url = new URL(path, window.location.origin);
+  if (leagueSlug && !url.searchParams.has("league")) url.searchParams.set("league", leagueSlug);
+  return `${url.pathname}${url.search}`;
+}
+
 function getStoredAdminToken() {
   if (typeof window === "undefined") return "";
   return window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || "";
@@ -364,7 +387,7 @@ async function apiRequest(path, { method = "GET", body, admin = false, retryAuth
     headers.authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(path, {
+  const response = await fetch(withLeagueQuery(path), {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -409,6 +432,15 @@ function downloadTextFile(filename, content, type = "text/plain;charset=utf-8") 
   link.click();
   link.remove();
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+async function copyText(text) {
+  if (!text) return false;
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return true;
+  }
+  return false;
 }
 
 function registeredSideSummary(players) {
@@ -1256,6 +1288,7 @@ const initialMatches = [];
 
 const navItems = [
   { id: "overview", label: "总览", icon: Home },
+  { id: "spaces", label: "联赛空间", icon: UserPlus },
   { id: "players", label: "玩家库", icon: Users },
   { id: "matches", label: "比赛识别", icon: Search },
   { id: "leaderboard", label: "积分榜", icon: BarChart3 },
@@ -3941,6 +3974,168 @@ function RulesView({ settings = DEFAULT_SETTINGS }) {
   );
 }
 
+function LeagueSpacesView({ leagues = [], currentLeague, createdLeague, creating = false, error = "", onCreate, onCopy }) {
+  const [form, setForm] = useState({
+    name: "",
+    slug: "",
+    ownerName: "",
+    contact: "",
+    adminKey: "",
+    leagueId: "",
+    seasonName: "",
+  });
+
+  function updateField(key, value) {
+    setForm((current) => ({
+      ...current,
+      [key]: key === "slug" ? normalizeLeagueSlugValue(value) : value,
+    }));
+  }
+
+  function submit(event) {
+    event.preventDefault();
+    onCreate?.(form);
+  }
+
+  return (
+    <div className="view-stack">
+      <Panel title="联赛空间" action={<span className="status-pill status-info">自助创建 Beta</span>}>
+        <div className="league-space-layout">
+          <form className="league-create-card" onSubmit={submit}>
+            <div className="league-create-head">
+              <div>
+                <h3>创建一个新的内战联赛</h3>
+                <span>适合 QQ 群、微信群、固定车队或小型社区复用。</span>
+              </div>
+              <span className="status-pill status-muted">免费开放</span>
+            </div>
+
+            <div className="league-form-grid">
+              <label className="setting-field full">
+                <span>联赛 / 小组名称</span>
+                <input value={form.name} onChange={(event) => updateField("name", event.target.value)} placeholder="例如：周末 DOTA2 内战杯" required />
+              </label>
+              <label className="setting-field">
+                <span>页面路径</span>
+                <input value={form.slug} onChange={(event) => updateField("slug", event.target.value)} placeholder="weekend-dota" />
+              </label>
+              <label className="setting-field">
+                <span>管理密码</span>
+                <input value={form.adminKey} onChange={(event) => updateField("adminKey", event.target.value)} placeholder="留空则自动生成" />
+              </label>
+              <label className="setting-field">
+                <span>负责人昵称</span>
+                <input value={form.ownerName} onChange={(event) => updateField("ownerName", event.target.value)} placeholder="可选" />
+              </label>
+              <label className="setting-field">
+                <span>联系信息</span>
+                <input value={form.contact} onChange={(event) => updateField("contact", event.target.value)} placeholder="可选，例如 QQ 号" />
+              </label>
+              <label className="setting-field">
+                <span>Steam League ID</span>
+                <input inputMode="numeric" value={form.leagueId} onChange={(event) => updateField("leagueId", event.target.value.replace(/\D/g, ""))} placeholder="可选" />
+              </label>
+              <label className="setting-field">
+                <span>首个积分周期</span>
+                <input value={form.seasonName} onChange={(event) => updateField("seasonName", event.target.value)} placeholder="留空自动生成 S1" />
+              </label>
+            </div>
+
+            {error && <p className="inline-warning">{error}</p>}
+
+            <div className="league-create-actions">
+              <span>创建后会生成公开链接和管理链接。</span>
+              <button className="primary-button" type="submit" disabled={creating || form.name.trim().length < 2}>
+                <UserPlus size={16} />
+                {creating ? "创建中" : "创建联赛空间"}
+              </button>
+            </div>
+          </form>
+
+          <section className="league-share-card">
+            <div className="league-create-head">
+              <div>
+                <h3>{createdLeague ? "创建完成" : "当前空间"}</h3>
+                <span>{createdLeague ? "把链接发到群里就能开始围观；管理链接只给运营者。" : currentLeague?.name || "默认联赛空间"}</span>
+              </div>
+              <span className={`status-pill ${createdLeague || currentLeague?.dataReady ? "status-success" : "status-warning"}`}>{createdLeague ? "已生成" : currentLeague?.dataReady ? "可用" : "初始化"}</span>
+            </div>
+
+            <div className="league-link-list">
+              {[
+                ["公开链接", createdLeague?.publicUrl || currentLeague?.publicUrl],
+                ["管理链接", createdLeague?.adminUrl || currentLeague?.adminUrl],
+                ["管理密码", createdLeague?.adminKey],
+              ].map(([label, value]) => (
+                <div className="league-link-row" key={label}>
+                  <span>{label}</span>
+                  <strong>{value || "-"}</strong>
+                  <button className="ghost-button compact-button" type="button" onClick={() => onCopy?.(value)} disabled={!value}>
+                    <ClipboardList size={14} />
+                    复制
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="league-beta-note">
+              <span className="status-pill status-warning">Beta</span>
+              <p>新空间已独立注册，暂不读取默认联赛数据。下一步会开放独立玩家库、比赛库和自动同步配置。</p>
+            </div>
+          </section>
+        </div>
+      </Panel>
+
+      <Panel title="已创建空间" action={<span className="status-pill status-muted">{leagues.length} 个</span>}>
+        <div className="league-list">
+          {leagues.length ? (
+            leagues.map((league) => (
+              <article className="league-list-item" key={league.slug}>
+                <div>
+                  <strong>{league.name}</strong>
+                  <span>{league.slug} · {league.dataReady ? "正式可用" : "初始化中"}</span>
+                </div>
+                <div className="league-list-actions">
+                  <a className="ghost-button compact-button" href={league.publicUrl}>
+                    <ExternalLink size={14} />
+                    公开页
+                  </a>
+                  <a className="ghost-button compact-button" href={league.adminUrl}>
+                    <Settings size={14} />
+                    管理端
+                  </a>
+                </div>
+              </article>
+            ))
+          ) : (
+            <EmptyState title="暂无联赛空间" body="创建第一个空间后，这里会显示可复制和可访问的入口。" />
+          )}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+function LeagueSetupState({ league, onNavigate }) {
+  return (
+    <div className="view-stack">
+      <Panel title="空间初始化" action={<span className="status-pill status-warning">Beta</span>}>
+        <div className="space-setup-state">
+          <div>
+            <span className="status-pill status-success">已创建</span>
+            <h3>{league?.name || "新的联赛空间"}</h3>
+            <p>这个空间已经有独立公开链接和管理链接。为了避免串到默认宝可梦联赛数据，独立玩家库和比赛库开放前，这里只显示初始化状态。</p>
+          </div>
+          <button className="primary-button" type="button" onClick={() => onNavigate?.("spaces")}>
+            <UserPlus size={16} />
+            查看空间链接
+          </button>
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
 const initialNotifications = [
   {
     id: "no-confirmed-matches",
@@ -4142,6 +4337,11 @@ export function App() {
   const [dateRange, setDateRange] = useState(DEFAULT_DATE_RANGE);
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [playoff, setPlayoff] = useState(DEFAULT_PLAYOFF);
+  const [leagueSpace, setLeagueSpace] = useState(null);
+  const [leagues, setLeagues] = useState([]);
+  const [createdLeague, setCreatedLeague] = useState(null);
+  const [leagueCreating, setLeagueCreating] = useState(false);
+  const [leagueCreateError, setLeagueCreateError] = useState("");
   const [lastSync, setLastSync] = useState("刚刚更新");
   const [syncing, setSyncing] = useState(false);
   const [playoffSaving, setPlayoffSaving] = useState(false);
@@ -4165,6 +4365,7 @@ export function App() {
   const unreadCount = notifications.filter((item) => !item.read).length;
   const dateRangeStatus = useMemo(() => getDateRangeSeconds(dateRange), [dateRange]);
   const dateRangeLabel = useMemo(() => formatDateRangeLabel(dateRange), [dateRange]);
+  const isSetupLeagueSpace = Boolean(leagueSpace && leagueSpace.dataReady === false);
 
   useEffect(() => {
     let cancelled = false;
@@ -4179,6 +4380,8 @@ export function App() {
         if (Array.isArray(data.auditLogs)) setAuditLogs(data.auditLogs);
         if (data.settings) setSettings((current) => ({ ...current, ...data.settings }));
         if (data.playoff) setPlayoff(data.playoff);
+        if (data.leagueSpace) setLeagueSpace(data.leagueSpace);
+        if (Array.isArray(data.leagues)) setLeagues(data.leagues);
         setBackendReady(true);
         setLastSync("已连接 D1");
       } catch (error) {
@@ -4217,6 +4420,8 @@ export function App() {
         applyServerState(data);
         if (data.settings) setSettings((current) => ({ ...current, ...data.settings }));
         if (data.playoff) setPlayoff(data.playoff);
+        if (data.leagueSpace) setLeagueSpace(data.leagueSpace);
+        if (Array.isArray(data.leagues)) setLeagues(data.leagues);
         setLastSync("状态已自动刷新");
       } catch {
         // 后台轮询失败不打扰正在操作的人，下一轮会继续尝试。
@@ -4242,6 +4447,8 @@ export function App() {
     if (Array.isArray(data?.syncRuns)) setSyncRuns(data.syncRuns);
     if (Array.isArray(data?.auditLogs)) setAuditLogs(data.auditLogs);
     if (data?.playoff) setPlayoff(data.playoff);
+    if (data?.leagueSpace) setLeagueSpace(data.leagueSpace);
+    if (Array.isArray(data?.leagues)) setLeagues(data.leagues);
   }
 
   async function refreshBackendData() {
@@ -4253,6 +4460,8 @@ export function App() {
       applyServerState(data);
       if (data.settings) setSettings((current) => ({ ...current, ...data.settings }));
       if (data.playoff) setPlayoff(data.playoff);
+      if (data.leagueSpace) setLeagueSpace(data.leagueSpace);
+      if (Array.isArray(data.leagues)) setLeagues(data.leagues);
       setBackendReady(true);
       setLastSync("状态已刷新");
     } catch (error) {
@@ -5018,6 +5227,50 @@ export function App() {
     setSettings(DEFAULT_SETTINGS);
   }
 
+  async function createLeagueSpace(form) {
+    setLeagueCreating(true);
+    setLeagueCreateError("");
+    try {
+      const data = await apiRequest("/api/leagues", { method: "POST", body: form });
+      if (data.league) {
+        setCreatedLeague(data.league);
+        setLeagueSpace((current) => current || data.league);
+      }
+      const listData = await apiRequest("/api/leagues");
+      if (Array.isArray(listData.leagues)) setLeagues(listData.leagues);
+      setNotifications((current) => [
+        {
+          id: `league-created-${Date.now()}`,
+          title: "联赛空间已创建",
+          body: data.league?.name ? `${data.league.name} 的公开链接和管理链接已生成。` : "公开链接和管理链接已生成。",
+          time: "刚刚",
+          read: false,
+          action: "spaces",
+        },
+        ...current.slice(0, 5),
+      ]);
+    } catch (error) {
+      setLeagueCreateError(error instanceof Error ? error.message : "创建失败，请稍后重试。");
+    } finally {
+      setLeagueCreating(false);
+    }
+  }
+
+  async function copyLeagueText(value) {
+    const ok = await copyText(value).catch(() => false);
+    setNotifications((current) => [
+      {
+        id: `copy-${Date.now()}`,
+        title: ok ? "已复制" : "复制失败",
+        body: ok ? "链接已复制到剪贴板。" : "浏览器没有开放剪贴板权限，请手动选中文本复制。",
+        time: "刚刚",
+        read: false,
+        action: "spaces",
+      },
+      ...current.slice(0, 5),
+    ]);
+  }
+
   async function saveSettingsAndClose() {
     try {
       const data = await apiRequest("/api/settings", { method: "PUT", admin: true, body: { settings } });
@@ -5048,8 +5301,8 @@ export function App() {
             <Swords size={26} />
           </div>
           <div>
-            <h1>CDEC 小群联赛</h1>
-            <p>DOTA2 小群内战积分 + 组队淘汰赛</p>
+            <h1>DOTA2 内战 Hub</h1>
+            <p>{leagueSpace?.name || "小群积分 + 组队淘汰赛"}</p>
           </div>
         </div>
 
@@ -5131,6 +5384,10 @@ export function App() {
             <span>{lastSync}</span>
           </div>
           <div className="topbar-actions">
+            <button className="ghost-button" type="button" onClick={() => setActiveView("spaces")}>
+              <UserPlus size={16} />
+              创建联赛
+            </button>
             {isAdmin ? (
               <>
                 <button className="ghost-button" type="button" onClick={refreshBackendData} disabled={dataRefreshing}>
@@ -5173,7 +5430,19 @@ export function App() {
           </div>
         </header>
 
-        {activeView === "overview" && (
+        {isSetupLeagueSpace && activeView !== "spaces" && <LeagueSetupState league={leagueSpace} onNavigate={setActiveView} />}
+        {activeView === "spaces" && (
+          <LeagueSpacesView
+            leagues={leagues}
+            currentLeague={leagueSpace}
+            createdLeague={createdLeague}
+            creating={leagueCreating}
+            error={leagueCreateError}
+            onCreate={createLeagueSpace}
+            onCopy={copyLeagueText}
+          />
+        )}
+        {!isSetupLeagueSpace && activeView === "overview" && (
           <Overview
             players={rankedPlayers}
             matches={visibleMatches}
@@ -5195,7 +5464,7 @@ export function App() {
             isAdmin={isAdmin}
           />
         )}
-        {activeView === "players" && (
+        {!isSetupLeagueSpace && activeView === "players" && (
           <PlayersView
             players={players}
             openImport={() => setShowImport(true)}
@@ -5209,7 +5478,7 @@ export function App() {
             isAdmin={isAdmin}
           />
         )}
-        {activeView === "matches" && (
+        {!isSetupLeagueSpace && activeView === "matches" && (
           <MatchesView
             matches={isAdmin ? matches : visibleMatches}
             onAddMatch={addManualMatch}
@@ -5228,9 +5497,9 @@ export function App() {
             isAdmin={isAdmin}
           />
         )}
-        {activeView === "leaderboard" && <LeaderboardView players={rankedPlayers} matches={matches} scoreEntries={scoreEntries} settings={settings} />}
-        {activeView === "draft" && <DraftView players={rankedPlayers} captains={captains} playoff={playoff} onSaveTeams={savePlayoffTeams} saving={playoffSaving} isAdmin={isAdmin} />}
-        {activeView === "playoff" && (
+        {!isSetupLeagueSpace && activeView === "leaderboard" && <LeaderboardView players={rankedPlayers} matches={matches} scoreEntries={scoreEntries} settings={settings} />}
+        {!isSetupLeagueSpace && activeView === "draft" && <DraftView players={rankedPlayers} captains={captains} playoff={playoff} onSaveTeams={savePlayoffTeams} saving={playoffSaving} isAdmin={isAdmin} />}
+        {!isSetupLeagueSpace && activeView === "playoff" && (
           <PlayoffView
             players={rankedPlayers}
             captains={captains}
@@ -5242,7 +5511,7 @@ export function App() {
             isAdmin={isAdmin}
           />
         )}
-        {activeView === "rules" && <RulesView settings={settings} />}
+        {!isSetupLeagueSpace && activeView === "rules" && <RulesView settings={settings} />}
       </main>
 
       {isAdmin && showImport && <ImportModal onClose={() => setShowImport(false)} onImport={importPlayers} />}
