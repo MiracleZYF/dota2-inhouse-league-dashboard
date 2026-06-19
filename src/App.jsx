@@ -3978,12 +3978,31 @@ function RulesView({ settings = DEFAULT_SETTINGS }) {
   );
 }
 
+function buildLeagueEditForm(league, settings = DEFAULT_SETTINGS) {
+  const mergedSettings = { ...DEFAULT_SETTINGS, ...(league?.settings || {}), ...(settings || {}) };
+  return {
+    name: league?.name || "",
+    ownerName: league?.ownerName || "",
+    contact: league?.contact || "",
+    status: league?.status || "active",
+    seasonName: mergedSettings.seasonName || DEFAULT_SETTINGS.seasonName,
+    leagueId: mergedSettings.leagueId || "",
+    autoSync: mergedSettings.autoSync !== false,
+    useLeagueScan: mergedSettings.useLeagueScan !== false,
+    allowPartialMatches: mergedSettings.allowPartialMatches !== false,
+    adminKey: "",
+    resetAdminKey: false,
+  };
+}
+
 function LeagueSpacesView({
   leagues = [],
   currentLeague,
   createdLeague,
   creating = false,
+  saving = false,
   error = "",
+  saveResult,
   settings = DEFAULT_SETTINGS,
   playersCount = 0,
   matchesCount = 0,
@@ -3993,6 +4012,8 @@ function LeagueSpacesView({
   syncing = false,
   canSync = true,
   onCreate,
+  onUpdateCurrent,
+  onRefreshLeagues,
   onCopy,
   onNavigate,
   onOpenImport,
@@ -4008,6 +4029,11 @@ function LeagueSpacesView({
     leagueId: "",
     seasonName: "",
   });
+  const [editForm, setEditForm] = useState(() => buildLeagueEditForm(currentLeague, settings));
+
+  useEffect(() => {
+    setEditForm(buildLeagueEditForm(currentLeague, settings));
+  }, [currentLeague?.slug, currentLeague?.updatedAt, settings.seasonName, settings.leagueId, settings.autoSync, settings.useLeagueScan, settings.allowPartialMatches]);
 
   function updateField(key, value) {
     setForm((current) => ({
@@ -4021,6 +4047,34 @@ function LeagueSpacesView({
     onCreate?.(form);
   }
 
+  function updateEditField(key, value) {
+    setEditForm((current) => ({
+      ...current,
+      [key]: key === "leagueId" ? String(value || "").replace(/\D/g, "") : value,
+    }));
+  }
+
+  function submitEdit(event) {
+    event.preventDefault();
+    const nextLeagueId = String(editForm.leagueId || "").trim();
+    onUpdateCurrent?.({
+      name: editForm.name,
+      ownerName: editForm.ownerName,
+      contact: editForm.contact,
+      status: editForm.status,
+      adminKey: editForm.adminKey,
+      resetAdminKey: editForm.resetAdminKey,
+      settings: {
+        ...settings,
+        seasonName: editForm.seasonName,
+        leagueId: nextLeagueId,
+        autoSync: editForm.autoSync,
+        useLeagueScan: Boolean(nextLeagueId) && editForm.useLeagueScan,
+        allowPartialMatches: editForm.allowPartialMatches,
+      },
+    });
+  }
+
   const activeLeague = createdLeague || currentLeague;
   const createdMode = Boolean(createdLeague);
   const leagueId = createdMode ? activeLeague?.settings?.leagueId : settings.leagueId;
@@ -4031,6 +4085,7 @@ function LeagueSpacesView({
   const publicUrl = activeLeague?.publicUrl || "";
   const adminAction = !createdMode && isAdmin;
   const readonlyAdminHref = !adminAction ? adminUrl : "";
+  const statusLabel = { active: "正常运营", paused: "暂停同步", archived: "已归档" }[editForm.status] || "正常运营";
   const createdLeaguePackage = createdLeague
     ? [
         `联赛：${createdLeague.name}`,
@@ -4237,6 +4292,159 @@ function LeagueSpacesView({
           </section>
         </div>
       </Panel>
+
+      {adminAction && currentLeague && (
+        <Panel
+          title="当前空间配置"
+          action={
+            <button className="ghost-button compact-button" type="button" onClick={onRefreshLeagues}>
+              <RefreshCw size={14} />
+              刷新空间列表
+            </button>
+          }
+        >
+          <div className="league-manage-layout">
+            <form className="league-manage-card" onSubmit={submitEdit}>
+              <div className="league-create-head">
+                <div>
+                  <h3>维护 {currentLeague.name}</h3>
+                  <span>这些内容会写回当前联赛空间，公开页和管理端都会同步更新。</span>
+                </div>
+                <span className={`status-pill ${editForm.status === "active" ? "status-success" : editForm.status === "paused" ? "status-warning" : "status-muted"}`}>{statusLabel}</span>
+              </div>
+
+              <div className="league-form-grid">
+                <label className="setting-field full">
+                  <span>联赛 / 小组名称</span>
+                  <input value={editForm.name} onChange={(event) => updateEditField("name", event.target.value)} required />
+                </label>
+                <label className="setting-field">
+                  <span>负责人昵称</span>
+                  <input value={editForm.ownerName} onChange={(event) => updateEditField("ownerName", event.target.value)} placeholder="可选" />
+                </label>
+                <label className="setting-field">
+                  <span>联系信息</span>
+                  <input value={editForm.contact} onChange={(event) => updateEditField("contact", event.target.value)} placeholder="可选，例如 QQ 号" />
+                </label>
+                <label className="setting-field">
+                  <span>积分周期名称</span>
+                  <input value={editForm.seasonName} onChange={(event) => updateEditField("seasonName", event.target.value)} />
+                </label>
+                <label className="setting-field">
+                  <span>Steam League ID</span>
+                  <input inputMode="numeric" value={editForm.leagueId} onChange={(event) => updateEditField("leagueId", event.target.value)} placeholder="未设置则不扫描联赛房" />
+                </label>
+                <label className="setting-field">
+                  <span>空间状态</span>
+                  <select value={editForm.status} onChange={(event) => updateEditField("status", event.target.value)}>
+                    <option value="active">正常运营</option>
+                    <option value="paused">暂停同步</option>
+                    <option value="archived">归档保留</option>
+                  </select>
+                </label>
+                <label className="setting-field">
+                  <span>新管理密码</span>
+                  <input value={editForm.adminKey} onChange={(event) => updateEditField("adminKey", event.target.value)} placeholder="留空则不修改" disabled={editForm.resetAdminKey} />
+                </label>
+                <label className="switch-row">
+                  <span>
+                    <strong>自动同步</strong>
+                    <small>开启后 GitHub 定时任务会定期扫描当前空间。</small>
+                  </span>
+                  <input type="checkbox" checked={editForm.autoSync} onChange={(event) => updateEditField("autoSync", event.target.checked)} />
+                </label>
+                <label className="switch-row">
+                  <span>
+                    <strong>联赛房扫描</strong>
+                    <small>优先通过 Steam League ID 拉取比赛记录。</small>
+                  </span>
+                  <input type="checkbox" checked={editForm.useLeagueScan && Boolean(editForm.leagueId)} onChange={(event) => updateEditField("useLeagueScan", event.target.checked)} disabled={!editForm.leagueId} />
+                </label>
+                <label className="switch-row">
+                  <span>
+                    <strong>允许非完整 10 人复核</strong>
+                    <small>达到最低命中人数也可进入人工复核队列。</small>
+                  </span>
+                  <input type="checkbox" checked={editForm.allowPartialMatches} onChange={(event) => updateEditField("allowPartialMatches", event.target.checked)} />
+                </label>
+                <label className="switch-row">
+                  <span>
+                    <strong>重置管理密码</strong>
+                    <small>保存后生成新密码，旧管理密码会失效。</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={editForm.resetAdminKey}
+                    onChange={(event) =>
+                      setEditForm((current) => ({
+                        ...current,
+                        resetAdminKey: event.target.checked,
+                        adminKey: event.target.checked ? "" : current.adminKey,
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+
+              <div className="league-create-actions">
+                <span>页面路径：{currentLeague.slug}。路径暂不在网页修改，避免旧链接失效。</span>
+                <div className="league-manage-actions">
+                  <button className="ghost-button" type="button" onClick={() => setEditForm(buildLeagueEditForm(currentLeague, settings))} disabled={saving}>
+                    <RotateCcw size={16} />
+                    还原
+                  </button>
+                  <button className="primary-button" type="submit" disabled={saving || editForm.name.trim().length < 2}>
+                    <Check size={16} />
+                    {saving ? "保存中" : "保存配置"}
+                  </button>
+                </div>
+              </div>
+            </form>
+
+            <section className="league-manage-side">
+              <div className="league-create-head">
+                <div>
+                  <h3>运营交接</h3>
+                  <span>管理员日常最常用的入口和状态。</span>
+                </div>
+                <span className="status-pill status-info">{currentLeague.playerCount || playersCount} 人</span>
+              </div>
+              <div className="league-link-list">
+                {[
+                  ["公开链接", currentLeague.publicUrl],
+                  ["管理链接", currentLeague.adminUrl],
+                  ["Steam League ID", editForm.leagueId || "未设置"],
+                  ["最近更新", currentLeague.updatedAt || "-"],
+                ].map(([label, value]) => (
+                  <div className="league-link-row" key={label}>
+                    <span>{label}</span>
+                    <strong>{value || "-"}</strong>
+                    <button className="ghost-button compact-button" type="button" onClick={() => onCopy?.(value)} disabled={!value || value === "未设置" || value === "-"}>
+                      <ClipboardList size={14} />
+                      复制
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {saveResult?.adminKey ? (
+                <div className="league-admin-key-result">
+                  <span className="status-pill status-warning">新密码只显示这一次</span>
+                  <strong>{saveResult.adminKey}</strong>
+                  <button className="primary-button" type="button" onClick={() => onCopy?.(saveResult.adminKey)}>
+                    <ShieldCheck size={16} />
+                    复制新管理密码
+                  </button>
+                </div>
+              ) : (
+                <div className="league-beta-note">
+                  <span className="status-pill status-success">安全提示</span>
+                  <p>只有带管理密码的链接能改数据。公开链接适合发到群里围观，管理链接只建议发给运营者。</p>
+                </div>
+              )}
+            </section>
+          </div>
+        </Panel>
+      )}
 
       <Panel title="运营上手清单" action={<span className={`status-pill ${syncReady ? "status-success" : "status-warning"}`}>{syncReady ? "可持续运营" : "待完成"}</span>}>
         <div className="league-setup-grid">
@@ -4548,6 +4756,8 @@ export function App() {
   const [leagues, setLeagues] = useState([]);
   const [createdLeague, setCreatedLeague] = useState(null);
   const [leagueCreating, setLeagueCreating] = useState(false);
+  const [leagueSaving, setLeagueSaving] = useState(false);
+  const [leagueSaveResult, setLeagueSaveResult] = useState(null);
   const [leagueCreateError, setLeagueCreateError] = useState("");
   const [lastSync, setLastSync] = useState("刚刚更新");
   const [syncing, setSyncing] = useState(false);
@@ -5451,6 +5661,7 @@ export function App() {
   async function createLeagueSpace(form) {
     setLeagueCreating(true);
     setLeagueCreateError("");
+    setLeagueSaveResult(null);
     try {
       const data = await apiRequest("/api/leagues", { method: "POST", body: form });
       if (data.league) {
@@ -5474,6 +5685,67 @@ export function App() {
       setLeagueCreateError(error instanceof Error ? error.message : "创建失败，请稍后重试。");
     } finally {
       setLeagueCreating(false);
+    }
+  }
+
+  async function refreshLeagueSpaces() {
+    try {
+      const data = await apiRequest("/api/leagues");
+      if (Array.isArray(data.leagues)) setLeagues(data.leagues);
+      setLastSync("联赛空间列表已刷新");
+    } catch (error) {
+      setNotifications((current) => [
+        {
+          id: `league-refresh-error-${Date.now()}`,
+          title: "空间列表刷新失败",
+          body: error instanceof Error ? error.message : "读取联赛空间失败，请稍后重试。",
+          time: "刚刚",
+          read: false,
+          action: "spaces",
+        },
+        ...current.slice(0, 5),
+      ]);
+    }
+  }
+
+  async function updateCurrentLeague(payload) {
+    setLeagueSaving(true);
+    setLeagueCreateError("");
+    setLeagueSaveResult(null);
+    try {
+      const data = await apiRequest("/api/leagues", { method: "PUT", admin: true, body: payload });
+      if (data.league) {
+        setLeagueSpace(data.league);
+        if (data.league.settings) setSettings((current) => ({ ...current, ...data.league.settings }));
+        setLeagueSaveResult(data.league.adminKey ? { adminKey: data.league.adminKey, leagueName: data.league.name } : null);
+      }
+      if (Array.isArray(data.leagues)) setLeagues(data.leagues);
+      setLastSync(data.message || "联赛空间已保存");
+      setNotifications((current) => [
+        {
+          id: `league-updated-${Date.now()}`,
+          title: payload.resetAdminKey ? "联赛空间已保存，新密码已生成" : "联赛空间已保存",
+          body: payload.resetAdminKey ? "请立刻复制新管理密码，旧密码已经失效。" : "当前空间资料、赛季和联赛房配置已经写入 D1。",
+          time: "刚刚",
+          read: false,
+          action: "spaces",
+        },
+        ...current.slice(0, 5),
+      ]);
+    } catch (error) {
+      setNotifications((current) => [
+        {
+          id: `league-update-error-${Date.now()}`,
+          title: "联赛空间保存失败",
+          body: error instanceof Error ? error.message : "写入 D1 失败，请稍后重试。",
+          time: "刚刚",
+          read: false,
+          action: "spaces",
+        },
+        ...current.slice(0, 5),
+      ]);
+    } finally {
+      setLeagueSaving(false);
     }
   }
 
@@ -5658,7 +5930,9 @@ export function App() {
             currentLeague={leagueSpace}
             createdLeague={createdLeague}
             creating={leagueCreating}
+            saving={leagueSaving}
             error={leagueCreateError}
+            saveResult={leagueSaveResult}
             settings={settings}
             playersCount={players.length}
             matchesCount={matches.length}
@@ -5668,6 +5942,8 @@ export function App() {
             syncing={syncing}
             canSync={dateRangeStatus.valid}
             onCreate={createLeagueSpace}
+            onUpdateCurrent={updateCurrentLeague}
+            onRefreshLeagues={refreshLeagueSpaces}
             onCopy={copyLeagueText}
             onNavigate={setActiveView}
             onOpenImport={() => setShowImport(true)}

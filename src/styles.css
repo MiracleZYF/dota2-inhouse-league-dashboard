@@ -1565,6 +1565,50 @@ a.primary-button {
   white-space: nowrap;
 }
 
+.league-manage-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(340px, 0.75fr);
+  gap: 14px;
+  padding: 0 18px 18px;
+}
+
+.league-manage-card,
+.league-manage-side {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(13, 25, 37, 0.68);
+  overflow: hidden;
+}
+
+.league-manage-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.league-admin-key-result {
+  display: grid;
+  gap: 12px;
+  margin: 14px;
+  padding: 14px;
+  border: 1px solid rgba(247, 182, 75, 0.36);
+  border-radius: var(--radius);
+  background: rgba(74, 54, 26, 0.36);
+}
+
+.league-admin-key-result strong {
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid var(--line-soft);
+  border-radius: 5px;
+  overflow-wrap: anywhere;
+  color: var(--gold);
+  background: rgba(7, 16, 24, 0.72);
+  font-size: 14px;
+}
+
 .league-created-handoff {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -3831,6 +3875,7 @@ input[type="range"] {
   .leaderboard-layout,
   .leaderboard-detail-grid,
   .league-space-layout,
+  .league-manage-layout,
   .playoff-board,
   .playoff-team-grid,
   .playoff-bind-grid,
@@ -4043,10 +4088,16 @@ input[type="range"] {
   }
 
   .league-create-actions,
+  .league-manage-actions,
   .league-list-item,
   .space-setup-state {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .league-manage-actions .ghost-button,
+  .league-manage-actions .primary-button {
+    width: 100%;
   }
 
   .league-list-actions {

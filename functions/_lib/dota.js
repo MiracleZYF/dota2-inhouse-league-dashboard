@@ -188,7 +188,10 @@ async function ensureDefaultLeagueSpace(env) {
     (slug, name, owner_name, contact, admin_key, status, settings_json, data_ready, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT(slug) DO UPDATE SET
-      name = excluded.name,
+      name = COALESCE(NULLIF(league_spaces.name, ''), excluded.name),
+      owner_name = COALESCE(NULLIF(league_spaces.owner_name, ''), excluded.owner_name),
+      contact = COALESCE(league_spaces.contact, excluded.contact),
+      status = COALESCE(NULLIF(league_spaces.status, ''), excluded.status),
       settings_json = excluded.settings_json,
       data_ready = 1,
       updated_at = CURRENT_TIMESTAMP`)
@@ -632,6 +635,67 @@ export async function createLeagueSpace(env, payload = {}, { origin = "" } = {})
 
   const row = await env.DB.prepare("SELECT * FROM league_spaces WHERE slug = ?").bind(slug).first();
   return leagueSpaceFromRow(row, { includeSecret: true, origin });
+}
+
+export async function updateLeagueSpace(env, slug, payload = {}, { origin = "" } = {}) {
+  const cleanSlug = normalizeLeagueSlug(slug, DEFAULT_LEAGUE_SLUG);
+  const row = await env.DB.prepare("SELECT * FROM league_spaces WHERE slug = ?").bind(cleanSlug).first();
+  if (!row) throw new Error("没有找到这个联赛空间");
+
+  const nextName = "name" in payload ? String(payload.name || "").trim() : row.name;
+  if (nextName.length < 2) throw new Error("请填写至少 2 个字的联赛名称");
+
+  const ownerName = "ownerName" in payload || "owner" in payload ? String(payload.ownerName || payload.owner || "").trim() : row.owner_name || "";
+  const contact = "contact" in payload ? String(payload.contact || "").trim() : row.contact || "";
+  const status = ["active", "paused", "archived"].includes(payload.status) ? payload.status : row.status || "active";
+  const currentSettings = { ...DEFAULT_SETTINGS, ...safeJsonParse(row.settings_json, {}) };
+  const nextSettings = { ...currentSettings, ...(payload.settings || {}) };
+
+  if ("seasonName" in payload) nextSettings.seasonName = String(payload.seasonName || "").trim() || currentSettings.seasonName;
+  if ("leagueId" in payload) nextSettings.leagueId = String(payload.leagueId || "").trim();
+  if ("autoSync" in payload) nextSettings.autoSync = Boolean(payload.autoSync);
+  if ("useLeagueScan" in payload) nextSettings.useLeagueScan = Boolean(payload.useLeagueScan);
+  if ("allowPartialMatches" in payload) nextSettings.allowPartialMatches = Boolean(payload.allowPartialMatches);
+  if ("minRegisteredPlayers" in payload) nextSettings.minRegisteredPlayers = Math.max(1, Math.min(10, Number(payload.minRegisteredPlayers) || DEFAULT_SETTINGS.minRegisteredPlayers));
+  if ("minCaptainGames" in payload) nextSettings.minCaptainGames = Math.max(1, Number(payload.minCaptainGames) || DEFAULT_SETTINGS.minCaptainGames);
+  if ("winPoints" in payload) nextSettings.winPoints = Math.max(0, Number(payload.winPoints) || DEFAULT_SETTINGS.winPoints);
+  if ("lossPoints" in payload) nextSettings.lossPoints = Math.max(0, Number(payload.lossPoints) || DEFAULT_SETTINGS.lossPoints);
+
+  if (!String(nextSettings.leagueId || "").trim()) nextSettings.useLeagueScan = false;
+
+  let nextAdminKey = row.admin_key || "";
+  let includeSecret = false;
+  const providedAdminKey = String(payload.adminKey || "").trim();
+  if (payload.resetAdminKey) {
+    nextAdminKey = randomToken("adm");
+    includeSecret = true;
+  } else if (providedAdminKey) {
+    if (providedAdminKey.length < 6) throw new Error("管理密码至少 6 位");
+    nextAdminKey = providedAdminKey;
+    includeSecret = true;
+  }
+
+  await env.DB.prepare(`UPDATE league_spaces
+    SET name = ?,
+      owner_name = ?,
+      contact = ?,
+      admin_key = ?,
+      status = ?,
+      settings_json = ?,
+      data_ready = 1,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE slug = ?`)
+    .bind(nextName, ownerName, contact, nextAdminKey, status, JSON.stringify(nextSettings), cleanSlug)
+    .run();
+
+  await env.DB.prepare(`INSERT INTO league_settings (league_slug, key, value, updated_at)
+    VALUES (?, 'league', ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(league_slug, key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`)
+    .bind(cleanSlug, JSON.stringify(nextSettings))
+    .run();
+
+  const updatedRow = await env.DB.prepare("SELECT * FROM league_spaces WHERE slug = ?").bind(cleanSlug).first();
+  return leagueSpaceFromRow(updatedRow, { includeSecret, origin });
 }
 
 function normalizePlayoffTeam(team, index = 0) {
