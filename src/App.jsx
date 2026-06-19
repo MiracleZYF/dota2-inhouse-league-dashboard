@@ -3978,7 +3978,26 @@ function RulesView({ settings = DEFAULT_SETTINGS }) {
   );
 }
 
-function LeagueSpacesView({ leagues = [], currentLeague, createdLeague, creating = false, error = "", onCreate, onCopy }) {
+function LeagueSpacesView({
+  leagues = [],
+  currentLeague,
+  createdLeague,
+  creating = false,
+  error = "",
+  settings = DEFAULT_SETTINGS,
+  playersCount = 0,
+  matchesCount = 0,
+  syncRunsCount = 0,
+  isAdmin = false,
+  syncing = false,
+  canSync = true,
+  onCreate,
+  onCopy,
+  onNavigate,
+  onOpenImport,
+  onOpenSettings,
+  onSyncNow,
+}) {
   const [form, setForm] = useState({
     name: "",
     slug: "",
@@ -4000,6 +4019,55 @@ function LeagueSpacesView({ leagues = [], currentLeague, createdLeague, creating
     event.preventDefault();
     onCreate?.(form);
   }
+
+  const activeLeague = createdLeague || currentLeague;
+  const createdMode = Boolean(createdLeague);
+  const leagueId = createdMode ? activeLeague?.settings?.leagueId : settings.leagueId;
+  const playerReady = !createdMode && playersCount > 0;
+  const leagueRoomReady = Boolean(leagueId);
+  const syncReady = !createdMode && (syncRunsCount > 0 || matchesCount > 0);
+  const adminUrl = activeLeague?.adminUrl || "";
+  const publicUrl = activeLeague?.publicUrl || "";
+  const adminAction = !createdMode && isAdmin;
+  const readonlyAdminHref = !adminAction ? adminUrl : "";
+  const setupSteps = [
+    {
+      icon: ExternalLink,
+      title: "公开入口",
+      text: publicUrl ? "公开页已经可以发到群里围观。" : "创建空间后会生成公开页。",
+      state: publicUrl ? "done" : "pending",
+      actionLabel: "打开公开页",
+      href: publicUrl,
+    },
+    {
+      icon: Upload,
+      title: "导入玩家库",
+      text: createdMode ? "进入新空间管理端后，先粘贴 DOTA2 ID 名单。" : playerReady ? `${playersCount} 名玩家已在当前空间。` : "先导入本群 DOTA2 ID，只有进库玩家才会计分。",
+      state: playerReady ? "done" : "current",
+      actionLabel: createdMode || !adminAction ? "打开管理端" : "导入玩家",
+      href: createdMode || !adminAction ? readonlyAdminHref : "",
+      onAction: adminAction ? onOpenImport : undefined,
+    },
+    {
+      icon: Settings,
+      title: "配置联赛房",
+      text: leagueRoomReady ? `Steam League ID：${leagueId}` : "填写 Steam League ID 后，才能按联赛房自动扫描。",
+      state: leagueRoomReady ? "done" : playerReady ? "current" : "pending",
+      actionLabel: createdMode || !adminAction ? "打开管理端" : "打开设置",
+      href: createdMode || !adminAction ? readonlyAdminHref : "",
+      onAction: adminAction ? onOpenSettings : undefined,
+    },
+    {
+      icon: RefreshCw,
+      title: "测试同步",
+      text: syncReady ? `已有 ${matchesCount} 条比赛记录，可继续复核。` : "配置后先跑一次手动同步，确认联赛房能返回比赛。",
+      state: syncReady ? "done" : leagueRoomReady ? "current" : "pending",
+      actionLabel: createdMode || !adminAction ? "打开管理端" : syncing ? "同步中" : "手动同步",
+      href: createdMode || !adminAction ? readonlyAdminHref : "",
+      onAction: adminAction ? onSyncNow : undefined,
+      disabled: adminAction && (syncing || !canSync),
+    },
+  ];
 
   return (
     <div className="view-stack">
@@ -4060,9 +4128,9 @@ function LeagueSpacesView({ leagues = [], currentLeague, createdLeague, creating
             <div className="league-create-head">
               <div>
                 <h3>{createdLeague ? "创建完成" : "当前空间"}</h3>
-                <span>{createdLeague ? "把链接发到群里就能开始围观；管理链接只给运营者。" : currentLeague?.name || "默认联赛空间"}</span>
+                <span>{createdLeague ? "把链接发到群里就能开始围观；管理链接只给运营者。" : currentLeague?.name || "未注册空间"}</span>
               </div>
-              <span className={`status-pill ${createdLeague || currentLeague?.dataReady ? "status-success" : "status-warning"}`}>{createdLeague ? "已生成" : currentLeague?.dataReady ? "可用" : "初始化"}</span>
+              <span className={`status-pill ${createdLeague || currentLeague?.dataReady ? "status-success" : "status-warning"}`}>{createdLeague ? "已生成" : currentLeague?.dataReady ? "可用" : "待创建"}</span>
             </div>
 
             <div className="league-link-list">
@@ -4086,7 +4154,71 @@ function LeagueSpacesView({ leagues = [], currentLeague, createdLeague, creating
               <span className="status-pill status-success">已隔离</span>
               <p>每个空间都有独立玩家库、比赛库、积分设置和淘汰赛状态；公开链接可发到群里，管理链接和管理密码只给运营者。</p>
             </div>
+
+            {activeLeague && (
+              <div className="league-space-stats">
+                <span>{activeLeague.slug}</span>
+                <span>{createdMode ? activeLeague.playerCount || 0 : playersCount} 名玩家</span>
+                <span>{createdMode ? activeLeague.matchCount || 0 : matchesCount} 场比赛</span>
+                <span>联赛房 {leagueId || "未设置"}</span>
+              </div>
+            )}
           </section>
+        </div>
+      </Panel>
+
+      <Panel title="运营上手清单" action={<span className={`status-pill ${syncReady ? "status-success" : "status-warning"}`}>{syncReady ? "可持续运营" : "待完成"}</span>}>
+        <div className="league-setup-grid">
+          {setupSteps.map((step, index) => {
+            const Icon = step.icon;
+            const actionContent = (
+              <>
+                {step.actionLabel}
+                {step.href ? <ExternalLink size={14} /> : <ChevronRight size={14} />}
+              </>
+            );
+            return (
+              <article className={`league-setup-card ${step.state}`} key={step.title}>
+                <div className="league-setup-index">{index + 1}</div>
+                <div className="league-setup-icon">
+                  <Icon size={20} />
+                </div>
+                <div className="league-setup-content">
+                  <strong>{step.title}</strong>
+                  <p>{step.text}</p>
+                </div>
+                {step.href ? (
+                  <a className="ghost-button compact-button" href={step.href}>
+                    {actionContent}
+                  </a>
+                ) : (
+                  <button className="ghost-button compact-button" type="button" onClick={step.onAction} disabled={!step.onAction || step.disabled}>
+                    {actionContent}
+                  </button>
+                )}
+              </article>
+            );
+          })}
+        </div>
+        <div className="league-quick-actions">
+          <button className="ghost-button" type="button" onClick={() => onNavigate?.("matches")}>
+            <Search size={16} />
+            比赛识别中心
+          </button>
+          <button className="ghost-button" type="button" onClick={() => onNavigate?.("players")}>
+            <Users size={16} />
+            玩家库
+          </button>
+          <button className="ghost-button" type="button" onClick={() => onNavigate?.("rules")}>
+            <ScrollText size={16} />
+            计分规则
+          </button>
+          {adminUrl && (
+            <a className="primary-button" href={adminUrl}>
+              <ShieldCheck size={16} />
+              管理入口
+            </a>
+          )}
         </div>
       </Panel>
 
@@ -5442,8 +5574,19 @@ export function App() {
             createdLeague={createdLeague}
             creating={leagueCreating}
             error={leagueCreateError}
+            settings={settings}
+            playersCount={players.length}
+            matchesCount={matches.length}
+            syncRunsCount={syncRuns.length}
+            isAdmin={isAdmin}
+            syncing={syncing}
+            canSync={dateRangeStatus.valid}
             onCreate={createLeagueSpace}
             onCopy={copyLeagueText}
+            onNavigate={setActiveView}
+            onOpenImport={() => setShowImport(true)}
+            onOpenSettings={() => setShowSettings(true)}
+            onSyncNow={syncNow}
           />
         )}
         {!isSetupLeagueSpace && activeView === "overview" && (
