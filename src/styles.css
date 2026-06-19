@@ -3070,7 +3070,8 @@ input[type="range"] {
 
 .setting-field input[type="text"],
 .setting-field input:not([type]),
-.setting-field input[type="number"] {
+.setting-field input[type="number"],
+.setting-field input[type="datetime-local"] {
   width: 100%;
   min-height: 40px;
   padding: 0 11px;

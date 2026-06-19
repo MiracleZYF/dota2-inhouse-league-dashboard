@@ -39,9 +39,12 @@ import {
 const OPENDOTA_BASE_URL = "https://api.opendota.com/api";
 const ADMIN_TOKEN_STORAGE_KEY = "dota2-inhouse-admin-token";
 const DEFAULT_LEAGUE_SLUG = "pokemon-dota";
-const DEFAULT_DATE_RANGE = { start: "2026-06-01T00:00", end: "2026-06-21T23:59", preset: "season" };
+const DEFAULT_SEASON_START = "2026-06-20T12:00";
+const DEFAULT_DATE_RANGE = { start: DEFAULT_SEASON_START, end: formatDateTimeInput(new Date()), preset: "season" };
 const DEFAULT_SETTINGS = {
-  seasonName: "S1 积分周期",
+  seasonName: "S1 正式赛季",
+  seasonStart: DEFAULT_SEASON_START,
+  seasonEnd: "",
   minRegisteredPlayers: 8,
   minCaptainGames: 6,
   winPoints: 10,
@@ -239,6 +242,54 @@ function getDateRangeSeconds(dateRange) {
   };
 }
 
+function makeSeasonDateRange(settings = DEFAULT_SETTINGS) {
+  const start = normalizeDateTimeValue(settings.seasonStart || DEFAULT_SEASON_START);
+  const startTime = new Date(start).getTime();
+  const fallbackEnd = Number.isFinite(startTime) && startTime > Date.now() ? new Date(startTime) : new Date();
+  return {
+    start,
+    end: normalizeDateTimeValue(settings.seasonEnd || formatDateTimeInput(fallbackEnd), true),
+    preset: "season",
+  };
+}
+
+function getSeasonWindow(settings = DEFAULT_SETTINGS) {
+  const start = normalizeDateTimeValue(settings.seasonStart || DEFAULT_SEASON_START);
+  const end = normalizeDateTimeValue(settings.seasonEnd || "", true);
+  const startSeconds = dateTimeValueToSeconds(start);
+  const endSeconds = end ? dateTimeValueToSeconds(end, true) : Infinity;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const valid = Number.isFinite(startSeconds) && startSeconds <= endSeconds;
+  const notStarted = valid && nowSeconds < startSeconds;
+  const effectiveEnd = Number.isFinite(endSeconds) ? endSeconds : nowSeconds;
+  const elapsedDays = valid && !notStarted ? Math.max(1, Math.floor((Math.min(nowSeconds, effectiveEnd) - startSeconds) / 86400) + 1) : 0;
+  const totalDays = valid && Number.isFinite(endSeconds) ? Math.max(1, Math.floor((endSeconds - startSeconds) / 86400) + 1) : null;
+  const progress = notStarted ? 0 : valid && totalDays ? Math.min(100, Math.max(0, Math.round(((Math.min(nowSeconds, endSeconds) - startSeconds) / Math.max(1, endSeconds - startSeconds)) * 100))) : 100;
+  return {
+    start,
+    end,
+    startSeconds,
+    endSeconds,
+    valid,
+    notStarted,
+    elapsedDays,
+    totalDays,
+    progress,
+    label: `${start.replace("T", " ")} 起${end ? ` ~ ${end.replace("T", " ")}` : "，管理员手动结束"}`,
+    shortLabel: end ? `${progress}%` : "手动周期",
+    mainLabel: valid ? (notStarted ? "尚未开始" : `第 ${elapsedDays} 天`) : "未设置",
+    dayLabel: valid ? (notStarted ? "尚未开始" : totalDays ? `第 ${elapsedDays} 天 / 共 ${totalDays} 天` : `第 ${elapsedDays} 天 / 手动结束`) : "赛季时间未设置",
+  };
+}
+
+function isMatchInsideSeason(match, settings = DEFAULT_SETTINGS) {
+  const window = getSeasonWindow(settings);
+  if (!window.valid) return true;
+  const startTime = Number(match?.startTime || 0);
+  if (!startTime) return false;
+  return startTime >= window.startSeconds && startTime <= window.endSeconds;
+}
+
 function formatDateRangeLabel(dateRange) {
   const start = normalizeDateTimeValue(dateRange.start);
   const end = normalizeDateTimeValue(dateRange.end, true);
@@ -246,9 +297,9 @@ function formatDateRangeLabel(dateRange) {
   return `${start.replace("T", " ")} ~ ${end.replace("T", " ")}`;
 }
 
-function makeDateRangePreset(preset) {
+function makeDateRangePreset(preset, settings = DEFAULT_SETTINGS) {
   const now = new Date();
-  if (preset === "season") return DEFAULT_DATE_RANGE;
+  if (preset === "season") return makeSeasonDateRange(settings);
 
   if (preset === "today") {
     const start = new Date(now);
@@ -832,36 +883,39 @@ function buildCandidatesFromRecentMatches(players, recentRows, dateRange, settin
 
 function buildScoreEntries(players, matches, settings) {
   const playerByAccount = new Map(players.map((player) => [String(player.dotaId), player]));
-  return matches.filter(isScoredInhouseMatch).flatMap((match) =>
-    (match.registeredPlayers || [])
-      .map((matchPlayer) => {
-        const accountId = registeredAccountId(matchPlayer);
-        const rosterPlayer = playerByAccount.get(accountId);
-        if (!rosterPlayer) return null;
-        if (!hasKnownResult(matchPlayer.result)) return null;
+  return matches
+    .filter(isScoredInhouseMatch)
+    .filter((match) => isMatchInsideSeason(match, settings))
+    .flatMap((match) =>
+      (match.registeredPlayers || [])
+        .map((matchPlayer) => {
+          const accountId = registeredAccountId(matchPlayer);
+          const rosterPlayer = playerByAccount.get(accountId);
+          if (!rosterPlayer) return null;
+          if (!hasKnownResult(matchPlayer.result)) return null;
 
-        const meta = resultMeta(matchPlayer.result);
-        return {
-          id: `${match.id}-${accountId}`,
-          matchId: match.id,
-          time: match.time || "时间未知",
-          startTime: match.startTime || 0,
-          playerId: rosterPlayer.id,
-          playerName: rosterPlayer.name,
-          accountId,
-          side: matchPlayer.side || "-",
-          heroId: matchPlayer.heroId,
-          kills: matchPlayer.kills,
-          deaths: matchPlayer.deaths,
-          assists: matchPlayer.assists,
-          result: meta.label,
-          won: meta.won,
-          resultClass: meta.className,
-          points: meta.won ? settings.winPoints : settings.lossPoints,
-        };
-      })
-      .filter(Boolean),
-  );
+          const meta = resultMeta(matchPlayer.result);
+          return {
+            id: `${match.id}-${accountId}`,
+            matchId: match.id,
+            time: match.time || "时间未知",
+            startTime: match.startTime || 0,
+            playerId: rosterPlayer.id,
+            playerName: rosterPlayer.name,
+            accountId,
+            side: matchPlayer.side || "-",
+            heroId: matchPlayer.heroId,
+            kills: matchPlayer.kills,
+            deaths: matchPlayer.deaths,
+            assists: matchPlayer.assists,
+            result: meta.label,
+            won: meta.won,
+            resultClass: meta.className,
+            points: meta.won ? settings.winPoints : settings.lossPoints,
+          };
+        })
+        .filter(Boolean),
+    );
 }
 
 function buildMatchScorePreview(displayedPlayers, settings = DEFAULT_SETTINGS) {
@@ -2718,11 +2772,12 @@ function Overview({
   dateRangeValid = true,
   refreshingMatchIds = [],
   settings,
+  seasonWindow = getSeasonWindow(settings),
   isAdmin = false,
 }) {
   const pendingCount = matches.filter((match) => match.status === "待确认").length;
   const readyToStoreCount = matches.filter((match) => match.status === "已确认").length;
-  const effectiveMatches = matches.filter(isScoredInhouseMatch);
+  const effectiveMatches = matches.filter(isScoredInhouseMatch).filter((match) => isMatchInsideSeason(match, settings));
   const effectiveCount = effectiveMatches.length;
   const activeCount = players.length;
   const averagePlayers = effectiveMatches.length
@@ -2735,7 +2790,7 @@ function Overview({
         <KpiCard icon={Swords} label="入库计分场次" value={effectiveCount} meta="仅统计已入库内战" tone="red" />
         <KpiCard icon={Users} label="上榜玩家" value={activeCount} meta="来自已入库内战" tone="gold" />
         <KpiCard icon={CircleHelp} label="待处理比赛" value={pendingCount} meta={`${readyToStoreCount} 场待入库`} tone="yellow" />
-        <KpiCard icon={CalendarDays} label="当前周期" value="第 12 天" meta="共 21 天" tone="cyan" />
+        <KpiCard icon={CalendarDays} label="当前周期" value={seasonWindow.mainLabel} meta={seasonWindow.end ? seasonWindow.shortLabel : "管理手动结束"} tone="cyan" />
         <KpiCard icon={Activity} label="场均命中人数" value={averagePlayers} meta="天梯不计入" tone="teal" />
       </div>
 
@@ -3956,12 +4011,14 @@ function PlayoffView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams
 }
 
 function RulesView({ settings = DEFAULT_SETTINGS }) {
+  const seasonWindow = getSeasonWindow(settings);
   return (
     <div className="rules-layout">
       {[
         ["有效内战", "一场比赛至少 8 名登记玩家参与，双方每边至少 4 名登记玩家。"],
-        ["日常积分", `确认有效后还要入库才计分；胜方 +${settings.winPoints}，负方 +${settings.lossPoints}。`],
-        ["队长资格", `周期结束时积分前 4 且至少 ${settings.minCaptainGames} 场已入库内战的玩家成为队长候选。`],
+        ["日常积分", `只统计 ${seasonWindow.label} 的已入库内战；胜方 +${settings.winPoints}，负方 +${settings.lossPoints}。`],
+        ["赛季安排", "赛季开始和结束时间由管理端手动维护；结束时间留空时，默认持续统计到当前时间。"],
+        ["队长资格", `周期结束时积分前 4 且至少 ${settings.minCaptainGames} 场赛季内已入库内战的玩家成为队长候选。`],
         ["选人机制", "低排名队长先选，之后蛇形返回；每队 5 人，可额外登记 1 名替补。"],
         ["淘汰赛", "4 队半决赛 BO3，决赛 BO3；时间紧时可改半决赛 BO1。"],
         ["违规处理", "代打、小号、假赛、恶意摆烂会扣分，严重者取消本期资格。"],
@@ -3986,6 +4043,8 @@ function buildLeagueEditForm(league, settings = DEFAULT_SETTINGS) {
     contact: league?.contact || "",
     status: league?.status || "active",
     seasonName: mergedSettings.seasonName || DEFAULT_SETTINGS.seasonName,
+    seasonStart: mergedSettings.seasonStart || DEFAULT_SETTINGS.seasonStart,
+    seasonEnd: mergedSettings.seasonEnd || "",
     leagueId: mergedSettings.leagueId || "",
     autoSync: mergedSettings.autoSync !== false,
     useLeagueScan: mergedSettings.useLeagueScan !== false,
@@ -4045,7 +4104,7 @@ function LeagueSpacesView({
 
   useEffect(() => {
     setEditForm(buildLeagueEditForm(currentLeague, settings));
-  }, [currentLeague?.slug, currentLeague?.updatedAt, settings.seasonName, settings.leagueId, settings.autoSync, settings.useLeagueScan, settings.allowPartialMatches]);
+  }, [currentLeague?.slug, currentLeague?.updatedAt, settings.seasonName, settings.seasonStart, settings.seasonEnd, settings.leagueId, settings.autoSync, settings.useLeagueScan, settings.allowPartialMatches]);
 
   function updateField(key, value) {
     setForm((current) => ({
@@ -4079,6 +4138,8 @@ function LeagueSpacesView({
       settings: {
         ...settings,
         seasonName: editForm.seasonName,
+        seasonStart: editForm.seasonStart || DEFAULT_SEASON_START,
+        seasonEnd: editForm.seasonEnd || "",
         leagueId: nextLeagueId,
         autoSync: editForm.autoSync,
         useLeagueScan: Boolean(nextLeagueId) && editForm.useLeagueScan,
@@ -4365,6 +4426,14 @@ function LeagueSpacesView({
                 <label className="setting-field">
                   <span>积分周期名称</span>
                   <input value={editForm.seasonName} onChange={(event) => updateEditField("seasonName", event.target.value)} />
+                </label>
+                <label className="setting-field">
+                  <span>赛季开始时间</span>
+                  <input type="datetime-local" value={normalizeDateTimeValue(editForm.seasonStart)} onChange={(event) => updateEditField("seasonStart", event.target.value)} />
+                </label>
+                <label className="setting-field">
+                  <span>赛季结束时间</span>
+                  <input type="datetime-local" value={normalizeDateTimeValue(editForm.seasonEnd)} onChange={(event) => updateEditField("seasonEnd", event.target.value)} />
                 </label>
                 <label className="setting-field">
                   <span>Steam League ID</span>
@@ -4700,6 +4769,25 @@ function SettingsModal({ settings, onChange, onClose, onReset }) {
           </label>
 
           <label className="setting-field">
+            <span>赛季开始时间</span>
+            <input
+              type="datetime-local"
+              value={normalizeDateTimeValue(settings.seasonStart || DEFAULT_SEASON_START)}
+              onChange={(event) => updateSetting("seasonStart", event.target.value || DEFAULT_SEASON_START)}
+            />
+          </label>
+
+          <label className="setting-field">
+            <span>赛季结束时间</span>
+            <input
+              type="datetime-local"
+              value={normalizeDateTimeValue(settings.seasonEnd || "")}
+              onChange={(event) => updateSetting("seasonEnd", event.target.value)}
+              title="留空代表由管理员手动结束，积分会统计到当前时间。"
+            />
+          </label>
+
+          <label className="setting-field">
             <span>联赛房 League ID</span>
             <input
               inputMode="numeric"
@@ -4819,7 +4907,7 @@ export function App() {
   const [notifications, setNotifications] = useState(initialNotifications);
   const [syncRuns, setSyncRuns] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
-  const [dateRange, setDateRange] = useState(DEFAULT_DATE_RANGE);
+  const [dateRange, setDateRange] = useState(() => makeSeasonDateRange(DEFAULT_SETTINGS));
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [playoff, setPlayoff] = useState(DEFAULT_PLAYOFF);
   const [leagueSpace, setLeagueSpace] = useState(null);
@@ -4850,6 +4938,7 @@ export function App() {
   const activeNav = navItems.find((item) => item.id === activeView) || navItems[0];
   const selectedMatch = matches.find((match) => match.id === selectedMatchId);
   const unreadCount = notifications.filter((item) => !item.read).length;
+  const seasonWindow = useMemo(() => getSeasonWindow(settings), [settings]);
   const dateRangeStatus = useMemo(() => getDateRangeSeconds(dateRange), [dateRange]);
   const dateRangeLabel = useMemo(() => formatDateRangeLabel(dateRange), [dateRange]);
   const isSetupLeagueSpace = Boolean(leagueSpace && leagueSpace.dataReady === false);
@@ -4927,6 +5016,11 @@ export function App() {
   }, [backendReady]);
 
   useEffect(() => {
+    if (dateRange.preset !== "season") return;
+    setDateRange(makeSeasonDateRange(settings));
+  }, [dateRange.preset, settings.seasonStart, settings.seasonEnd]);
+
+  useEffect(() => {
     if (dataLoading || !isFirstRunLeagueSpace || activeView !== "overview") return;
     setActiveView("spaces");
   }, [activeView, dataLoading, isFirstRunLeagueSpace]);
@@ -4940,7 +5034,7 @@ export function App() {
       setDateRange((current) => ({ ...current, preset: "custom" }));
       return;
     }
-    setDateRange(makeDateRangePreset(preset));
+    setDateRange(makeDateRangePreset(preset, settings));
   }
 
   function applyServerState(data) {
@@ -5881,16 +5975,16 @@ export function App() {
           })}
         </nav>
 
-          <div className="season-card">
+        <div className="season-card">
           <div className="season-row">
             <span>当前阶段</span>
             <strong>{settings.seasonName}</strong>
           </div>
-          <div className="season-day">第 12 天 / 共 21 天</div>
+          <div className="season-day" title={seasonWindow.label}>{seasonWindow.dayLabel}</div>
           <div className="progress-track">
-            <span style={{ width: "57%" }} />
+            <span style={{ width: `${seasonWindow.progress}%` }} />
           </div>
-          <small>57%</small>
+          <small>{seasonWindow.shortLabel}</small>
         </div>
 
         <div className="admin-card">
@@ -6040,6 +6134,7 @@ export function App() {
             dateRangeValid={dateRangeStatus.valid}
             refreshingMatchIds={refreshingMatchIds}
             settings={settings}
+            seasonWindow={seasonWindow}
             isAdmin={isAdmin}
           />
         )}

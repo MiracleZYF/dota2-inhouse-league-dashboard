@@ -1,0 +1,6821 @@
+{
+  "exportedAt": "2026-06-19T17:53:01.734Z",
+  "exportType": "trial-run",
+  "league": {
+    "id": 1,
+    "slug": "pokemon-dota",
+    "name": "第三届宝可梦 DOTA2 内战",
+    "ownerName": "MiracleZYF",
+    "contact": "",
+    "status": "active",
+    "settings": {
+      "seasonName": "S1 积分周期",
+      "minRegisteredPlayers": 8,
+      "minCaptainGames": 6,
+      "winPoints": 10,
+      "lossPoints": 3,
+      "autoSync": true,
+      "allowPartialMatches": true,
+      "useLeagueScan": true,
+      "leagueId": "19220"
+    },
+    "playerCount": 38,
+    "matchCount": 11,
+    "dataReady": true,
+    "isDefault": true,
+    "publicUrl": "https://dota2-inhouse-league-dashboard.pages.dev/?league=pokemon-dota",
+    "adminUrl": "https://dota2-inhouse-league-dashboard.pages.dev/?league=pokemon-dota&admin=1",
+    "createdAt": "2026-06-19 09:16:44",
+    "updatedAt": "2026-06-19 17:51:13"
+  },
+  "settings": {
+    "winPoints": 10,
+    "lossPoints": 3,
+    "seasonName": "S1 积分周期",
+    "minRegisteredPlayers": 8,
+    "minCaptainGames": 6,
+    "autoSync": true,
+    "allowPartialMatches": true,
+    "useLeagueScan": true,
+    "leagueId": "19220"
+  },
+  "summary": {
+    "players": 38,
+    "matches": 11,
+    "storedMatches": 11,
+    "scoreEntries": 96,
+    "rankedPlayers": 27
+  },
+  "standings": [
+    {
+      "rank": 1,
+      "playerName": "天下伍酒",
+      "gameName": "天下伍酒（red card）",
+      "dotaId": "253121211",
+      "played": 6,
+      "wins": 5,
+      "losses": 1,
+      "points": 53,
+      "winRate": "83.3%"
+    },
+    {
+      "rank": 2,
+      "playerName": "Pupa",
+      "gameName": "Pupa",
+      "dotaId": "237169385",
+      "played": 5,
+      "wins": 5,
+      "losses": 0,
+      "points": 50,
+      "winRate": "100.0%"
+    },
+    {
+      "rank": 3,
+      "playerName": "Denn1s",
+      "gameName": "Denn1s",
+      "dotaId": "208476639",
+      "played": 5,
+      "wins": 3,
+      "losses": 2,
+      "points": 36,
+      "winRate": "60.0%"
+    },
+    {
+      "rank": 4,
+      "playerName": "别问",
+      "gameName": "别问！学就行",
+      "dotaId": "139135702",
+      "played": 7,
+      "wins": 2,
+      "losses": 5,
+      "points": 35,
+      "winRate": "28.6%"
+    },
+    {
+      "rank": 5,
+      "playerName": "QcccE",
+      "gameName": "GHzQcE",
+      "dotaId": "1041606597",
+      "played": 7,
+      "wins": 2,
+      "losses": 5,
+      "points": 35,
+      "winRate": "28.6%"
+    },
+    {
+      "rank": 6,
+      "playerName": "inmost",
+      "gameName": "Inmost",
+      "dotaId": "456880925",
+      "played": 4,
+      "wins": 3,
+      "losses": 1,
+      "points": 33,
+      "winRate": "75.0%"
+    },
+    {
+      "rank": 7,
+      "playerName": "Tips",
+      "gameName": "酒蒙子黄毛体育生卡提",
+      "dotaId": "1045578592",
+      "played": 3,
+      "wins": 3,
+      "losses": 0,
+      "points": 30,
+      "winRate": "100.0%"
+    },
+    {
+      "rank": 8,
+      "playerName": "茶酒",
+      "gameName": "茶酒",
+      "dotaId": "161822486",
+      "played": 5,
+      "wins": 2,
+      "losses": 3,
+      "points": 29,
+      "winRate": "40.0%"
+    },
+    {
+      "rank": 9,
+      "playerName": "阿均",
+      "gameName": "American \"Free Speech\"",
+      "dotaId": "880277674",
+      "played": 6,
+      "wins": 1,
+      "losses": 5,
+      "points": 25,
+      "winRate": "16.7%"
+    },
+    {
+      "rank": 10,
+      "playerName": "be happy",
+      "gameName": "be happy",
+      "dotaId": "1261852738",
+      "played": 3,
+      "wins": 2,
+      "losses": 1,
+      "points": 23,
+      "winRate": "66.7%"
+    },
+    {
+      "rank": 11,
+      "playerName": "cheaterbush",
+      "gameName": "cheaterbush",
+      "dotaId": "448417036",
+      "played": 3,
+      "wins": 2,
+      "losses": 1,
+      "points": 23,
+      "winRate": "66.7%"
+    },
+    {
+      "rank": 12,
+      "playerName": "ico",
+      "gameName": "ico",
+      "dotaId": "1206359917",
+      "played": 3,
+      "wins": 2,
+      "losses": 1,
+      "points": 23,
+      "winRate": "66.7%"
+    },
+    {
+      "rank": 13,
+      "playerName": "Kano",
+      "gameName": "Kano",
+      "dotaId": "139595295",
+      "played": 3,
+      "wins": 2,
+      "losses": 1,
+      "points": 23,
+      "winRate": "66.7%"
+    },
+    {
+      "rank": 14,
+      "playerName": "猎奇",
+      "gameName": "猎奇",
+      "dotaId": "788744238",
+      "played": 5,
+      "wins": 1,
+      "losses": 4,
+      "points": 22,
+      "winRate": "20.0%"
+    },
+    {
+      "rank": 15,
+      "playerName": "为人低调",
+      "gameName": "全自动立功",
+      "dotaId": "139203171",
+      "played": 2,
+      "wins": 2,
+      "losses": 0,
+      "points": 20,
+      "winRate": "100.0%"
+    },
+    {
+      "rank": 16,
+      "playerName": "0v0",
+      "gameName": "0v0",
+      "dotaId": "948306561",
+      "played": 4,
+      "wins": 1,
+      "losses": 3,
+      "points": 19,
+      "winRate": "25.0%"
+    },
+    {
+      "rank": 17,
+      "playerName": "钢琴家睿达",
+      "gameName": "钢琴家睿达",
+      "dotaId": "139291120",
+      "played": 4,
+      "wins": 1,
+      "losses": 3,
+      "points": 19,
+      "winRate": "25.0%"
+    },
+    {
+      "rank": 18,
+      "playerName": "鱼人永不败",
+      "gameName": "1ndulge",
+      "dotaId": "399825811",
+      "played": 4,
+      "wins": 1,
+      "losses": 3,
+      "points": 19,
+      "winRate": "25.0%"
+    },
+    {
+      "rank": 19,
+      "playerName": "Artol",
+      "gameName": "Artol",
+      "dotaId": "1742683220",
+      "played": 4,
+      "wins": 1,
+      "losses": 3,
+      "points": 19,
+      "winRate": "25.0%"
+    },
+    {
+      "rank": 20,
+      "playerName": "范瑶",
+      "gameName": "范瑶",
+      "dotaId": "830568211",
+      "played": 2,
+      "wins": 1,
+      "losses": 1,
+      "points": 13,
+      "winRate": "50.0%"
+    },
+    {
+      "rank": 21,
+      "playerName": "Chaibot",
+      "gameName": "ChaiBot★",
+      "dotaId": "79759941",
+      "played": 2,
+      "wins": 1,
+      "losses": 1,
+      "points": 13,
+      "winRate": "50.0%"
+    },
+    {
+      "rank": 22,
+      "playerName": "KAMI",
+      "gameName": "能帮我弄干净吗",
+      "dotaId": "133666698",
+      "played": 4,
+      "wins": 0,
+      "losses": 4,
+      "points": 12,
+      "winRate": "0.0%"
+    },
+    {
+      "rank": 23,
+      "playerName": "哈基马",
+      "gameName": "等我上个马",
+      "dotaId": "339743252",
+      "played": 1,
+      "wins": 1,
+      "losses": 0,
+      "points": 10,
+      "winRate": "100.0%"
+    },
+    {
+      "rank": 24,
+      "playerName": "今晚执翻剂",
+      "gameName": "今晚执翻剂",
+      "dotaId": "182726435",
+      "played": 1,
+      "wins": 1,
+      "losses": 0,
+      "points": 10,
+      "winRate": "100.0%"
+    },
+    {
+      "rank": 25,
+      "playerName": "李斯",
+      "gameName": "李斯",
+      "dotaId": "403665770",
+      "played": 1,
+      "wins": 1,
+      "losses": 0,
+      "points": 10,
+      "winRate": "100.0%"
+    },
+    {
+      "rank": 26,
+      "playerName": "Moribund",
+      "gameName": "Moribund",
+      "dotaId": "1065035539",
+      "played": 1,
+      "wins": 1,
+      "losses": 0,
+      "points": 10,
+      "winRate": "100.0%"
+    },
+    {
+      "rank": 27,
+      "playerName": "正高",
+      "gameName": "正高",
+      "dotaId": "409431719",
+      "played": 1,
+      "wins": 0,
+      "losses": 1,
+      "points": 3,
+      "winRate": "0.0%"
+    }
+  ],
+  "scoreEntries": [
+    {
+      "matchId": 8858165342,
+      "matchTime": "2026-06-19T15:54:55.000Z",
+      "playerName": "阿均",
+      "gameName": "American \"Free Speech\"",
+      "dotaId": "880277674",
+      "side": "天辉",
+      "heroId": 135,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781884495
+    },
+    {
+      "matchId": 8858165342,
+      "matchTime": "2026-06-19T15:54:55.000Z",
+      "playerName": "别问",
+      "gameName": "别问！学就行",
+      "dotaId": "139135702",
+      "side": "夜魇",
+      "heroId": 31,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781884495
+    },
+    {
+      "matchId": 8858165342,
+      "matchTime": "2026-06-19T15:54:55.000Z",
+      "playerName": "茶酒",
+      "gameName": "茶酒",
+      "dotaId": "161822486",
+      "side": "夜魇",
+      "heroId": 106,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781884495
+    },
+    {
+      "matchId": 8858165342,
+      "matchTime": "2026-06-19T15:54:55.000Z",
+      "playerName": "钢琴家睿达",
+      "gameName": "钢琴家睿达",
+      "dotaId": "139291120",
+      "side": "天辉",
+      "heroId": 48,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781884495
+    },
+    {
+      "matchId": 8858165342,
+      "matchTime": "2026-06-19T15:54:55.000Z",
+      "playerName": "猎奇",
+      "gameName": "猎奇",
+      "dotaId": "788744238",
+      "side": "夜魇",
+      "heroId": 60,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781884495
+    },
+    {
+      "matchId": 8858165342,
+      "matchTime": "2026-06-19T15:54:55.000Z",
+      "playerName": "为人低调",
+      "gameName": "全自动立功",
+      "dotaId": "139203171",
+      "side": "天辉",
+      "heroId": 126,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781884495
+    },
+    {
+      "matchId": 8858165342,
+      "matchTime": "2026-06-19T15:54:55.000Z",
+      "playerName": "Denn1s",
+      "gameName": "Denn1s",
+      "dotaId": "208476639",
+      "side": "夜魇",
+      "heroId": 51,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781884495
+    },
+    {
+      "matchId": 8858165342,
+      "matchTime": "2026-06-19T15:54:55.000Z",
+      "playerName": "KAMI",
+      "gameName": "能帮我弄干净吗",
+      "dotaId": "133666698",
+      "side": "夜魇",
+      "heroId": 6,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781884495
+    },
+    {
+      "matchId": 8858165342,
+      "matchTime": "2026-06-19T15:54:55.000Z",
+      "playerName": "QcccE",
+      "gameName": "GHzQcE",
+      "dotaId": "1041606597",
+      "side": "天辉",
+      "heroId": 26,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781884495
+    },
+    {
+      "matchId": 8858066078,
+      "matchTime": "2026-06-19T14:42:34.000Z",
+      "playerName": "别问",
+      "gameName": "别问！学就行",
+      "dotaId": "139135702",
+      "side": "天辉",
+      "heroId": 99,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781880154
+    },
+    {
+      "matchId": 8858066078,
+      "matchTime": "2026-06-19T14:42:34.000Z",
+      "playerName": "茶酒",
+      "gameName": "茶酒",
+      "dotaId": "161822486",
+      "side": "天辉",
+      "heroId": 74,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781880154
+    },
+    {
+      "matchId": 8858066078,
+      "matchTime": "2026-06-19T14:42:34.000Z",
+      "playerName": "钢琴家睿达",
+      "gameName": "钢琴家睿达",
+      "dotaId": "139291120",
+      "side": "天辉",
+      "heroId": 21,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781880154
+    },
+    {
+      "matchId": 8858066078,
+      "matchTime": "2026-06-19T14:42:34.000Z",
+      "playerName": "哈基马",
+      "gameName": "等我上个马",
+      "dotaId": "339743252",
+      "side": "夜魇",
+      "heroId": 39,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781880154
+    },
+    {
+      "matchId": 8858066078,
+      "matchTime": "2026-06-19T14:42:34.000Z",
+      "playerName": "猎奇",
+      "gameName": "猎奇",
+      "dotaId": "788744238",
+      "side": "天辉",
+      "heroId": 19,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781880154
+    },
+    {
+      "matchId": 8858066078,
+      "matchTime": "2026-06-19T14:42:34.000Z",
+      "playerName": "Artol",
+      "gameName": "Artol",
+      "dotaId": "1742683220",
+      "side": "夜魇",
+      "heroId": 11,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781880154
+    },
+    {
+      "matchId": 8858066078,
+      "matchTime": "2026-06-19T14:42:34.000Z",
+      "playerName": "cheaterbush",
+      "gameName": "cheaterbush",
+      "dotaId": "448417036",
+      "side": "夜魇",
+      "heroId": 83,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781880154
+    },
+    {
+      "matchId": 8858066078,
+      "matchTime": "2026-06-19T14:42:34.000Z",
+      "playerName": "Denn1s",
+      "gameName": "Denn1s",
+      "dotaId": "208476639",
+      "side": "夜魇",
+      "heroId": 121,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781880154
+    },
+    {
+      "matchId": 8858066078,
+      "matchTime": "2026-06-19T14:42:34.000Z",
+      "playerName": "Moribund",
+      "gameName": "Moribund",
+      "dotaId": "1065035539",
+      "side": "夜魇",
+      "heroId": 28,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781880154
+    },
+    {
+      "matchId": 8858066078,
+      "matchTime": "2026-06-19T14:42:34.000Z",
+      "playerName": "QcccE",
+      "gameName": "GHzQcE",
+      "dotaId": "1041606597",
+      "side": "天辉",
+      "heroId": 27,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781880154
+    },
+    {
+      "matchId": 8857963585,
+      "matchTime": "2026-06-19T13:27:33.000Z",
+      "playerName": "阿均",
+      "gameName": "American \"Free Speech\"",
+      "dotaId": "880277674",
+      "side": "天辉",
+      "heroId": 28,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781875653
+    },
+    {
+      "matchId": 8857963585,
+      "matchTime": "2026-06-19T13:27:33.000Z",
+      "playerName": "别问",
+      "gameName": "别问！学就行",
+      "dotaId": "139135702",
+      "side": "夜魇",
+      "heroId": 51,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781875653
+    },
+    {
+      "matchId": 8857963585,
+      "matchTime": "2026-06-19T13:27:33.000Z",
+      "playerName": "茶酒",
+      "gameName": "茶酒",
+      "dotaId": "161822486",
+      "side": "天辉",
+      "heroId": 11,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781875653
+    },
+    {
+      "matchId": 8857963585,
+      "matchTime": "2026-06-19T13:27:33.000Z",
+      "playerName": "为人低调",
+      "gameName": "全自动立功",
+      "dotaId": "139203171",
+      "side": "夜魇",
+      "heroId": 128,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781875653
+    },
+    {
+      "matchId": 8857963585,
+      "matchTime": "2026-06-19T13:27:33.000Z",
+      "playerName": "鱼人永不败",
+      "gameName": "1ndulge",
+      "dotaId": "399825811",
+      "side": "夜魇",
+      "heroId": 96,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781875653
+    },
+    {
+      "matchId": 8857963585,
+      "matchTime": "2026-06-19T13:27:33.000Z",
+      "playerName": "Chaibot",
+      "gameName": "ChaiBot★",
+      "dotaId": "79759941",
+      "side": "天辉",
+      "heroId": 52,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781875653
+    },
+    {
+      "matchId": 8857963585,
+      "matchTime": "2026-06-19T13:27:33.000Z",
+      "playerName": "Denn1s",
+      "gameName": "Denn1s",
+      "dotaId": "208476639",
+      "side": "天辉",
+      "heroId": 31,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781875653
+    },
+    {
+      "matchId": 8857963585,
+      "matchTime": "2026-06-19T13:27:33.000Z",
+      "playerName": "Pupa",
+      "gameName": "Pupa",
+      "dotaId": "237169385",
+      "side": "夜魇",
+      "heroId": 63,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781875653
+    },
+    {
+      "matchId": 8857963585,
+      "matchTime": "2026-06-19T13:27:33.000Z",
+      "playerName": "QcccE",
+      "gameName": "GHzQcE",
+      "dotaId": "1041606597",
+      "side": "天辉",
+      "heroId": 123,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781875653
+    },
+    {
+      "matchId": 8856812963,
+      "matchTime": "2026-06-18T15:08:05.000Z",
+      "playerName": "阿均",
+      "gameName": "American \"Free Speech\"",
+      "dotaId": "880277674",
+      "side": "天辉",
+      "heroId": 2,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781795285
+    },
+    {
+      "matchId": 8856812963,
+      "matchTime": "2026-06-18T15:08:05.000Z",
+      "playerName": "别问",
+      "gameName": "别问！学就行",
+      "dotaId": "139135702",
+      "side": "夜魇",
+      "heroId": 83,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781795285
+    },
+    {
+      "matchId": 8856812963,
+      "matchTime": "2026-06-18T15:08:05.000Z",
+      "playerName": "猎奇",
+      "gameName": "猎奇",
+      "dotaId": "788744238",
+      "side": "天辉",
+      "heroId": 72,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781795285
+    },
+    {
+      "matchId": 8856812963,
+      "matchTime": "2026-06-18T15:08:05.000Z",
+      "playerName": "天下伍酒",
+      "gameName": "天下伍酒（red card）",
+      "dotaId": "253121211",
+      "side": "天辉",
+      "heroId": 68,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781795285
+    },
+    {
+      "matchId": 8856812963,
+      "matchTime": "2026-06-18T15:08:05.000Z",
+      "playerName": "be happy",
+      "gameName": "be happy",
+      "dotaId": "1261852738",
+      "side": "夜魇",
+      "heroId": 10,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781795285
+    },
+    {
+      "matchId": 8856812963,
+      "matchTime": "2026-06-18T15:08:05.000Z",
+      "playerName": "cheaterbush",
+      "gameName": "cheaterbush",
+      "dotaId": "448417036",
+      "side": "夜魇",
+      "heroId": 121,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781795285
+    },
+    {
+      "matchId": 8856812963,
+      "matchTime": "2026-06-18T15:08:05.000Z",
+      "playerName": "ico",
+      "gameName": "ico",
+      "dotaId": "1206359917",
+      "side": "天辉",
+      "heroId": 22,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781795285
+    },
+    {
+      "matchId": 8856812963,
+      "matchTime": "2026-06-18T15:08:05.000Z",
+      "playerName": "inmost",
+      "gameName": "Inmost",
+      "dotaId": "456880925",
+      "side": "夜魇",
+      "heroId": 107,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781795285
+    },
+    {
+      "matchId": 8856812963,
+      "matchTime": "2026-06-18T15:08:05.000Z",
+      "playerName": "Pupa",
+      "gameName": "Pupa",
+      "dotaId": "237169385",
+      "side": "夜魇",
+      "heroId": 42,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781795285
+    },
+    {
+      "matchId": 8856739821,
+      "matchTime": "2026-06-18T14:19:49.000Z",
+      "playerName": "0v0",
+      "gameName": "0v0",
+      "dotaId": "948306561",
+      "side": "夜魇",
+      "heroId": 128,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781792389
+    },
+    {
+      "matchId": 8856739821,
+      "matchTime": "2026-06-18T14:19:49.000Z",
+      "playerName": "茶酒",
+      "gameName": "茶酒",
+      "dotaId": "161822486",
+      "side": "夜魇",
+      "heroId": 17,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781792389
+    },
+    {
+      "matchId": 8856739821,
+      "matchTime": "2026-06-18T14:19:49.000Z",
+      "playerName": "范瑶",
+      "gameName": "范瑶",
+      "dotaId": "830568211",
+      "side": "天辉",
+      "heroId": 68,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781792389
+    },
+    {
+      "matchId": 8856739821,
+      "matchTime": "2026-06-18T14:19:49.000Z",
+      "playerName": "今晚执翻剂",
+      "gameName": "今晚执翻剂",
+      "dotaId": "182726435",
+      "side": "夜魇",
+      "heroId": 6,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781792389
+    },
+    {
+      "matchId": 8856739821,
+      "matchTime": "2026-06-18T14:19:49.000Z",
+      "playerName": "鱼人永不败",
+      "gameName": "1ndulge",
+      "dotaId": "399825811",
+      "side": "天辉",
+      "heroId": 67,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781792389
+    },
+    {
+      "matchId": 8856739821,
+      "matchTime": "2026-06-18T14:19:49.000Z",
+      "playerName": "正高",
+      "gameName": "正高",
+      "dotaId": "409431719",
+      "side": "天辉",
+      "heroId": 137,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781792389
+    },
+    {
+      "matchId": 8856739821,
+      "matchTime": "2026-06-18T14:19:49.000Z",
+      "playerName": "Denn1s",
+      "gameName": "Denn1s",
+      "dotaId": "208476639",
+      "side": "夜魇",
+      "heroId": 28,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781792389
+    },
+    {
+      "matchId": 8856739821,
+      "matchTime": "2026-06-18T14:19:49.000Z",
+      "playerName": "KAMI",
+      "gameName": "能帮我弄干净吗",
+      "dotaId": "133666698",
+      "side": "天辉",
+      "heroId": 138,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781792389
+    },
+    {
+      "matchId": 8856739821,
+      "matchTime": "2026-06-18T14:19:49.000Z",
+      "playerName": "QcccE",
+      "gameName": "GHzQcE",
+      "dotaId": "1041606597",
+      "side": "天辉",
+      "heroId": 88,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781792389
+    },
+    {
+      "matchId": 8856717974,
+      "matchTime": "2026-06-18T14:04:56.000Z",
+      "playerName": "阿均",
+      "gameName": "American \"Free Speech\"",
+      "dotaId": "880277674",
+      "side": "夜魇",
+      "heroId": 96,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781791496
+    },
+    {
+      "matchId": 8856717974,
+      "matchTime": "2026-06-18T14:04:56.000Z",
+      "playerName": "别问",
+      "gameName": "别问！学就行",
+      "dotaId": "139135702",
+      "side": "夜魇",
+      "heroId": 85,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781791496
+    },
+    {
+      "matchId": 8856717974,
+      "matchTime": "2026-06-18T14:04:56.000Z",
+      "playerName": "猎奇",
+      "gameName": "猎奇",
+      "dotaId": "788744238",
+      "side": "天辉",
+      "heroId": 135,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781791496
+    },
+    {
+      "matchId": 8856717974,
+      "matchTime": "2026-06-18T14:04:56.000Z",
+      "playerName": "天下伍酒",
+      "gameName": "天下伍酒（red card）",
+      "dotaId": "253121211",
+      "side": "天辉",
+      "heroId": 106,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781791496
+    },
+    {
+      "matchId": 8856717974,
+      "matchTime": "2026-06-18T14:04:56.000Z",
+      "playerName": "be happy",
+      "gameName": "be happy",
+      "dotaId": "1261852738",
+      "side": "天辉",
+      "heroId": 93,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781791496
+    },
+    {
+      "matchId": 8856717974,
+      "matchTime": "2026-06-18T14:04:56.000Z",
+      "playerName": "cheaterbush",
+      "gameName": "cheaterbush",
+      "dotaId": "448417036",
+      "side": "夜魇",
+      "heroId": 22,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781791496
+    },
+    {
+      "matchId": 8856717974,
+      "matchTime": "2026-06-18T14:04:56.000Z",
+      "playerName": "inmost",
+      "gameName": "Inmost",
+      "dotaId": "456880925",
+      "side": "夜魇",
+      "heroId": 74,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781791496
+    },
+    {
+      "matchId": 8856717974,
+      "matchTime": "2026-06-18T14:04:56.000Z",
+      "playerName": "Kano",
+      "gameName": "Kano",
+      "dotaId": "139595295",
+      "side": "天辉",
+      "heroId": 101,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781791496
+    },
+    {
+      "matchId": 8856717974,
+      "matchTime": "2026-06-18T14:04:56.000Z",
+      "playerName": "Pupa",
+      "gameName": "Pupa",
+      "dotaId": "237169385",
+      "side": "天辉",
+      "heroId": 26,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781791496
+    },
+    {
+      "matchId": 8856649934,
+      "matchTime": "2026-06-18T13:19:12.000Z",
+      "playerName": "0v0",
+      "gameName": "0v0",
+      "dotaId": "948306561",
+      "side": "天辉",
+      "heroId": 128,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781788752
+    },
+    {
+      "matchId": 8856649934,
+      "matchTime": "2026-06-18T13:19:12.000Z",
+      "playerName": "茶酒",
+      "gameName": "茶酒",
+      "dotaId": "161822486",
+      "side": "夜魇",
+      "heroId": 109,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781788752
+    },
+    {
+      "matchId": 8856649934,
+      "matchTime": "2026-06-18T13:19:12.000Z",
+      "playerName": "范瑶",
+      "gameName": "范瑶",
+      "dotaId": "830568211",
+      "side": "夜魇",
+      "heroId": 31,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781788752
+    },
+    {
+      "matchId": 8856649934,
+      "matchTime": "2026-06-18T13:19:12.000Z",
+      "playerName": "鱼人永不败",
+      "gameName": "1ndulge",
+      "dotaId": "399825811",
+      "side": "天辉",
+      "heroId": 46,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781788752
+    },
+    {
+      "matchId": 8856649934,
+      "matchTime": "2026-06-18T13:19:12.000Z",
+      "playerName": "Denn1s",
+      "gameName": "Denn1s",
+      "dotaId": "208476639",
+      "side": "夜魇",
+      "heroId": 57,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781788752
+    },
+    {
+      "matchId": 8856649934,
+      "matchTime": "2026-06-18T13:19:12.000Z",
+      "playerName": "KAMI",
+      "gameName": "能帮我弄干净吗",
+      "dotaId": "133666698",
+      "side": "天辉",
+      "heroId": 136,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781788752
+    },
+    {
+      "matchId": 8856649934,
+      "matchTime": "2026-06-18T13:19:12.000Z",
+      "playerName": "QcccE",
+      "gameName": "GHzQcE",
+      "dotaId": "1041606597",
+      "side": "天辉",
+      "heroId": 62,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781788752
+    },
+    {
+      "matchId": 8856649934,
+      "matchTime": "2026-06-18T13:19:12.000Z",
+      "playerName": "Tips",
+      "gameName": "酒蒙子黄毛体育生卡提",
+      "dotaId": "1045578592",
+      "side": "夜魇",
+      "heroId": 16,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781788752
+    },
+    {
+      "matchId": 8856640872,
+      "matchTime": "2026-06-18T13:13:11.000Z",
+      "playerName": "阿均",
+      "gameName": "American \"Free Speech\"",
+      "dotaId": "880277674",
+      "side": "夜魇",
+      "heroId": 85,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781788391
+    },
+    {
+      "matchId": 8856640872,
+      "matchTime": "2026-06-18T13:13:11.000Z",
+      "playerName": "猎奇",
+      "gameName": "猎奇",
+      "dotaId": "788744238",
+      "side": "夜魇",
+      "heroId": 86,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781788391
+    },
+    {
+      "matchId": 8856640872,
+      "matchTime": "2026-06-18T13:13:11.000Z",
+      "playerName": "天下伍酒",
+      "gameName": "天下伍酒（red card）",
+      "dotaId": "253121211",
+      "side": "天辉",
+      "heroId": 2,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781788391
+    },
+    {
+      "matchId": 8856640872,
+      "matchTime": "2026-06-18T13:13:11.000Z",
+      "playerName": "Artol",
+      "gameName": "Artol",
+      "dotaId": "1742683220",
+      "side": "夜魇",
+      "heroId": 9,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781788391
+    },
+    {
+      "matchId": 8856640872,
+      "matchTime": "2026-06-18T13:13:11.000Z",
+      "playerName": "be happy",
+      "gameName": "be happy",
+      "dotaId": "1261852738",
+      "side": "夜魇",
+      "heroId": 48,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781788391
+    },
+    {
+      "matchId": 8856640872,
+      "matchTime": "2026-06-18T13:13:11.000Z",
+      "playerName": "ico",
+      "gameName": "ico",
+      "dotaId": "1206359917",
+      "side": "天辉",
+      "heroId": 128,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781788391
+    },
+    {
+      "matchId": 8856640872,
+      "matchTime": "2026-06-18T13:13:11.000Z",
+      "playerName": "inmost",
+      "gameName": "Inmost",
+      "dotaId": "456880925",
+      "side": "天辉",
+      "heroId": 43,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781788391
+    },
+    {
+      "matchId": 8856640872,
+      "matchTime": "2026-06-18T13:13:11.000Z",
+      "playerName": "Kano",
+      "gameName": "Kano",
+      "dotaId": "139595295",
+      "side": "天辉",
+      "heroId": 101,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781788391
+    },
+    {
+      "matchId": 8856640872,
+      "matchTime": "2026-06-18T13:13:11.000Z",
+      "playerName": "Pupa",
+      "gameName": "Pupa",
+      "dotaId": "237169385",
+      "side": "天辉",
+      "heroId": 63,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781788391
+    },
+    {
+      "matchId": 8855580890,
+      "matchTime": "2026-06-17T14:58:56.000Z",
+      "playerName": "0v0",
+      "gameName": "0v0",
+      "dotaId": "948306561",
+      "side": "天辉",
+      "heroId": 121,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781708336
+    },
+    {
+      "matchId": 8855580890,
+      "matchTime": "2026-06-17T14:58:56.000Z",
+      "playerName": "阿均",
+      "gameName": "American \"Free Speech\"",
+      "dotaId": "880277674",
+      "side": "天辉",
+      "heroId": 137,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781708336
+    },
+    {
+      "matchId": 8855580890,
+      "matchTime": "2026-06-17T14:58:56.000Z",
+      "playerName": "别问",
+      "gameName": "别问！学就行",
+      "dotaId": "139135702",
+      "side": "天辉",
+      "heroId": 31,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781708336
+    },
+    {
+      "matchId": 8855580890,
+      "matchTime": "2026-06-17T14:58:56.000Z",
+      "playerName": "钢琴家睿达",
+      "gameName": "钢琴家睿达",
+      "dotaId": "139291120",
+      "side": "天辉",
+      "heroId": 21,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781708336
+    },
+    {
+      "matchId": 8855580890,
+      "matchTime": "2026-06-17T14:58:56.000Z",
+      "playerName": "天下伍酒",
+      "gameName": "天下伍酒（red card）",
+      "dotaId": "253121211",
+      "side": "夜魇",
+      "heroId": 11,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781708336
+    },
+    {
+      "matchId": 8855580890,
+      "matchTime": "2026-06-17T14:58:56.000Z",
+      "playerName": "ico",
+      "gameName": "ico",
+      "dotaId": "1206359917",
+      "side": "夜魇",
+      "heroId": 87,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781708336
+    },
+    {
+      "matchId": 8855580890,
+      "matchTime": "2026-06-17T14:58:56.000Z",
+      "playerName": "KAMI",
+      "gameName": "能帮我弄干净吗",
+      "dotaId": "133666698",
+      "side": "天辉",
+      "heroId": 128,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781708336
+    },
+    {
+      "matchId": 8855580890,
+      "matchTime": "2026-06-17T14:58:56.000Z",
+      "playerName": "Tips",
+      "gameName": "酒蒙子黄毛体育生卡提",
+      "dotaId": "1045578592",
+      "side": "夜魇",
+      "heroId": 50,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781708336
+    },
+    {
+      "matchId": 8855502897,
+      "matchTime": "2026-06-17T14:07:04.000Z",
+      "playerName": "0v0",
+      "gameName": "0v0",
+      "dotaId": "948306561",
+      "side": "夜魇",
+      "heroId": 105,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781705224
+    },
+    {
+      "matchId": 8855502897,
+      "matchTime": "2026-06-17T14:07:04.000Z",
+      "playerName": "别问",
+      "gameName": "别问！学就行",
+      "dotaId": "139135702",
+      "side": "夜魇",
+      "heroId": 83,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781705224
+    },
+    {
+      "matchId": 8855502897,
+      "matchTime": "2026-06-17T14:07:04.000Z",
+      "playerName": "钢琴家睿达",
+      "gameName": "钢琴家睿达",
+      "dotaId": "139291120",
+      "side": "夜魇",
+      "heroId": 7,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781705224
+    },
+    {
+      "matchId": 8855502897,
+      "matchTime": "2026-06-17T14:07:04.000Z",
+      "playerName": "天下伍酒",
+      "gameName": "天下伍酒（red card）",
+      "dotaId": "253121211",
+      "side": "天辉",
+      "heroId": 85,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781705224
+    },
+    {
+      "matchId": 8855502897,
+      "matchTime": "2026-06-17T14:07:04.000Z",
+      "playerName": "Artol",
+      "gameName": "Artol",
+      "dotaId": "1742683220",
+      "side": "夜魇",
+      "heroId": 11,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781705224
+    },
+    {
+      "matchId": 8855502897,
+      "matchTime": "2026-06-17T14:07:04.000Z",
+      "playerName": "inmost",
+      "gameName": "Inmost",
+      "dotaId": "456880925",
+      "side": "天辉",
+      "heroId": 107,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781705224
+    },
+    {
+      "matchId": 8855502897,
+      "matchTime": "2026-06-17T14:07:04.000Z",
+      "playerName": "QcccE",
+      "gameName": "GHzQcE",
+      "dotaId": "1041606597",
+      "side": "天辉",
+      "heroId": 110,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781705224
+    },
+    {
+      "matchId": 8855502897,
+      "matchTime": "2026-06-17T14:07:04.000Z",
+      "playerName": "Tips",
+      "gameName": "酒蒙子黄毛体育生卡提",
+      "dotaId": "1045578592",
+      "side": "天辉",
+      "heroId": 123,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781705224
+    },
+    {
+      "matchId": 8855394304,
+      "matchTime": "2026-06-17T12:50:38.000Z",
+      "playerName": "李斯",
+      "gameName": "李斯",
+      "dotaId": "403665770",
+      "side": "夜魇",
+      "heroId": 83,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781700638
+    },
+    {
+      "matchId": 8855394304,
+      "matchTime": "2026-06-17T12:50:38.000Z",
+      "playerName": "天下伍酒",
+      "gameName": "天下伍酒（red card）",
+      "dotaId": "253121211",
+      "side": "夜魇",
+      "heroId": 22,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781700638
+    },
+    {
+      "matchId": 8855394304,
+      "matchTime": "2026-06-17T12:50:38.000Z",
+      "playerName": "鱼人永不败",
+      "gameName": "1ndulge",
+      "dotaId": "399825811",
+      "side": "天辉",
+      "heroId": 41,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781700638
+    },
+    {
+      "matchId": 8855394304,
+      "matchTime": "2026-06-17T12:50:38.000Z",
+      "playerName": "Artol",
+      "gameName": "Artol",
+      "dotaId": "1742683220",
+      "side": "天辉",
+      "heroId": 128,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781700638
+    },
+    {
+      "matchId": 8855394304,
+      "matchTime": "2026-06-17T12:50:38.000Z",
+      "playerName": "Chaibot",
+      "gameName": "ChaiBot★",
+      "dotaId": "79759941",
+      "side": "夜魇",
+      "heroId": 43,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781700638
+    },
+    {
+      "matchId": 8855394304,
+      "matchTime": "2026-06-17T12:50:38.000Z",
+      "playerName": "Kano",
+      "gameName": "Kano",
+      "dotaId": "139595295",
+      "side": "天辉",
+      "heroId": 47,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781700638
+    },
+    {
+      "matchId": 8855394304,
+      "matchTime": "2026-06-17T12:50:38.000Z",
+      "playerName": "Pupa",
+      "gameName": "Pupa",
+      "dotaId": "237169385",
+      "side": "夜魇",
+      "heroId": 20,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "胜",
+      "points": 10,
+      "startTime": 1781700638
+    },
+    {
+      "matchId": 8855394304,
+      "matchTime": "2026-06-17T12:50:38.000Z",
+      "playerName": "QcccE",
+      "gameName": "GHzQcE",
+      "dotaId": "1041606597",
+      "side": "天辉",
+      "heroId": 123,
+      "kills": "",
+      "deaths": "",
+      "assists": "",
+      "result": "负",
+      "points": 3,
+      "startTime": 1781700638
+    }
+  ],
+  "storedMatches": [
+    {
+      "matchId": 8858165342,
+      "matchTime": "2026-06-19T15:54:55.000Z",
+      "registered": 9,
+      "sides": "4 : 5",
+      "score": "达到阈值 9/8",
+      "notes": "已按当前积分规则完成入库"
+    },
+    {
+      "matchId": 8858066078,
+      "matchTime": "2026-06-19T14:42:34.000Z",
+      "registered": 10,
+      "sides": "5 : 5",
+      "score": "完整 10 人内战",
+      "notes": "已按当前积分规则完成入库"
+    },
+    {
+      "matchId": 8857963585,
+      "matchTime": "2026-06-19T13:27:33.000Z",
+      "registered": 9,
+      "sides": "5 : 4",
+      "score": "达到阈值 9/8",
+      "notes": "已按当前积分规则完成入库"
+    },
+    {
+      "matchId": 8856812963,
+      "matchTime": "2026-06-18T15:08:05.000Z",
+      "registered": 9,
+      "sides": "4 : 5",
+      "score": "达到阈值 9/8",
+      "notes": "OpenDota 已解析：练习房间 / 模式 -，League ID 19220，玩家库命中 9/10，双方命中 4 : 5。 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。"
+    },
+    {
+      "matchId": 8856739821,
+      "matchTime": "2026-06-18T14:19:49.000Z",
+      "registered": 9,
+      "sides": "5 : 4",
+      "score": "达到阈值 9/8",
+      "notes": "OpenDota 已解析：练习房间 / 模式 -，League ID 19220，玩家库命中 9/10，双方命中 5 : 4。 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。"
+    },
+    {
+      "matchId": 8856717974,
+      "matchTime": "2026-06-18T14:04:56.000Z",
+      "registered": 9,
+      "sides": "5 : 4",
+      "score": "达到阈值 9/8",
+      "notes": "OpenDota 已解析：练习房间 / 模式 -，League ID 19220，玩家库命中 9/10，双方命中 5 : 4。 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。"
+    },
+    {
+      "matchId": 8856649934,
+      "matchTime": "2026-06-18T13:19:12.000Z",
+      "registered": 8,
+      "sides": "4 : 4",
+      "score": "达到阈值 8/8",
+      "notes": "OpenDota 已解析：练习房间 / 模式 -，League ID 19220，玩家库命中 8/10，双方命中 4 : 4。 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。"
+    },
+    {
+      "matchId": 8856640872,
+      "matchTime": "2026-06-18T13:13:11.000Z",
+      "registered": 9,
+      "sides": "5 : 4",
+      "score": "达到阈值 9/8",
+      "notes": "OpenDota 已解析：练习房间 / 模式 -，League ID 19220，玩家库命中 9/10，双方命中 5 : 4。 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。"
+    },
+    {
+      "matchId": 8855580890,
+      "matchTime": "2026-06-17T14:58:56.000Z",
+      "registered": 8,
+      "sides": "5 : 3",
+      "score": "达到阈值 8/8",
+      "notes": "OpenDota 已解析：练习房间 / 模式 -，League ID 19220，玩家库命中 8/10，双方命中 5 : 3。 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。 两边命中不均衡，可能是玩家库缺 ID 或这不是完整群内战。"
+    },
+    {
+      "matchId": 8855502897,
+      "matchTime": "2026-06-17T14:07:04.000Z",
+      "registered": 8,
+      "sides": "4 : 4",
+      "score": "达到阈值 8/8",
+      "notes": "OpenDota 已解析：练习房间 / 模式 -，League ID 19220，玩家库命中 8/10，双方命中 4 : 4。 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。"
+    },
+    {
+      "matchId": 8855394304,
+      "matchTime": "2026-06-17T12:50:38.000Z",
+      "registered": 8,
+      "sides": "4 : 4",
+      "score": "达到阈值 8/8",
+      "notes": "OpenDota 已解析：练习房间 / 模式 -，League ID 19220，玩家库命中 8/10，双方命中 4 : 4。 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。"
+    }
+  ],
+  "raw": {
+    "players": [
+      {
+        "id": 1,
+        "name": "果粒橙",
+        "dotaId": "155292084",
+        "role": "1 / 2",
+        "gameName": "我要玩旮旯给木",
+        "avatarUrl": "https://avatars.steamstatic.com/43b37b323147bfd12f7ef41a8a9f40cfa384f57e_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198115557812/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 2,
+        "name": "吴",
+        "dotaId": "1255889937",
+        "role": "2 / 4",
+        "gameName": "pluviophile",
+        "avatarUrl": "https://avatars.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561199216155665/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 3,
+        "name": "为人低调",
+        "dotaId": "139203171",
+        "role": "3 / 5",
+        "gameName": "全自动立功",
+        "avatarUrl": "https://avatars.steamstatic.com/9561d6d2da2e4805bc0bc74f88d7856950412c47_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198099468899/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 4,
+        "name": "鱼人永不败",
+        "dotaId": "399825811",
+        "role": "1 / 3",
+        "gameName": "1ndulge",
+        "avatarUrl": "https://avatars.steamstatic.com/182257a09582c4814f37652e387861dd2ac67cc9_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198360091539/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 5,
+        "name": "Chaibot",
+        "dotaId": "79759941",
+        "role": "4 / 5",
+        "gameName": "ChaiBot★",
+        "avatarUrl": "https://avatars.steamstatic.com/8f67304c9e5e8d5d63d3ae468abe4966c3225479_full.jpg",
+        "profileUrl": "https://steamcommunity.com/id/stormchai/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 6,
+        "name": "QcccE",
+        "dotaId": "1041606597",
+        "role": "2 / 3",
+        "gameName": "GHzQcE",
+        "avatarUrl": "https://avatars.steamstatic.com/c0aa7c6eca1b76156941959e3d8ff50efb0cf191_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561199001872325/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 7,
+        "name": "正高",
+        "dotaId": "409431719",
+        "role": "1 / 2",
+        "gameName": "正高",
+        "avatarUrl": "https://avatars.steamstatic.com/9369852486ef1143d9453f0164c8ef35a7103a48_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198369697447/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 8,
+        "name": "吉米",
+        "dotaId": "155361267",
+        "role": "3 / 4",
+        "gameName": "卷毛&吉米.Bilibili",
+        "avatarUrl": "https://avatars.steamstatic.com/b118287d839980d742303cee50f726d6d39b1917_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198115626995/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 9,
+        "name": "茶酒",
+        "dotaId": "161822486",
+        "role": "1 / 2",
+        "gameName": "茶酒",
+        "avatarUrl": "https://avatars.steamstatic.com/4b0a7d7b987e9878d82900f8c150ab1b9b7a849f_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198122088214/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 10,
+        "name": "天下伍酒",
+        "dotaId": "253121211",
+        "role": "1 / 3",
+        "gameName": "天下伍酒（red card）",
+        "avatarUrl": "https://avatars.steamstatic.com/8734c268db82dab0d602b9be87c985ba15a03610_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198213386939/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 11,
+        "name": "别问",
+        "dotaId": "139135702",
+        "role": "全能",
+        "gameName": "别问！学就行",
+        "avatarUrl": "https://avatars.steamstatic.com/355575d8bb0d2ec52ee18a112212a6fcc929d833_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198099401430/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 12,
+        "name": "0v0",
+        "dotaId": "948306561",
+        "role": "待补",
+        "gameName": "0v0",
+        "avatarUrl": "https://avatars.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198908572289/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 13,
+        "name": "inmost",
+        "dotaId": "456880925",
+        "role": "2 / 4",
+        "gameName": "Inmost",
+        "avatarUrl": "https://avatars.steamstatic.com/5fea668694c95ff82c2d9cc2b2afdb06a9d2bbb4_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198417146653/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 14,
+        "name": "Pupa",
+        "dotaId": "237169385",
+        "role": "3 / 5",
+        "gameName": "Pupa",
+        "avatarUrl": "https://avatars.steamstatic.com/be65902c43f582d8c064c0fed73dceaf885b6455_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198197435113/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 15,
+        "name": "阿均",
+        "dotaId": "880277674",
+        "role": "4 / 5",
+        "gameName": "American \"Free Speech\"",
+        "avatarUrl": "https://avatars.steamstatic.com/cf514dcf1a4e826e61988ab052f820c3abf3c4e3_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198840543402/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 16,
+        "name": "焖焖",
+        "dotaId": "201599278",
+        "role": "2 / 3",
+        "gameName": "牢焖",
+        "avatarUrl": "https://avatars.steamstatic.com/44aa729ce88eed142dc9877b2a10bcf561b1e785_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198161865006/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 17,
+        "name": "猎奇",
+        "dotaId": "788744238",
+        "role": "待补",
+        "gameName": "猎奇",
+        "avatarUrl": "https://avatars.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198749009966/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 18,
+        "name": "范瑶",
+        "dotaId": "830568211",
+        "role": "待补",
+        "gameName": "范瑶",
+        "avatarUrl": "https://avatars.steamstatic.com/2719f0cda01e8db67b3a0c4c885d9876b367b8df_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198790833939/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 19,
+        "name": "Artol",
+        "dotaId": "1742683220",
+        "role": "待补",
+        "gameName": "Artol",
+        "avatarUrl": "https://avatars.steamstatic.com/48b8d8cd5cd35b94299f7951a118f6fff33f891b_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561199702948948/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 20,
+        "name": "Tips",
+        "dotaId": "1045578592",
+        "role": "3 / 4",
+        "gameName": "酒蒙子黄毛体育生卡提",
+        "avatarUrl": "https://avatars.steamstatic.com/088d1a708489f77ae2a59d4e2c5335d5f45cffae_full.jpg",
+        "profileUrl": "https://steamcommunity.com/id/tipsong/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 21,
+        "name": "雨",
+        "dotaId": "1241554543",
+        "role": "4 / 5",
+        "gameName": "雨",
+        "avatarUrl": "https://avatars.steamstatic.com/58bd67cf047436f84c8a308c31be95e1e23a809b_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561199201820271/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 22,
+        "name": "哈基马",
+        "dotaId": "339743252",
+        "role": "1 / 3",
+        "gameName": "等我上个马",
+        "avatarUrl": "https://avatars.steamstatic.com/752eb38c3b0bc6f74708ec2c3d44d00bda41edde_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198300008980/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 23,
+        "name": "哈基暴",
+        "dotaId": "338957505",
+        "role": "3 / 5",
+        "gameName": "暴鲤龙的大爷爷",
+        "avatarUrl": "https://avatars.steamstatic.com/764f5bf486117c83ed29e5f29e33cd69e583dc29_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198299223233/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 24,
+        "name": "Zsso_zao",
+        "dotaId": "175928804",
+        "role": "4 / 5",
+        "gameName": "Zsso_zao",
+        "avatarUrl": "https://avatars.steamstatic.com/e1edeeccc8320a26774cfabd63467ab9f0a5a6d8_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198136194532/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 25,
+        "name": "KAMI",
+        "dotaId": "133666698",
+        "role": "全能",
+        "gameName": "能帮我弄干净吗",
+        "avatarUrl": "https://avatars.steamstatic.com/198cc4ad9a2c31ad45c4d83d54498df854aedcf4_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198093932426/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 26,
+        "name": "李斯",
+        "dotaId": "403665770",
+        "role": "待补",
+        "gameName": "李斯",
+        "avatarUrl": "https://avatars.steamstatic.com/af339fcac970b1098c7f3c3bd0107af2645fad59_full.jpg",
+        "profileUrl": "https://steamcommunity.com/id/798780530/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 27,
+        "name": "cheaterbush",
+        "dotaId": "448417036",
+        "role": "待补",
+        "gameName": "cheaterbush",
+        "avatarUrl": "https://avatars.steamstatic.com/f9e7e02b28bf8f1f18c07a5e95cb714b795195fd_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198408682764/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 28,
+        "name": "钢琴家睿达",
+        "dotaId": "139291120",
+        "role": "待补",
+        "gameName": "钢琴家睿达",
+        "avatarUrl": "https://avatars.steamstatic.com/bc55afd6180a0aebd83a33fc36da2d534370498e_full.jpg",
+        "profileUrl": "https://steamcommunity.com/id/GunyumL/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 29,
+        "name": "Kano",
+        "dotaId": "139595295",
+        "role": "待补",
+        "gameName": "Kano",
+        "avatarUrl": "https://avatars.steamstatic.com/80f218cad570a586adf3990d20ca8ab664b2e88f_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198099861023/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 30,
+        "name": "Cherry",
+        "dotaId": "1765455118",
+        "role": "待补",
+        "gameName": "Cherry",
+        "avatarUrl": "https://avatars.steamstatic.com/774151f6a68b1a9c34b5248a92b7e842a3fcf3b4_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561199725720846/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 31,
+        "name": "ico",
+        "dotaId": "1206359917",
+        "role": "待补",
+        "gameName": "ico",
+        "avatarUrl": "https://avatars.steamstatic.com/b5984ec17651d765dce7eaf215ae6ec9cec268d2_full.jpg",
+        "profileUrl": "https://steamcommunity.com/id/qiubo666/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 32,
+        "name": "be happy",
+        "dotaId": "1261852738",
+        "role": "待补",
+        "gameName": "be happy",
+        "avatarUrl": "https://avatars.steamstatic.com/1d624398f7d78e30860f065744ce8221756c61d0_full.jpg",
+        "profileUrl": "https://steamcommunity.com/id/a1726355653/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 33,
+        "name": "我去监督李达康",
+        "dotaId": "183774603",
+        "role": "待补",
+        "gameName": "我去监督李达康",
+        "avatarUrl": "https://avatars.steamstatic.com/c26286f1a292309692f9a3a04eed8e0b8c15c66b_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198144040331/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 34,
+        "name": "Moribund",
+        "dotaId": "1065035539",
+        "role": "待补",
+        "gameName": "Moribund",
+        "avatarUrl": "https://avatars.steamstatic.com/3e7fa82d331c950cc2dffca68c4e0f723849cff0_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561199025301267/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 35,
+        "name": "Denn1s",
+        "dotaId": "208476639",
+        "role": "待补",
+        "gameName": "Denn1s",
+        "avatarUrl": "https://avatars.steamstatic.com/ab6436a6821059163a6514eb245e23e52c4ad9d3_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198168742367/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 36,
+        "name": "你是哪塊小餅乾",
+        "dotaId": "1067592430",
+        "role": "待补",
+        "gameName": "你是哪塊小餅乾",
+        "avatarUrl": "https://avatars.steamstatic.com/d918c28ebc011aef576647577bb55f9cbf333541_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561199027858158/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 37,
+        "name": "海绵",
+        "dotaId": "138638303",
+        "role": "待补",
+        "gameName": "海绵",
+        "avatarUrl": "https://avatars.steamstatic.com/a5fda511842c996d37157b5fa2a33e657d2eaf32_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198098904031/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      },
+      {
+        "id": 38,
+        "name": "今晚执翻剂",
+        "dotaId": "182726435",
+        "role": "待补",
+        "gameName": "今晚执翻剂",
+        "avatarUrl": "https://avatars.steamstatic.com/d9fd361f2f6f46e78959617190a493da4da8696e_full.jpg",
+        "profileUrl": "https://steamcommunity.com/profiles/76561198142992163/",
+        "profileSyncedAt": "",
+        "profileError": "",
+        "played": 0,
+        "wins": 0,
+        "points": 0,
+        "captain": false,
+        "publicData": true,
+        "form": [
+          "-",
+          "-",
+          "-",
+          "-",
+          "-"
+        ],
+        "status": "资料已同步"
+      }
+    ],
+    "matches": [
+      {
+        "id": 8858165342,
+        "time": "06-19 23:54",
+        "startTime": 1781884495,
+        "lobbyType": 1,
+        "total": 10,
+        "status": "已入库",
+        "score": "达到阈值 9/8",
+        "notes": "已按当前积分规则完成入库",
+        "registered": 9,
+        "sides": "4 : 5",
+        "hidden": false,
+        "isRankedLadder": false,
+        "registeredPlayers": [
+          {
+            "accountId": "880277674",
+            "name": "阿均",
+            "side": "天辉",
+            "playerSlot": 0,
+            "heroId": 135,
+            "result": true
+          },
+          {
+            "accountId": "139203171",
+            "name": "为人低调",
+            "side": "天辉",
+            "playerSlot": 1,
+            "heroId": 126,
+            "result": true
+          },
+          {
+            "accountId": "139291120",
+            "name": "钢琴家睿达",
+            "side": "天辉",
+            "playerSlot": 2,
+            "heroId": 48,
+            "result": true
+          },
+          {
+            "accountId": "1041606597",
+            "name": "QcccE",
+            "side": "天辉",
+            "playerSlot": 3,
+            "heroId": 26,
+            "result": true
+          },
+          {
+            "accountId": "788744238",
+            "name": "猎奇",
+            "side": "夜魇",
+            "playerSlot": 128,
+            "heroId": 60,
+            "result": false
+          },
+          {
+            "accountId": "161822486",
+            "name": "茶酒",
+            "side": "夜魇",
+            "playerSlot": 129,
+            "heroId": 106,
+            "result": false
+          },
+          {
+            "accountId": "133666698",
+            "name": "KAMI",
+            "side": "夜魇",
+            "playerSlot": 130,
+            "heroId": 6,
+            "result": false
+          },
+          {
+            "accountId": "139135702",
+            "name": "别问",
+            "side": "夜魇",
+            "playerSlot": 131,
+            "heroId": 31,
+            "result": false
+          },
+          {
+            "accountId": "208476639",
+            "name": "Denn1s",
+            "side": "夜魇",
+            "playerSlot": 132,
+            "heroId": 51,
+            "result": false
+          }
+        ],
+        "detailSource": "steam-history",
+        "detailPlayerCount": 10,
+        "hasKnownWinner": true
+      },
+      {
+        "id": 8858066078,
+        "time": "06-19 22:42",
+        "startTime": 1781880154,
+        "lobbyType": 1,
+        "total": 10,
+        "status": "已入库",
+        "score": "完整 10 人内战",
+        "notes": "已按当前积分规则完成入库",
+        "registered": 10,
+        "sides": "5 : 5",
+        "hidden": false,
+        "isRankedLadder": false,
+        "registeredPlayers": [
+          {
+            "accountId": "161822486",
+            "name": "茶酒",
+            "side": "天辉",
+            "playerSlot": 0,
+            "heroId": 74,
+            "result": false
+          },
+          {
+            "accountId": "139291120",
+            "name": "钢琴家睿达",
+            "side": "天辉",
+            "playerSlot": 1,
+            "heroId": 21,
+            "result": false
+          },
+          {
+            "accountId": "788744238",
+            "name": "猎奇",
+            "side": "天辉",
+            "playerSlot": 2,
+            "heroId": 19,
+            "result": false
+          },
+          {
+            "accountId": "139135702",
+            "name": "别问",
+            "side": "天辉",
+            "playerSlot": 3,
+            "heroId": 99,
+            "result": false
+          },
+          {
+            "accountId": "1041606597",
+            "name": "QcccE",
+            "side": "天辉",
+            "playerSlot": 4,
+            "heroId": 27,
+            "result": false
+          },
+          {
+            "accountId": "448417036",
+            "name": "cheaterbush",
+            "side": "夜魇",
+            "playerSlot": 128,
+            "heroId": 83,
+            "result": true
+          },
+          {
+            "accountId": "1742683220",
+            "name": "Artol",
+            "side": "夜魇",
+            "playerSlot": 129,
+            "heroId": 11,
+            "result": true
+          },
+          {
+            "accountId": "1065035539",
+            "name": "Moribund",
+            "side": "夜魇",
+            "playerSlot": 130,
+            "heroId": 28,
+            "result": true
+          },
+          {
+            "accountId": "208476639",
+            "name": "Denn1s",
+            "side": "夜魇",
+            "playerSlot": 131,
+            "heroId": 121,
+            "result": true
+          },
+          {
+            "accountId": "339743252",
+            "name": "哈基马",
+            "side": "夜魇",
+            "playerSlot": 132,
+            "heroId": 39,
+            "result": true
+          }
+        ],
+        "detailSource": "steam-history",
+        "detailPlayerCount": 10,
+        "hasKnownWinner": true
+      },
+      {
+        "id": 8857963585,
+        "time": "06-19 21:27",
+        "startTime": 1781875653,
+        "lobbyType": 1,
+        "total": 10,
+        "status": "已入库",
+        "score": "达到阈值 9/8",
+        "notes": "已按当前积分规则完成入库",
+        "registered": 9,
+        "sides": "5 : 4",
+        "hidden": false,
+        "isRankedLadder": false,
+        "registeredPlayers": [
+          {
+            "accountId": "161822486",
+            "name": "茶酒",
+            "side": "天辉",
+            "playerSlot": 0,
+            "heroId": 11,
+            "result": false
+          },
+          {
+            "accountId": "880277674",
+            "name": "阿均",
+            "side": "天辉",
+            "playerSlot": 1,
+            "heroId": 28,
+            "result": false
+          },
+          {
+            "accountId": "79759941",
+            "name": "Chaibot",
+            "side": "天辉",
+            "playerSlot": 2,
+            "heroId": 52,
+            "result": false
+          },
+          {
+            "accountId": "1041606597",
+            "name": "QcccE",
+            "side": "天辉",
+            "playerSlot": 3,
+            "heroId": 123,
+            "result": false
+          },
+          {
+            "accountId": "208476639",
+            "name": "Denn1s",
+            "side": "天辉",
+            "playerSlot": 4,
+            "heroId": 31,
+            "result": false
+          },
+          {
+            "accountId": "139203171",
+            "name": "为人低调",
+            "side": "夜魇",
+            "playerSlot": 128,
+            "heroId": 128,
+            "result": true
+          },
+          {
+            "accountId": "139135702",
+            "name": "别问",
+            "side": "夜魇",
+            "playerSlot": 130,
+            "heroId": 51,
+            "result": true
+          },
+          {
+            "accountId": "237169385",
+            "name": "Pupa",
+            "side": "夜魇",
+            "playerSlot": 131,
+            "heroId": 63,
+            "result": true
+          },
+          {
+            "accountId": "399825811",
+            "name": "鱼人永不败",
+            "side": "夜魇",
+            "playerSlot": 132,
+            "heroId": 96,
+            "result": true
+          }
+        ],
+        "detailSource": "steam-history",
+        "detailPlayerCount": 10,
+        "hasKnownWinner": true
+      },
+      {
+        "id": 8856812963,
+        "time": "06-18 23:08",
+        "startTime": 1781795285,
+        "lobbyType": 1,
+        "total": 10,
+        "status": "已入库",
+        "score": "达到阈值 9/8",
+        "notes": "OpenDota 已解析：练习房间 / 模式 -，League ID 19220，玩家库命中 9/10，双方命中 4 : 5。 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。",
+        "registered": 9,
+        "sides": "4 : 5",
+        "hidden": false,
+        "isRankedLadder": false,
+        "registeredPlayers": [
+          {
+            "accountId": "253121211",
+            "name": "天下伍酒",
+            "side": "天辉",
+            "playerSlot": 0,
+            "heroId": 68,
+            "result": false
+          },
+          {
+            "accountId": "1206359917",
+            "name": "ico",
+            "side": "天辉",
+            "playerSlot": 1,
+            "heroId": 22,
+            "result": false
+          },
+          {
+            "accountId": "880277674",
+            "name": "阿均",
+            "side": "天辉",
+            "playerSlot": 2,
+            "heroId": 2,
+            "result": false
+          },
+          {
+            "accountId": "788744238",
+            "name": "猎奇",
+            "side": "天辉",
+            "playerSlot": 3,
+            "heroId": 72,
+            "result": false
+          },
+          {
+            "accountId": "1261852738",
+            "name": "be happy",
+            "side": "夜魇",
+            "playerSlot": 128,
+            "heroId": 10,
+            "result": true
+          },
+          {
+            "accountId": "448417036",
+            "name": "cheaterbush",
+            "side": "夜魇",
+            "playerSlot": 129,
+            "heroId": 121,
+            "result": true
+          },
+          {
+            "accountId": "139135702",
+            "name": "别问",
+            "side": "夜魇",
+            "playerSlot": 130,
+            "heroId": 83,
+            "result": true
+          },
+          {
+            "accountId": "456880925",
+            "name": "inmost",
+            "side": "夜魇",
+            "playerSlot": 131,
+            "heroId": 107,
+            "result": true
+          },
+          {
+            "accountId": "237169385",
+            "name": "Pupa",
+            "side": "夜魇",
+            "playerSlot": 132,
+            "heroId": 42,
+            "result": true
+          }
+        ],
+        "detailSource": "steam-history",
+        "detailPlayerCount": 10,
+        "hasKnownWinner": false
+      },
+      {
+        "id": 8856739821,
+        "time": "06-18 22:19",
+        "startTime": 1781792389,
+        "lobbyType": 1,
+        "total": 10,
+        "status": "已入库",
+        "score": "达到阈值 9/8",
+        "notes": "OpenDota 已解析：练习房间 / 模式 -，League ID 19220，玩家库命中 9/10，双方命中 5 : 4。 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。",
+        "registered": 9,
+        "sides": "5 : 4",
+        "hidden": false,
+        "isRankedLadder": false,
+        "registeredPlayers": [
+          {
+            "accountId": "133666698",
+            "name": "KAMI",
+            "side": "天辉",
+            "playerSlot": 0,
+            "heroId": 138,
+            "result": false
+          },
+          {
+            "accountId": "409431719",
+            "name": "正高",
+            "side": "天辉",
+            "playerSlot": 1,
+            "heroId": 137,
+            "result": false
+          },
+          {
+            "accountId": "830568211",
+            "name": "范瑶",
+            "side": "天辉",
+            "playerSlot": 2,
+            "heroId": 68,
+            "result": false
+          },
+          {
+            "accountId": "1041606597",
+            "name": "QcccE",
+            "side": "天辉",
+            "playerSlot": 3,
+            "heroId": 88,
+            "result": false
+          },
+          {
+            "accountId": "399825811",
+            "name": "鱼人永不败",
+            "side": "天辉",
+            "playerSlot": 4,
+            "heroId": 67,
+            "result": false
+          },
+          {
+            "accountId": "161822486",
+            "name": "茶酒",
+            "side": "夜魇",
+            "playerSlot": 128,
+            "heroId": 17,
+            "result": true
+          },
+          {
+            "accountId": "208476639",
+            "name": "Denn1s",
+            "side": "夜魇",
+            "playerSlot": 130,
+            "heroId": 28,
+            "result": true
+          },
+          {
+            "accountId": "182726435",
+            "name": "今晚执翻剂",
+            "side": "夜魇",
+            "playerSlot": 131,
+            "heroId": 6,
+            "result": true
+          },
+          {
+            "accountId": "948306561",
+            "name": "0v0",
+            "side": "夜魇",
+            "playerSlot": 132,
+            "heroId": 128,
+            "result": true
+          }
+        ],
+        "detailSource": "steam-history",
+        "detailPlayerCount": 10,
+        "hasKnownWinner": false
+      },
+      {
+        "id": 8856717974,
+        "time": "06-18 22:04",
+        "startTime": 1781791496,
+        "lobbyType": 1,
+        "total": 10,
+        "status": "已入库",
+        "score": "达到阈值 9/8",
+        "notes": "OpenDota 已解析：练习房间 / 模式 -，League ID 19220，玩家库命中 9/10，双方命中 5 : 4。 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。",
+        "registered": 9,
+        "sides": "5 : 4",
+        "hidden": false,
+        "isRankedLadder": false,
+        "registeredPlayers": [
+          {
+            "accountId": "253121211",
+            "name": "天下伍酒",
+            "side": "天辉",
+            "playerSlot": 0,
+            "heroId": 106,
+            "result": true
+          },
+          {
+            "accountId": "1261852738",
+            "name": "be happy",
+            "side": "天辉",
+            "playerSlot": 1,
+            "heroId": 93,
+            "result": true
+          },
+          {
+            "accountId": "788744238",
+            "name": "猎奇",
+            "side": "天辉",
+            "playerSlot": 2,
+            "heroId": 135,
+            "result": true
+          },
+          {
+            "accountId": "139595295",
+            "name": "Kano",
+            "side": "天辉",
+            "playerSlot": 3,
+            "heroId": 101,
+            "result": true
+          },
+          {
+            "accountId": "237169385",
+            "name": "Pupa",
+            "side": "天辉",
+            "playerSlot": 4,
+            "heroId": 26,
+            "result": true
+          },
+          {
+            "accountId": "448417036",
+            "name": "cheaterbush",
+            "side": "夜魇",
+            "playerSlot": 129,
+            "heroId": 22,
+            "result": false
+          },
+          {
+            "accountId": "880277674",
+            "name": "阿均",
+            "side": "夜魇",
+            "playerSlot": 130,
+            "heroId": 96,
+            "result": false
+          },
+          {
+            "accountId": "456880925",
+            "name": "inmost",
+            "side": "夜魇",
+            "playerSlot": 131,
+            "heroId": 74,
+            "result": false
+          },
+          {
+            "accountId": "139135702",
+            "name": "别问",
+            "side": "夜魇",
+            "playerSlot": 132,
+            "heroId": 85,
+            "result": false
+          }
+        ],
+        "detailSource": "steam-history",
+        "detailPlayerCount": 10,
+        "hasKnownWinner": false
+      },
+      {
+        "id": 8856649934,
+        "time": "06-18 21:19",
+        "startTime": 1781788752,
+        "lobbyType": 1,
+        "total": 10,
+        "status": "已入库",
+        "score": "达到阈值 8/8",
+        "notes": "OpenDota 已解析：练习房间 / 模式 -，League ID 19220，玩家库命中 8/10，双方命中 4 : 4。 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。",
+        "registered": 8,
+        "sides": "4 : 4",
+        "hidden": false,
+        "isRankedLadder": false,
+        "registeredPlayers": [
+          {
+            "accountId": "133666698",
+            "name": "KAMI",
+            "side": "天辉",
+            "playerSlot": 0,
+            "heroId": 136,
+            "result": false
+          },
+          {
+            "accountId": "399825811",
+            "name": "鱼人永不败",
+            "side": "天辉",
+            "playerSlot": 1,
+            "heroId": 46,
+            "result": false
+          },
+          {
+            "accountId": "1041606597",
+            "name": "QcccE",
+            "side": "天辉",
+            "playerSlot": 2,
+            "heroId": 62,
+            "result": false
+          },
+          {
+            "accountId": "948306561",
+            "name": "0v0",
+            "side": "天辉",
+            "playerSlot": 3,
+            "heroId": 128,
+            "result": false
+          },
+          {
+            "accountId": "161822486",
+            "name": "茶酒",
+            "side": "夜魇",
+            "playerSlot": 128,
+            "heroId": 109,
+            "result": true
+          },
+          {
+            "accountId": "1045578592",
+            "name": "Tips",
+            "side": "夜魇",
+            "playerSlot": 130,
+            "heroId": 16,
+            "result": true
+          },
+          {
+            "accountId": "208476639",
+            "name": "Denn1s",
+            "side": "夜魇",
+            "playerSlot": 131,
+            "heroId": 57,
+            "result": true
+          },
+          {
+            "accountId": "830568211",
+            "name": "范瑶",
+            "side": "夜魇",
+            "playerSlot": 132,
+            "heroId": 31,
+            "result": true
+          }
+        ],
+        "detailSource": "steam-history",
+        "detailPlayerCount": 10,
+        "hasKnownWinner": false
+      },
+      {
+        "id": 8856640872,
+        "time": "06-18 21:13",
+        "startTime": 1781788391,
+        "lobbyType": 1,
+        "total": 10,
+        "status": "已入库",
+        "score": "达到阈值 9/8",
+        "notes": "OpenDota 已解析：练习房间 / 模式 -，League ID 19220，玩家库命中 9/10，双方命中 5 : 4。 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。",
+        "registered": 9,
+        "sides": "5 : 4",
+        "hidden": false,
+        "isRankedLadder": false,
+        "registeredPlayers": [
+          {
+            "accountId": "253121211",
+            "name": "天下伍酒",
+            "side": "天辉",
+            "playerSlot": 0,
+            "heroId": 2,
+            "result": true
+          },
+          {
+            "accountId": "1206359917",
+            "name": "ico",
+            "side": "天辉",
+            "playerSlot": 1,
+            "heroId": 128,
+            "result": true
+          },
+          {
+            "accountId": "139595295",
+            "name": "Kano",
+            "side": "天辉",
+            "playerSlot": 2,
+            "heroId": 101,
+            "result": true
+          },
+          {
+            "accountId": "237169385",
+            "name": "Pupa",
+            "side": "天辉",
+            "playerSlot": 3,
+            "heroId": 63,
+            "result": true
+          },
+          {
+            "accountId": "456880925",
+            "name": "inmost",
+            "side": "天辉",
+            "playerSlot": 4,
+            "heroId": 43,
+            "result": true
+          },
+          {
+            "accountId": "1742683220",
+            "name": "Artol",
+            "side": "夜魇",
+            "playerSlot": 128,
+            "heroId": 9,
+            "result": false
+          },
+          {
+            "accountId": "1261852738",
+            "name": "be happy",
+            "side": "夜魇",
+            "playerSlot": 129,
+            "heroId": 48,
+            "result": false
+          },
+          {
+            "accountId": "880277674",
+            "name": "阿均",
+            "side": "夜魇",
+            "playerSlot": 130,
+            "heroId": 85,
+            "result": false
+          },
+          {
+            "accountId": "788744238",
+            "name": "猎奇",
+            "side": "夜魇",
+            "playerSlot": 131,
+            "heroId": 86,
+            "result": false
+          }
+        ],
+        "detailSource": "steam-history",
+        "detailPlayerCount": 10,
+        "hasKnownWinner": false
+      },
+      {
+        "id": 8855580890,
+        "time": "06-17 22:58",
+        "startTime": 1781708336,
+        "lobbyType": 1,
+        "total": 10,
+        "status": "已入库",
+        "score": "达到阈值 8/8",
+        "notes": "OpenDota 已解析：练习房间 / 模式 -，League ID 19220，玩家库命中 8/10，双方命中 5 : 3。 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。 两边命中不均衡，可能是玩家库缺 ID 或这不是完整群内战。",
+        "registered": 8,
+        "sides": "5 : 3",
+        "hidden": false,
+        "isRankedLadder": false,
+        "registeredPlayers": [
+          {
+            "accountId": "139291120",
+            "name": "钢琴家睿达",
+            "side": "天辉",
+            "playerSlot": 0,
+            "heroId": 21,
+            "result": false
+          },
+          {
+            "accountId": "133666698",
+            "name": "KAMI",
+            "side": "天辉",
+            "playerSlot": 1,
+            "heroId": 128,
+            "result": false
+          },
+          {
+            "accountId": "880277674",
+            "name": "阿均",
+            "side": "天辉",
+            "playerSlot": 2,
+            "heroId": 137,
+            "result": false
+          },
+          {
+            "accountId": "139135702",
+            "name": "别问",
+            "side": "天辉",
+            "playerSlot": 3,
+            "heroId": 31,
+            "result": false
+          },
+          {
+            "accountId": "948306561",
+            "name": "0v0",
+            "side": "天辉",
+            "playerSlot": 4,
+            "heroId": 121,
+            "result": false
+          },
+          {
+            "accountId": "253121211",
+            "name": "天下伍酒",
+            "side": "夜魇",
+            "playerSlot": 128,
+            "heroId": 11,
+            "result": true
+          },
+          {
+            "accountId": "1206359917",
+            "name": "ico",
+            "side": "夜魇",
+            "playerSlot": 130,
+            "heroId": 87,
+            "result": true
+          },
+          {
+            "accountId": "1045578592",
+            "name": "Tips",
+            "side": "夜魇",
+            "playerSlot": 132,
+            "heroId": 50,
+            "result": true
+          }
+        ],
+        "detailSource": "steam-history",
+        "detailPlayerCount": 10,
+        "hasKnownWinner": false
+      },
+      {
+        "id": 8855502897,
+        "time": "06-17 22:07",
+        "startTime": 1781705224,
+        "lobbyType": 1,
+        "total": 10,
+        "status": "已入库",
+        "score": "达到阈值 8/8",
+        "notes": "OpenDota 已解析：练习房间 / 模式 -，League ID 19220，玩家库命中 8/10，双方命中 4 : 4。 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。",
+        "registered": 8,
+        "sides": "4 : 4",
+        "hidden": false,
+        "isRankedLadder": false,
+        "registeredPlayers": [
+          {
+            "accountId": "253121211",
+            "name": "天下伍酒",
+            "side": "天辉",
+            "playerSlot": 0,
+            "heroId": 85,
+            "result": true
+          },
+          {
+            "accountId": "456880925",
+            "name": "inmost",
+            "side": "天辉",
+            "playerSlot": 2,
+            "heroId": 107,
+            "result": true
+          },
+          {
+            "accountId": "1041606597",
+            "name": "QcccE",
+            "side": "天辉",
+            "playerSlot": 3,
+            "heroId": 110,
+            "result": true
+          },
+          {
+            "accountId": "1045578592",
+            "name": "Tips",
+            "side": "天辉",
+            "playerSlot": 4,
+            "heroId": 123,
+            "result": true
+          },
+          {
+            "accountId": "1742683220",
+            "name": "Artol",
+            "side": "夜魇",
+            "playerSlot": 128,
+            "heroId": 11,
+            "result": false
+          },
+          {
+            "accountId": "139135702",
+            "name": "别问",
+            "side": "夜魇",
+            "playerSlot": 130,
+            "heroId": 83,
+            "result": false
+          },
+          {
+            "accountId": "139291120",
+            "name": "钢琴家睿达",
+            "side": "夜魇",
+            "playerSlot": 131,
+            "heroId": 7,
+            "result": false
+          },
+          {
+            "accountId": "948306561",
+            "name": "0v0",
+            "side": "夜魇",
+            "playerSlot": 132,
+            "heroId": 105,
+            "result": false
+          }
+        ],
+        "detailSource": "steam-history",
+        "detailPlayerCount": 10,
+        "hasKnownWinner": false
+      },
+      {
+        "id": 8855394304,
+        "time": "06-17 20:50",
+        "startTime": 1781700638,
+        "lobbyType": 1,
+        "total": 10,
+        "status": "已入库",
+        "score": "达到阈值 8/8",
+        "notes": "OpenDota 已解析：练习房间 / 模式 -，League ID 19220，玩家库命中 8/10，双方命中 4 : 4。 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。",
+        "registered": 8,
+        "sides": "4 : 4",
+        "hidden": false,
+        "isRankedLadder": false,
+        "registeredPlayers": [
+          {
+            "accountId": "399825811",
+            "name": "鱼人永不败",
+            "side": "天辉",
+            "playerSlot": 0,
+            "heroId": 41,
+            "result": false
+          },
+          {
+            "accountId": "139595295",
+            "name": "Kano",
+            "side": "天辉",
+            "playerSlot": 1,
+            "heroId": 47,
+            "result": false
+          },
+          {
+            "accountId": "1041606597",
+            "name": "QcccE",
+            "side": "天辉",
+            "playerSlot": 3,
+            "heroId": 123,
+            "result": false
+          },
+          {
+            "accountId": "1742683220",
+            "name": "Artol",
+            "side": "天辉",
+            "playerSlot": 4,
+            "heroId": 128,
+            "result": false
+          },
+          {
+            "accountId": "253121211",
+            "name": "天下伍酒",
+            "side": "夜魇",
+            "playerSlot": 128,
+            "heroId": 22,
+            "result": true
+          },
+          {
+            "accountId": "403665770",
+            "name": "李斯",
+            "side": "夜魇",
+            "playerSlot": 130,
+            "heroId": 83,
+            "result": true
+          },
+          {
+            "accountId": "79759941",
+            "name": "Chaibot",
+            "side": "夜魇",
+            "playerSlot": 131,
+            "heroId": 43,
+            "result": true
+          },
+          {
+            "accountId": "237169385",
+            "name": "Pupa",
+            "side": "夜魇",
+            "playerSlot": 132,
+            "heroId": 20,
+            "result": true
+          }
+        ],
+        "detailSource": "steam-history",
+        "detailPlayerCount": 10,
+        "hasKnownWinner": false
+      }
+    ],
+    "settings": {
+      "seasonName": "S1 积分周期",
+      "minRegisteredPlayers": 8,
+      "minCaptainGames": 6,
+      "winPoints": 10,
+      "lossPoints": 3,
+      "autoSync": true,
+      "allowPartialMatches": true,
+      "useLeagueScan": true,
+      "leagueId": "19220"
+    },
+    "syncRuns": [
+      {
+        "id": 12,
+        "kind": "manual",
+        "status": "warning",
+        "summary": "3 新增，8 重复已跳过；联赛房 19220 扫到 500 场（5 页），命中 11 场",
+        "details": {
+          "newCount": 3,
+          "duplicatedCount": 8,
+          "failedCount": 38,
+          "leagueScan": {
+            "enabled": true,
+            "leagueId": "19220",
+            "fetched": 500,
+            "candidateCount": 11,
+            "failed": false,
+            "error": "",
+            "totalResults": 491,
+            "resultsRemaining": 0,
+            "pagesFetched": 5,
+            "pageSize": 100,
+            "partial": false,
+            "latestStartTime": 1781884495,
+            "oldestStartTime": 1775399089,
+            "diagnostics": [
+              {
+                "id": 8858165342,
+                "time": "06-19 23:54",
+                "startTime": 1781884495,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "阿均",
+                  "为人低调",
+                  "钢琴家睿达",
+                  "QcccE",
+                  "猎奇",
+                  "茶酒",
+                  "KAMI",
+                  "别问",
+                  "Denn1s"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8858066078,
+                "time": "06-19 22:42",
+                "startTime": 1781880154,
+                "lobbyType": 1,
+                "registered": 10,
+                "total": 10,
+                "registeredNames": [
+                  "茶酒",
+                  "钢琴家睿达",
+                  "猎奇",
+                  "别问",
+                  "QcccE",
+                  "cheaterbush",
+                  "Artol",
+                  "Moribund",
+                  "Denn1s",
+                  "哈基马"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8857963585,
+                "time": "06-19 21:27",
+                "startTime": 1781875653,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "茶酒",
+                  "阿均",
+                  "Chaibot",
+                  "QcccE",
+                  "Denn1s",
+                  "为人低调",
+                  "别问",
+                  "Pupa",
+                  "鱼人永不败"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856812963,
+                "time": "06-18 23:08",
+                "startTime": 1781795285,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "ico",
+                  "阿均",
+                  "猎奇",
+                  "be happy",
+                  "cheaterbush",
+                  "别问",
+                  "inmost",
+                  "Pupa"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856739821,
+                "time": "06-18 22:19",
+                "startTime": 1781792389,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "正高",
+                  "范瑶",
+                  "QcccE",
+                  "鱼人永不败",
+                  "茶酒",
+                  "Denn1s",
+                  "今晚执翻剂",
+                  "0v0"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856717974,
+                "time": "06-18 22:04",
+                "startTime": 1781791496,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "be happy",
+                  "猎奇",
+                  "Kano",
+                  "Pupa",
+                  "cheaterbush",
+                  "阿均",
+                  "inmost",
+                  "别问"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856649934,
+                "time": "06-18 21:19",
+                "startTime": 1781788752,
+                "lobbyType": 1,
+                "registered": 8,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "鱼人永不败",
+                  "QcccE",
+                  "0v0",
+                  "茶酒",
+                  "Tips",
+                  "Denn1s",
+                  "范瑶"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856642399,
+                "time": "06-18 21:14",
+                "startTime": 1781788442,
+                "lobbyType": 1,
+                "registered": 7,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "范瑶",
+                  "鱼人永不败",
+                  "茶酒",
+                  "0v0",
+                  "QcccE",
+                  "Denn1s"
+                ],
+                "reasons": [
+                  "registered_below_threshold:7/8"
+                ]
+              },
+              {
+                "id": 8856640872,
+                "time": "06-18 21:13",
+                "startTime": 1781788391,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "ico",
+                  "Kano",
+                  "Pupa",
+                  "inmost",
+                  "Artol",
+                  "be happy",
+                  "阿均",
+                  "猎奇"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855580890,
+                "time": "06-17 22:58",
+                "startTime": 1781708336,
+                "lobbyType": 1,
+                "registered": 10,
+                "total": 10,
+                "registeredNames": [
+                  "钢琴家睿达",
+                  "KAMI",
+                  "阿均",
+                  "别问",
+                  "0v0",
+                  "天下伍酒",
+                  "be happy",
+                  "ico",
+                  "猎奇",
+                  "Tips"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855502897,
+                "time": "06-17 22:07",
+                "startTime": 1781705224,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "inmost",
+                  "QcccE",
+                  "Tips",
+                  "Artol",
+                  "猎奇",
+                  "别问",
+                  "钢琴家睿达",
+                  "0v0"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855413695,
+                "time": "06-17 21:04",
+                "startTime": 1781701496,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8855394304,
+                "time": "06-17 20:50",
+                "startTime": 1781700638,
+                "lobbyType": 1,
+                "registered": 10,
+                "total": 10,
+                "registeredNames": [
+                  "鱼人永不败",
+                  "Kano",
+                  "范瑶",
+                  "QcccE",
+                  "Artol",
+                  "天下伍酒",
+                  "猎奇",
+                  "李斯",
+                  "Chaibot",
+                  "Pupa"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8852949062,
+                "time": "06-15 20:54",
+                "startTime": 1781528090,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8852885241,
+                "time": "06-15 20:05",
+                "startTime": 1781525106,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851856643,
+                "time": "06-14 23:00",
+                "startTime": 1781449224,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851849561,
+                "time": "06-14 22:55",
+                "startTime": 1781448948,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851732788,
+                "time": "06-14 21:45",
+                "startTime": 1781444739,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851633174,
+                "time": "06-14 20:43",
+                "startTime": 1781440995,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851538952,
+                "time": "06-14 19:40",
+                "startTime": 1781437204,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              }
+            ]
+          }
+        },
+        "startedAt": "2026-06-19T17:05:29.999Z",
+        "finishedAt": "2026-06-19T17:05:32.676Z"
+      },
+      {
+        "id": 11,
+        "kind": "manual",
+        "status": "success",
+        "summary": "0 新增，8 重复已跳过；联赛房 19220 扫到 500 场（5 页），命中 8 场",
+        "details": {
+          "newCount": 0,
+          "duplicatedCount": 8,
+          "failedCount": 0,
+          "leagueScan": {
+            "enabled": true,
+            "leagueId": "19220",
+            "fetched": 500,
+            "candidateCount": 8,
+            "failed": false,
+            "error": "",
+            "totalResults": 491,
+            "resultsRemaining": 0,
+            "pagesFetched": 5,
+            "pageSize": 100,
+            "partial": false,
+            "latestStartTime": 1781795285,
+            "oldestStartTime": 1775395062,
+            "diagnostics": [
+              {
+                "id": 8856812963,
+                "time": "06-18 23:08",
+                "startTime": 1781795285,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "ico",
+                  "阿均",
+                  "猎奇",
+                  "be happy",
+                  "cheaterbush",
+                  "别问",
+                  "inmost",
+                  "Pupa"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856739821,
+                "time": "06-18 22:19",
+                "startTime": 1781792389,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "正高",
+                  "范瑶",
+                  "QcccE",
+                  "鱼人永不败",
+                  "茶酒",
+                  "Denn1s",
+                  "今晚执翻剂",
+                  "0v0"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856717974,
+                "time": "06-18 22:04",
+                "startTime": 1781791496,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "be happy",
+                  "猎奇",
+                  "Kano",
+                  "Pupa",
+                  "cheaterbush",
+                  "阿均",
+                  "inmost",
+                  "别问"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856649934,
+                "time": "06-18 21:19",
+                "startTime": 1781788752,
+                "lobbyType": 1,
+                "registered": 8,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "鱼人永不败",
+                  "QcccE",
+                  "0v0",
+                  "茶酒",
+                  "Tips",
+                  "Denn1s",
+                  "范瑶"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856642399,
+                "time": "06-18 21:14",
+                "startTime": 1781788442,
+                "lobbyType": 1,
+                "registered": 7,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "范瑶",
+                  "鱼人永不败",
+                  "茶酒",
+                  "0v0",
+                  "QcccE",
+                  "Denn1s"
+                ],
+                "reasons": [
+                  "registered_below_threshold:7/8"
+                ]
+              },
+              {
+                "id": 8856640872,
+                "time": "06-18 21:13",
+                "startTime": 1781788391,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "ico",
+                  "Kano",
+                  "Pupa",
+                  "inmost",
+                  "Artol",
+                  "be happy",
+                  "阿均",
+                  "猎奇"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855580890,
+                "time": "06-17 22:58",
+                "startTime": 1781708336,
+                "lobbyType": 1,
+                "registered": 10,
+                "total": 10,
+                "registeredNames": [
+                  "钢琴家睿达",
+                  "KAMI",
+                  "阿均",
+                  "别问",
+                  "0v0",
+                  "天下伍酒",
+                  "be happy",
+                  "ico",
+                  "猎奇",
+                  "Tips"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855502897,
+                "time": "06-17 22:07",
+                "startTime": 1781705224,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "inmost",
+                  "QcccE",
+                  "Tips",
+                  "Artol",
+                  "猎奇",
+                  "别问",
+                  "钢琴家睿达",
+                  "0v0"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855413695,
+                "time": "06-17 21:04",
+                "startTime": 1781701496,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8855394304,
+                "time": "06-17 20:50",
+                "startTime": 1781700638,
+                "lobbyType": 1,
+                "registered": 10,
+                "total": 10,
+                "registeredNames": [
+                  "鱼人永不败",
+                  "Kano",
+                  "范瑶",
+                  "QcccE",
+                  "Artol",
+                  "天下伍酒",
+                  "猎奇",
+                  "李斯",
+                  "Chaibot",
+                  "Pupa"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8852949062,
+                "time": "06-15 20:54",
+                "startTime": 1781528090,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8852885241,
+                "time": "06-15 20:05",
+                "startTime": 1781525106,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851856643,
+                "time": "06-14 23:00",
+                "startTime": 1781449224,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851849561,
+                "time": "06-14 22:55",
+                "startTime": 1781448948,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851732788,
+                "time": "06-14 21:45",
+                "startTime": 1781444739,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851633174,
+                "time": "06-14 20:43",
+                "startTime": 1781440995,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851538952,
+                "time": "06-14 19:40",
+                "startTime": 1781437204,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851297806,
+                "time": "06-14 16:00",
+                "startTime": 1781424028,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851233665,
+                "time": "06-14 14:53",
+                "startTime": 1781420000,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851227641,
+                "time": "06-14 14:47",
+                "startTime": 1781419673,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              }
+            ]
+          }
+        },
+        "startedAt": "2026-06-19T06:48:26.124Z",
+        "finishedAt": "2026-06-19T06:48:28.487Z"
+      },
+      {
+        "id": 10,
+        "kind": "auto",
+        "status": "success",
+        "summary": "自动同步完成：新增 0 场，重试 0 场",
+        "details": {
+          "windowHours": 72,
+          "retryLimit": 12,
+          "newCount": 0,
+          "duplicatedCount": 8,
+          "failedCount": 0,
+          "leagueScan": {
+            "enabled": true,
+            "leagueId": "19220",
+            "fetched": 500,
+            "candidateCount": 8,
+            "failed": false,
+            "error": "",
+            "totalResults": 491,
+            "resultsRemaining": 0,
+            "pagesFetched": 5,
+            "pageSize": 100,
+            "partial": false,
+            "latestStartTime": 1781795285,
+            "oldestStartTime": 1775395062,
+            "diagnostics": [
+              {
+                "id": 8856812963,
+                "time": "06-18 23:08",
+                "startTime": 1781795285,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "ico",
+                  "阿均",
+                  "猎奇",
+                  "be happy",
+                  "cheaterbush",
+                  "别问",
+                  "inmost",
+                  "Pupa"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856739821,
+                "time": "06-18 22:19",
+                "startTime": 1781792389,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "正高",
+                  "范瑶",
+                  "QcccE",
+                  "鱼人永不败",
+                  "茶酒",
+                  "Denn1s",
+                  "今晚执翻剂",
+                  "0v0"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856717974,
+                "time": "06-18 22:04",
+                "startTime": 1781791496,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "be happy",
+                  "猎奇",
+                  "Kano",
+                  "Pupa",
+                  "cheaterbush",
+                  "阿均",
+                  "inmost",
+                  "别问"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856649934,
+                "time": "06-18 21:19",
+                "startTime": 1781788752,
+                "lobbyType": 1,
+                "registered": 8,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "鱼人永不败",
+                  "QcccE",
+                  "0v0",
+                  "茶酒",
+                  "Tips",
+                  "Denn1s",
+                  "范瑶"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856642399,
+                "time": "06-18 21:14",
+                "startTime": 1781788442,
+                "lobbyType": 1,
+                "registered": 7,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "范瑶",
+                  "鱼人永不败",
+                  "茶酒",
+                  "0v0",
+                  "QcccE",
+                  "Denn1s"
+                ],
+                "reasons": [
+                  "registered_below_threshold:7/8"
+                ]
+              },
+              {
+                "id": 8856640872,
+                "time": "06-18 21:13",
+                "startTime": 1781788391,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "ico",
+                  "Kano",
+                  "Pupa",
+                  "inmost",
+                  "Artol",
+                  "be happy",
+                  "阿均",
+                  "猎奇"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855580890,
+                "time": "06-17 22:58",
+                "startTime": 1781708336,
+                "lobbyType": 1,
+                "registered": 10,
+                "total": 10,
+                "registeredNames": [
+                  "钢琴家睿达",
+                  "KAMI",
+                  "阿均",
+                  "别问",
+                  "0v0",
+                  "天下伍酒",
+                  "be happy",
+                  "ico",
+                  "猎奇",
+                  "Tips"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855502897,
+                "time": "06-17 22:07",
+                "startTime": 1781705224,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "inmost",
+                  "QcccE",
+                  "Tips",
+                  "Artol",
+                  "猎奇",
+                  "别问",
+                  "钢琴家睿达",
+                  "0v0"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855413695,
+                "time": "06-17 21:04",
+                "startTime": 1781701496,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8855394304,
+                "time": "06-17 20:50",
+                "startTime": 1781700638,
+                "lobbyType": 1,
+                "registered": 10,
+                "total": 10,
+                "registeredNames": [
+                  "鱼人永不败",
+                  "Kano",
+                  "范瑶",
+                  "QcccE",
+                  "Artol",
+                  "天下伍酒",
+                  "猎奇",
+                  "李斯",
+                  "Chaibot",
+                  "Pupa"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8852949062,
+                "time": "06-15 20:54",
+                "startTime": 1781528090,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "outside_date_range",
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8852885241,
+                "time": "06-15 20:05",
+                "startTime": 1781525106,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "outside_date_range",
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851856643,
+                "time": "06-14 23:00",
+                "startTime": 1781449224,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "outside_date_range",
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851849561,
+                "time": "06-14 22:55",
+                "startTime": 1781448948,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "outside_date_range",
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851732788,
+                "time": "06-14 21:45",
+                "startTime": 1781444739,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "outside_date_range",
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851633174,
+                "time": "06-14 20:43",
+                "startTime": 1781440995,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "outside_date_range",
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851538952,
+                "time": "06-14 19:40",
+                "startTime": 1781437204,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "outside_date_range",
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851297806,
+                "time": "06-14 16:00",
+                "startTime": 1781424028,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "outside_date_range",
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851233665,
+                "time": "06-14 14:53",
+                "startTime": 1781420000,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "outside_date_range",
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851227641,
+                "time": "06-14 14:47",
+                "startTime": 1781419673,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "outside_date_range",
+                  "registered_below_threshold:0/8"
+                ]
+              }
+            ]
+          },
+          "retry": {
+            "attempted": 0,
+            "succeeded": 0,
+            "results": []
+          }
+        },
+        "startedAt": "2026-06-19T00:16:19.013Z",
+        "finishedAt": "2026-06-19T00:16:23.321Z"
+      },
+      {
+        "id": 9,
+        "kind": "manual",
+        "status": "warning",
+        "summary": "1 新增，7 重复已跳过；联赛房 19220 扫到 500 场（5 页），命中 8 场",
+        "details": {
+          "newCount": 1,
+          "duplicatedCount": 7,
+          "failedCount": 38,
+          "leagueScan": {
+            "enabled": true,
+            "leagueId": "19220",
+            "fetched": 500,
+            "candidateCount": 8,
+            "failed": false,
+            "error": "",
+            "totalResults": 491,
+            "resultsRemaining": 0,
+            "pagesFetched": 5,
+            "pageSize": 100,
+            "partial": false,
+            "latestStartTime": 1781795285,
+            "oldestStartTime": 1775395062,
+            "diagnostics": [
+              {
+                "id": 8856812963,
+                "time": "06-18 23:08",
+                "startTime": 1781795285,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "ico",
+                  "阿均",
+                  "猎奇",
+                  "be happy",
+                  "cheaterbush",
+                  "别问",
+                  "inmost",
+                  "Pupa"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856739821,
+                "time": "06-18 22:19",
+                "startTime": 1781792389,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "正高",
+                  "范瑶",
+                  "QcccE",
+                  "鱼人永不败",
+                  "茶酒",
+                  "Denn1s",
+                  "今晚执翻剂",
+                  "0v0"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856717974,
+                "time": "06-18 22:04",
+                "startTime": 1781791496,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "be happy",
+                  "猎奇",
+                  "Kano",
+                  "Pupa",
+                  "cheaterbush",
+                  "阿均",
+                  "inmost",
+                  "别问"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856649934,
+                "time": "06-18 21:19",
+                "startTime": 1781788752,
+                "lobbyType": 1,
+                "registered": 8,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "鱼人永不败",
+                  "QcccE",
+                  "0v0",
+                  "茶酒",
+                  "Tips",
+                  "Denn1s",
+                  "范瑶"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856642399,
+                "time": "06-18 21:14",
+                "startTime": 1781788442,
+                "lobbyType": 1,
+                "registered": 7,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "范瑶",
+                  "鱼人永不败",
+                  "茶酒",
+                  "0v0",
+                  "QcccE",
+                  "Denn1s"
+                ],
+                "reasons": [
+                  "registered_below_threshold:7/8"
+                ]
+              },
+              {
+                "id": 8856640872,
+                "time": "06-18 21:13",
+                "startTime": 1781788391,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "ico",
+                  "Kano",
+                  "Pupa",
+                  "inmost",
+                  "Artol",
+                  "be happy",
+                  "阿均",
+                  "猎奇"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855580890,
+                "time": "06-17 22:58",
+                "startTime": 1781708336,
+                "lobbyType": 1,
+                "registered": 10,
+                "total": 10,
+                "registeredNames": [
+                  "钢琴家睿达",
+                  "KAMI",
+                  "阿均",
+                  "别问",
+                  "0v0",
+                  "天下伍酒",
+                  "be happy",
+                  "ico",
+                  "猎奇",
+                  "Tips"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855502897,
+                "time": "06-17 22:07",
+                "startTime": 1781705224,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "inmost",
+                  "QcccE",
+                  "Tips",
+                  "Artol",
+                  "猎奇",
+                  "别问",
+                  "钢琴家睿达",
+                  "0v0"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855413695,
+                "time": "06-17 21:04",
+                "startTime": 1781701496,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8855394304,
+                "time": "06-17 20:50",
+                "startTime": 1781700638,
+                "lobbyType": 1,
+                "registered": 10,
+                "total": 10,
+                "registeredNames": [
+                  "鱼人永不败",
+                  "Kano",
+                  "范瑶",
+                  "QcccE",
+                  "Artol",
+                  "天下伍酒",
+                  "猎奇",
+                  "李斯",
+                  "Chaibot",
+                  "Pupa"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8852949062,
+                "time": "06-15 20:54",
+                "startTime": 1781528090,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8852885241,
+                "time": "06-15 20:05",
+                "startTime": 1781525106,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851856643,
+                "time": "06-14 23:00",
+                "startTime": 1781449224,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851849561,
+                "time": "06-14 22:55",
+                "startTime": 1781448948,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851732788,
+                "time": "06-14 21:45",
+                "startTime": 1781444739,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851633174,
+                "time": "06-14 20:43",
+                "startTime": 1781440995,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851538952,
+                "time": "06-14 19:40",
+                "startTime": 1781437204,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851297806,
+                "time": "06-14 16:00",
+                "startTime": 1781424028,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851233665,
+                "time": "06-14 14:53",
+                "startTime": 1781420000,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851227641,
+                "time": "06-14 14:47",
+                "startTime": 1781419673,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              }
+            ]
+          }
+        },
+        "startedAt": "2026-06-18T17:56:01.232Z",
+        "finishedAt": "2026-06-18T17:56:02.994Z"
+      },
+      {
+        "id": 8,
+        "kind": "manual",
+        "status": "warning",
+        "summary": "4 新增，3 重复已跳过；联赛房 19220 扫到 500 场（5 页），命中 7 场",
+        "details": {
+          "newCount": 4,
+          "duplicatedCount": 3,
+          "failedCount": 38,
+          "leagueScan": {
+            "enabled": true,
+            "leagueId": "19220",
+            "fetched": 500,
+            "candidateCount": 7,
+            "failed": false,
+            "error": "",
+            "totalResults": 491,
+            "resultsRemaining": 0,
+            "pagesFetched": 5,
+            "pageSize": 100,
+            "partial": false,
+            "latestStartTime": 1781792389,
+            "oldestStartTime": 1775393852,
+            "diagnostics": [
+              {
+                "id": 8856739821,
+                "time": "06-18 22:19",
+                "startTime": 1781792389,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "正高",
+                  "范瑶",
+                  "QcccE",
+                  "鱼人永不败",
+                  "茶酒",
+                  "Denn1s",
+                  "今晚执翻剂",
+                  "0v0"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856717974,
+                "time": "06-18 22:04",
+                "startTime": 1781791496,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "be happy",
+                  "猎奇",
+                  "Kano",
+                  "Pupa",
+                  "cheaterbush",
+                  "阿均",
+                  "inmost",
+                  "别问"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856649934,
+                "time": "06-18 21:19",
+                "startTime": 1781788752,
+                "lobbyType": 1,
+                "registered": 8,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "鱼人永不败",
+                  "QcccE",
+                  "0v0",
+                  "茶酒",
+                  "Tips",
+                  "Denn1s",
+                  "范瑶"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8856642399,
+                "time": "06-18 21:14",
+                "startTime": 1781788442,
+                "lobbyType": 1,
+                "registered": 7,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "范瑶",
+                  "鱼人永不败",
+                  "茶酒",
+                  "0v0",
+                  "QcccE",
+                  "Denn1s"
+                ],
+                "reasons": [
+                  "registered_below_threshold:7/8"
+                ]
+              },
+              {
+                "id": 8856640872,
+                "time": "06-18 21:13",
+                "startTime": 1781788391,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "ico",
+                  "Kano",
+                  "Pupa",
+                  "inmost",
+                  "Artol",
+                  "be happy",
+                  "阿均",
+                  "猎奇"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855580890,
+                "time": "06-17 22:58",
+                "startTime": 1781708336,
+                "lobbyType": 1,
+                "registered": 10,
+                "total": 10,
+                "registeredNames": [
+                  "钢琴家睿达",
+                  "KAMI",
+                  "阿均",
+                  "别问",
+                  "0v0",
+                  "天下伍酒",
+                  "be happy",
+                  "ico",
+                  "猎奇",
+                  "Tips"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855502897,
+                "time": "06-17 22:07",
+                "startTime": 1781705224,
+                "lobbyType": 1,
+                "registered": 9,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "inmost",
+                  "QcccE",
+                  "Tips",
+                  "Artol",
+                  "猎奇",
+                  "别问",
+                  "钢琴家睿达",
+                  "0v0"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855413695,
+                "time": "06-17 21:04",
+                "startTime": 1781701496,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8855394304,
+                "time": "06-17 20:50",
+                "startTime": 1781700638,
+                "lobbyType": 1,
+                "registered": 10,
+                "total": 10,
+                "registeredNames": [
+                  "鱼人永不败",
+                  "Kano",
+                  "范瑶",
+                  "QcccE",
+                  "Artol",
+                  "天下伍酒",
+                  "猎奇",
+                  "李斯",
+                  "Chaibot",
+                  "Pupa"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8852949062,
+                "time": "06-15 20:54",
+                "startTime": 1781528090,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8852885241,
+                "time": "06-15 20:05",
+                "startTime": 1781525106,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851856643,
+                "time": "06-14 23:00",
+                "startTime": 1781449224,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851849561,
+                "time": "06-14 22:55",
+                "startTime": 1781448948,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851732788,
+                "time": "06-14 21:45",
+                "startTime": 1781444739,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851633174,
+                "time": "06-14 20:43",
+                "startTime": 1781440995,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851538952,
+                "time": "06-14 19:40",
+                "startTime": 1781437204,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851297806,
+                "time": "06-14 16:00",
+                "startTime": 1781424028,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851233665,
+                "time": "06-14 14:53",
+                "startTime": 1781420000,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851227641,
+                "time": "06-14 14:47",
+                "startTime": 1781419673,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851164820,
+                "time": "06-14 13:38",
+                "startTime": 1781415531,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              }
+            ]
+          }
+        },
+        "startedAt": "2026-06-18T15:48:22.069Z",
+        "finishedAt": "2026-06-18T15:48:24.147Z"
+      },
+      {
+        "id": 7,
+        "kind": "manual",
+        "status": "warning",
+        "summary": "0 新增，3 重复已跳过；联赛房 19220 扫到 500 场（5 页），命中 3 场",
+        "details": {
+          "newCount": 0,
+          "duplicatedCount": 3,
+          "failedCount": 30,
+          "leagueScan": {
+            "enabled": true,
+            "leagueId": "19220",
+            "fetched": 500,
+            "candidateCount": 3,
+            "failed": false,
+            "error": "",
+            "totalResults": 491,
+            "resultsRemaining": 0,
+            "pagesFetched": 5,
+            "pageSize": 100,
+            "partial": false,
+            "latestStartTime": 1781792389,
+            "oldestStartTime": 1775393852,
+            "diagnostics": [
+              {
+                "id": 8856739821,
+                "time": "06-18 22:19",
+                "startTime": 1781792389,
+                "lobbyType": 1,
+                "registered": 6,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "正高",
+                  "QcccE",
+                  "鱼人永不败",
+                  "茶酒",
+                  "0v0"
+                ],
+                "reasons": [
+                  "registered_below_threshold:6/8"
+                ]
+              },
+              {
+                "id": 8856717974,
+                "time": "06-18 22:04",
+                "startTime": 1781791496,
+                "lobbyType": 1,
+                "registered": 7,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "Kano",
+                  "Pupa",
+                  "cheaterbush",
+                  "阿均",
+                  "inmost",
+                  "别问"
+                ],
+                "reasons": [
+                  "registered_below_threshold:7/8"
+                ]
+              },
+              {
+                "id": 8856649934,
+                "time": "06-18 21:19",
+                "startTime": 1781788752,
+                "lobbyType": 1,
+                "registered": 6,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "鱼人永不败",
+                  "QcccE",
+                  "0v0",
+                  "茶酒",
+                  "Tips"
+                ],
+                "reasons": [
+                  "registered_below_threshold:6/8"
+                ]
+              },
+              {
+                "id": 8856642399,
+                "time": "06-18 21:14",
+                "startTime": 1781788442,
+                "lobbyType": 1,
+                "registered": 5,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "鱼人永不败",
+                  "茶酒",
+                  "0v0",
+                  "QcccE"
+                ],
+                "reasons": [
+                  "registered_below_threshold:5/8"
+                ]
+              },
+              {
+                "id": 8856640872,
+                "time": "06-18 21:13",
+                "startTime": 1781788391,
+                "lobbyType": 1,
+                "registered": 7,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "ico",
+                  "Kano",
+                  "Pupa",
+                  "inmost",
+                  "Artol",
+                  "阿均"
+                ],
+                "reasons": [
+                  "registered_below_threshold:7/8"
+                ]
+              },
+              {
+                "id": 8855580890,
+                "time": "06-17 22:58",
+                "startTime": 1781708336,
+                "lobbyType": 1,
+                "registered": 8,
+                "total": 10,
+                "registeredNames": [
+                  "钢琴家睿达",
+                  "KAMI",
+                  "阿均",
+                  "别问",
+                  "0v0",
+                  "天下伍酒",
+                  "ico",
+                  "Tips"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855502897,
+                "time": "06-17 22:07",
+                "startTime": 1781705224,
+                "lobbyType": 1,
+                "registered": 8,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "inmost",
+                  "QcccE",
+                  "Tips",
+                  "Artol",
+                  "别问",
+                  "钢琴家睿达",
+                  "0v0"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855413695,
+                "time": "06-17 21:04",
+                "startTime": 1781701496,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8855394304,
+                "time": "06-17 20:50",
+                "startTime": 1781700638,
+                "lobbyType": 1,
+                "registered": 8,
+                "total": 10,
+                "registeredNames": [
+                  "鱼人永不败",
+                  "Kano",
+                  "QcccE",
+                  "Artol",
+                  "天下伍酒",
+                  "李斯",
+                  "Chaibot",
+                  "Pupa"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8852949062,
+                "time": "06-15 20:54",
+                "startTime": 1781528090,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8852885241,
+                "time": "06-15 20:05",
+                "startTime": 1781525106,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851856643,
+                "time": "06-14 23:00",
+                "startTime": 1781449224,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851849561,
+                "time": "06-14 22:55",
+                "startTime": 1781448948,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851732788,
+                "time": "06-14 21:45",
+                "startTime": 1781444739,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851633174,
+                "time": "06-14 20:43",
+                "startTime": 1781440995,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851538952,
+                "time": "06-14 19:40",
+                "startTime": 1781437204,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851297806,
+                "time": "06-14 16:00",
+                "startTime": 1781424028,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851233665,
+                "time": "06-14 14:53",
+                "startTime": 1781420000,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851227641,
+                "time": "06-14 14:47",
+                "startTime": 1781419673,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851164820,
+                "time": "06-14 13:38",
+                "startTime": 1781415531,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              }
+            ]
+          }
+        },
+        "startedAt": "2026-06-18T15:37:54.783Z",
+        "finishedAt": "2026-06-18T15:37:56.160Z"
+      },
+      {
+        "id": 6,
+        "kind": "manual",
+        "status": "warning",
+        "summary": "0 新增，3 重复已跳过；联赛房 19220 扫到 500 场（5 页），命中 3 场",
+        "details": {
+          "newCount": 0,
+          "duplicatedCount": 3,
+          "failedCount": 30,
+          "leagueScan": {
+            "enabled": true,
+            "leagueId": "19220",
+            "fetched": 500,
+            "candidateCount": 3,
+            "failed": false,
+            "error": "",
+            "totalResults": 491,
+            "resultsRemaining": 0,
+            "pagesFetched": 5,
+            "pageSize": 100,
+            "partial": false,
+            "latestStartTime": 1781792389,
+            "oldestStartTime": 1775393852,
+            "diagnostics": [
+              {
+                "id": 8856739821,
+                "time": "06-18 22:19",
+                "startTime": 1781792389,
+                "lobbyType": 1,
+                "registered": 6,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "正高",
+                  "QcccE",
+                  "鱼人永不败",
+                  "茶酒",
+                  "0v0"
+                ],
+                "reasons": [
+                  "registered_below_threshold:6/8"
+                ]
+              },
+              {
+                "id": 8856717974,
+                "time": "06-18 22:04",
+                "startTime": 1781791496,
+                "lobbyType": 1,
+                "registered": 7,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "Kano",
+                  "Pupa",
+                  "cheaterbush",
+                  "阿均",
+                  "inmost",
+                  "别问"
+                ],
+                "reasons": [
+                  "registered_below_threshold:7/8"
+                ]
+              },
+              {
+                "id": 8856649934,
+                "time": "06-18 21:19",
+                "startTime": 1781788752,
+                "lobbyType": 1,
+                "registered": 6,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "鱼人永不败",
+                  "QcccE",
+                  "0v0",
+                  "茶酒",
+                  "Tips"
+                ],
+                "reasons": [
+                  "registered_below_threshold:6/8"
+                ]
+              },
+              {
+                "id": 8856642399,
+                "time": "06-18 21:14",
+                "startTime": 1781788442,
+                "lobbyType": 1,
+                "registered": 5,
+                "total": 10,
+                "registeredNames": [
+                  "KAMI",
+                  "鱼人永不败",
+                  "茶酒",
+                  "0v0",
+                  "QcccE"
+                ],
+                "reasons": [
+                  "registered_below_threshold:5/8"
+                ]
+              },
+              {
+                "id": 8856640872,
+                "time": "06-18 21:13",
+                "startTime": 1781788391,
+                "lobbyType": 1,
+                "registered": 7,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "ico",
+                  "Kano",
+                  "Pupa",
+                  "inmost",
+                  "Artol",
+                  "阿均"
+                ],
+                "reasons": [
+                  "registered_below_threshold:7/8"
+                ]
+              },
+              {
+                "id": 8855580890,
+                "time": "06-17 22:58",
+                "startTime": 1781708336,
+                "lobbyType": 1,
+                "registered": 8,
+                "total": 10,
+                "registeredNames": [
+                  "钢琴家睿达",
+                  "KAMI",
+                  "阿均",
+                  "别问",
+                  "0v0",
+                  "天下伍酒",
+                  "ico",
+                  "Tips"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855502897,
+                "time": "06-17 22:07",
+                "startTime": 1781705224,
+                "lobbyType": 1,
+                "registered": 8,
+                "total": 10,
+                "registeredNames": [
+                  "天下伍酒",
+                  "inmost",
+                  "QcccE",
+                  "Tips",
+                  "Artol",
+                  "别问",
+                  "钢琴家睿达",
+                  "0v0"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8855413695,
+                "time": "06-17 21:04",
+                "startTime": 1781701496,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8855394304,
+                "time": "06-17 20:50",
+                "startTime": 1781700638,
+                "lobbyType": 1,
+                "registered": 8,
+                "total": 10,
+                "registeredNames": [
+                  "鱼人永不败",
+                  "Kano",
+                  "QcccE",
+                  "Artol",
+                  "天下伍酒",
+                  "李斯",
+                  "Chaibot",
+                  "Pupa"
+                ],
+                "reasons": [
+                  "candidate_or_duplicate"
+                ]
+              },
+              {
+                "id": 8852949062,
+                "time": "06-15 20:54",
+                "startTime": 1781528090,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8852885241,
+                "time": "06-15 20:05",
+                "startTime": 1781525106,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851856643,
+                "time": "06-14 23:00",
+                "startTime": 1781449224,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851849561,
+                "time": "06-14 22:55",
+                "startTime": 1781448948,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851732788,
+                "time": "06-14 21:45",
+                "startTime": 1781444739,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851633174,
+                "time": "06-14 20:43",
+                "startTime": 1781440995,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851538952,
+                "time": "06-14 19:40",
+                "startTime": 1781437204,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851297806,
+                "time": "06-14 16:00",
+                "startTime": 1781424028,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851233665,
+                "time": "06-14 14:53",
+                "startTime": 1781420000,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851227641,
+                "time": "06-14 14:47",
+                "startTime": 1781419673,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              },
+              {
+                "id": 8851164820,
+                "time": "06-14 13:38",
+                "startTime": 1781415531,
+                "lobbyType": 1,
+                "registered": 0,
+                "total": 10,
+                "registeredNames": [],
+                "reasons": [
+                  "registered_below_threshold:0/8"
+                ]
+              }
+            ]
+          }
+        },
+        "startedAt": "2026-06-18T15:31:08.134Z",
+        "finishedAt": "2026-06-18T15:32:38.684Z"
+      },
+      {
+        "id": 5,
+        "kind": "manual",
+        "status": "warning",
+        "summary": "0 新增，3 重复已跳过；联赛房 19220 扫到 109 场，命中 3 场",
+        "details": {
+          "newCount": 0,
+          "duplicatedCount": 3,
+          "failedCount": 30,
+          "leagueScan": {
+            "enabled": true,
+            "leagueId": "19220",
+            "fetched": 109,
+            "candidateCount": 3,
+            "failed": false,
+            "error": "",
+            "totalResults": 491,
+            "resultsRemaining": 391
+          }
+        },
+        "startedAt": "2026-06-18T14:49:54.125Z",
+        "finishedAt": "2026-06-18T14:49:55.039Z"
+      },
+      {
+        "id": 4,
+        "kind": "manual",
+        "status": "warning",
+        "summary": "0 新增，3 重复已跳过；联赛房 19220 扫到 109 场，命中 3 场",
+        "details": {
+          "newCount": 0,
+          "duplicatedCount": 3,
+          "failedCount": 30,
+          "leagueScan": {
+            "enabled": true,
+            "leagueId": "19220",
+            "fetched": 109,
+            "candidateCount": 3,
+            "failed": false,
+            "error": "",
+            "totalResults": 491,
+            "resultsRemaining": 391
+          }
+        },
+        "startedAt": "2026-06-18T14:29:25.624Z",
+        "finishedAt": "2026-06-18T14:29:26.224Z"
+      },
+      {
+        "id": 3,
+        "kind": "manual",
+        "status": "warning",
+        "summary": "0 新增，3 重复已跳过；联赛房 19220 扫到 109 场，命中 3 场",
+        "details": {
+          "newCount": 0,
+          "duplicatedCount": 3,
+          "failedCount": 30,
+          "leagueScan": {
+            "enabled": true,
+            "leagueId": "19220",
+            "fetched": 109,
+            "candidateCount": 3,
+            "failed": false,
+            "error": "",
+            "totalResults": 491,
+            "resultsRemaining": 391
+          }
+        },
+        "startedAt": "2026-06-18T14:10:57.226Z",
+        "finishedAt": "2026-06-18T14:10:57.813Z"
+      }
+    ],
+    "auditLogs": [
+      {
+        "id": 40,
+        "action": "store_match",
+        "matchId": "8858165342",
+        "actor": "管理员",
+        "summary": "已确认 -> 已入库",
+        "details": {
+          "previousStatus": "已确认",
+          "nextStatus": "已入库"
+        },
+        "createdAt": "2026-06-19 17:06:40"
+      },
+      {
+        "id": 39,
+        "action": "confirm_match",
+        "matchId": "8858165342",
+        "actor": "管理员",
+        "summary": "待确认 -> 已确认",
+        "details": {
+          "previousStatus": "待确认",
+          "nextStatus": "已确认"
+        },
+        "createdAt": "2026-06-19 17:06:37"
+      },
+      {
+        "id": 38,
+        "action": "set_winner",
+        "matchId": "8858165342",
+        "actor": "管理员",
+        "summary": "手动指定 天辉 胜",
+        "details": {
+          "previousStatus": "待确认",
+          "winnerSide": "天辉"
+        },
+        "createdAt": "2026-06-19 17:06:35"
+      },
+      {
+        "id": 37,
+        "action": "store_match",
+        "matchId": "8858066078",
+        "actor": "管理员",
+        "summary": "已确认 -> 已入库",
+        "details": {
+          "previousStatus": "已确认",
+          "nextStatus": "已入库"
+        },
+        "createdAt": "2026-06-19 17:06:15"
+      },
+      {
+        "id": 36,
+        "action": "set_winner",
+        "matchId": "8858066078",
+        "actor": "管理员",
+        "summary": "手动指定 夜魇 胜",
+        "details": {
+          "previousStatus": "已确认",
+          "winnerSide": "夜魇"
+        },
+        "createdAt": "2026-06-19 17:06:12"
+      },
+      {
+        "id": 35,
+        "action": "confirm_match",
+        "matchId": "8858066078",
+        "actor": "管理员",
+        "summary": "待确认 -> 已确认",
+        "details": {
+          "previousStatus": "待确认",
+          "nextStatus": "已确认"
+        },
+        "createdAt": "2026-06-19 17:06:04"
+      },
+      {
+        "id": 34,
+        "action": "store_match",
+        "matchId": "8857963585",
+        "actor": "管理员",
+        "summary": "已确认 -> 已入库",
+        "details": {
+          "previousStatus": "已确认",
+          "nextStatus": "已入库"
+        },
+        "createdAt": "2026-06-19 17:05:59"
+      },
+      {
+        "id": 33,
+        "action": "confirm_match",
+        "matchId": "8857963585",
+        "actor": "管理员",
+        "summary": "待确认 -> 已确认",
+        "details": {
+          "previousStatus": "待确认",
+          "nextStatus": "已确认"
+        },
+        "createdAt": "2026-06-19 17:05:57"
+      },
+      {
+        "id": 32,
+        "action": "set_winner",
+        "matchId": "8857963585",
+        "actor": "管理员",
+        "summary": "手动指定 夜魇 胜",
+        "details": {
+          "previousStatus": "待确认",
+          "winnerSide": "夜魇"
+        },
+        "createdAt": "2026-06-19 17:05:55"
+      },
+      {
+        "id": 31,
+        "action": "manual_sync",
+        "matchId": "",
+        "actor": "管理员",
+        "summary": "手动同步完成：新增 3 场，重复 8 场",
+        "details": {
+          "syncRunId": 12,
+          "failedCount": 38
+        },
+        "createdAt": "2026-06-19 17:05:32"
+      },
+      {
+        "id": 30,
+        "action": "manual_sync",
+        "matchId": "",
+        "actor": "管理员",
+        "summary": "手动同步完成：新增 0 场，重复 8 场",
+        "details": {
+          "syncRunId": 11,
+          "failedCount": 0
+        },
+        "createdAt": "2026-06-19 06:48:28"
+      },
+      {
+        "id": 29,
+        "action": "auto_sync",
+        "matchId": "",
+        "actor": "GitHub Actions",
+        "summary": "自动同步完成：新增 0 场，重试 0 场",
+        "details": {
+          "syncRunId": 10,
+          "status": "success"
+        },
+        "createdAt": "2026-06-19 00:16:23"
+      },
+      {
+        "id": 28,
+        "action": "store_match",
+        "matchId": "8856812963",
+        "actor": "管理员",
+        "summary": "已确认 -> 已入库",
+        "details": {
+          "previousStatus": "已确认",
+          "nextStatus": "已入库"
+        },
+        "createdAt": "2026-06-18 18:19:09"
+      },
+      {
+        "id": 27,
+        "action": "set_winner",
+        "matchId": "8856812963",
+        "actor": "管理员",
+        "summary": "手动指定 夜魇 胜",
+        "details": {
+          "previousStatus": "已确认",
+          "winnerSide": "夜魇"
+        },
+        "createdAt": "2026-06-18 18:19:06"
+      },
+      {
+        "id": 26,
+        "action": "confirm_match",
+        "matchId": "8856812963",
+        "actor": "管理员",
+        "summary": "待确认 -> 已确认",
+        "details": {
+          "previousStatus": "待确认",
+          "nextStatus": "已确认"
+        },
+        "createdAt": "2026-06-18 18:18:38"
+      },
+      {
+        "id": 25,
+        "action": "manual_sync",
+        "matchId": "",
+        "actor": "管理员",
+        "summary": "手动同步完成：新增 1 场，重复 7 场",
+        "details": {
+          "syncRunId": 9,
+          "failedCount": 38
+        },
+        "createdAt": "2026-06-18 17:56:03"
+      },
+      {
+        "id": 24,
+        "action": "store_match",
+        "matchId": "8856649934",
+        "actor": "管理员",
+        "summary": "已确认 -> 已入库",
+        "details": {
+          "previousStatus": "已确认",
+          "nextStatus": "已入库"
+        },
+        "createdAt": "2026-06-18 16:09:36"
+      },
+      {
+        "id": 23,
+        "action": "confirm_match",
+        "matchId": "8856649934",
+        "actor": "管理员",
+        "summary": "待确认 -> 已确认",
+        "details": {
+          "previousStatus": "待确认",
+          "nextStatus": "已确认"
+        },
+        "createdAt": "2026-06-18 16:09:34"
+      },
+      {
+        "id": 22,
+        "action": "set_winner",
+        "matchId": "8856649934",
+        "actor": "管理员",
+        "summary": "手动指定 夜魇 胜",
+        "details": {
+          "previousStatus": "待确认",
+          "winnerSide": "夜魇"
+        },
+        "createdAt": "2026-06-18 16:09:32"
+      },
+      {
+        "id": 21,
+        "action": "set_winner",
+        "matchId": "8856649934",
+        "actor": "管理员",
+        "summary": "手动指定 夜魇 胜",
+        "details": {
+          "previousStatus": "待确认",
+          "winnerSide": "夜魇"
+        },
+        "createdAt": "2026-06-18 16:09:28"
+      },
+      {
+        "id": 20,
+        "action": "store_match",
+        "matchId": "8856717974",
+        "actor": "管理员",
+        "summary": "已确认 -> 已入库",
+        "details": {
+          "previousStatus": "已确认",
+          "nextStatus": "已入库"
+        },
+        "createdAt": "2026-06-18 16:09:19"
+      },
+      {
+        "id": 19,
+        "action": "confirm_match",
+        "matchId": "8856717974",
+        "actor": "管理员",
+        "summary": "待确认 -> 已确认",
+        "details": {
+          "previousStatus": "待确认",
+          "nextStatus": "已确认"
+        },
+        "createdAt": "2026-06-18 16:09:17"
+      },
+      {
+        "id": 18,
+        "action": "set_winner",
+        "matchId": "8856717974",
+        "actor": "管理员",
+        "summary": "手动指定 天辉 胜",
+        "details": {
+          "previousStatus": "待确认",
+          "winnerSide": "天辉"
+        },
+        "createdAt": "2026-06-18 16:09:15"
+      },
+      {
+        "id": 17,
+        "action": "store_match",
+        "matchId": "8856640872",
+        "actor": "管理员",
+        "summary": "已确认 -> 已入库",
+        "details": {
+          "previousStatus": "已确认",
+          "nextStatus": "已入库"
+        },
+        "createdAt": "2026-06-18 16:06:39"
+      },
+      {
+        "id": 16,
+        "action": "confirm_match",
+        "matchId": "8856640872",
+        "actor": "管理员",
+        "summary": "待确认 -> 已确认",
+        "details": {
+          "previousStatus": "待确认",
+          "nextStatus": "已确认"
+        },
+        "createdAt": "2026-06-18 16:06:37"
+      },
+      {
+        "id": 15,
+        "action": "set_winner",
+        "matchId": "8856640872",
+        "actor": "管理员",
+        "summary": "手动指定 天辉 胜",
+        "details": {
+          "previousStatus": "待确认",
+          "winnerSide": "天辉"
+        },
+        "createdAt": "2026-06-18 16:06:36"
+      },
+      {
+        "id": 14,
+        "action": "store_match",
+        "matchId": "8856739821",
+        "actor": "管理员",
+        "summary": "已确认 -> 已入库",
+        "details": {
+          "previousStatus": "已确认",
+          "nextStatus": "已入库"
+        },
+        "createdAt": "2026-06-18 15:55:28"
+      },
+      {
+        "id": 13,
+        "action": "confirm_match",
+        "matchId": "8856739821",
+        "actor": "管理员",
+        "summary": "待确认 -> 已确认",
+        "details": {
+          "previousStatus": "待确认",
+          "nextStatus": "已确认"
+        },
+        "createdAt": "2026-06-18 15:55:22"
+      },
+      {
+        "id": 12,
+        "action": "set_winner",
+        "matchId": "8856739821",
+        "actor": "管理员",
+        "summary": "手动指定 夜魇 胜",
+        "details": {
+          "previousStatus": "待确认",
+          "winnerSide": "夜魇"
+        },
+        "createdAt": "2026-06-18 15:55:21"
+      },
+      {
+        "id": 11,
+        "action": "manual_sync",
+        "matchId": "",
+        "actor": "管理员",
+        "summary": "手动同步完成：新增 4 场，重复 3 场",
+        "details": {
+          "syncRunId": 8,
+          "failedCount": 38
+        },
+        "createdAt": "2026-06-18 15:48:24"
+      }
+    ],
+    "playoff": {
+      "version": 1,
+      "status": "drafting",
+      "teams": [],
+      "games": [],
+      "championTeamId": "",
+      "runnerUpTeamId": "",
+      "updatedAt": "",
+      "series": {
+        "semiA": {
+          "key": "semiA",
+          "label": "半决赛 A",
+          "shortLabel": "半决 A",
+          "targetWins": 2,
+          "teams": [],
+          "games": [],
+          "scoreByTeam": {},
+          "winnerTeamId": ""
+        },
+        "semiB": {
+          "key": "semiB",
+          "label": "半决赛 B",
+          "shortLabel": "半决 B",
+          "targetWins": 2,
+          "teams": [],
+          "games": [],
+          "scoreByTeam": {},
+          "winnerTeamId": ""
+        },
+        "final": {
+          "key": "final",
+          "label": "决赛",
+          "shortLabel": "决赛",
+          "targetWins": 2,
+          "teams": [],
+          "games": [],
+          "scoreByTeam": {},
+          "winnerTeamId": ""
+        }
+      }
+    },
+    "leagueSpace": {
+      "id": 1,
+      "slug": "pokemon-dota",
+      "name": "第三届宝可梦 DOTA2 内战",
+      "ownerName": "MiracleZYF",
+      "contact": "",
+      "status": "active",
+      "settings": {
+        "seasonName": "S1 积分周期",
+        "minRegisteredPlayers": 8,
+        "minCaptainGames": 6,
+        "winPoints": 10,
+        "lossPoints": 3,
+        "autoSync": true,
+        "allowPartialMatches": true,
+        "useLeagueScan": true,
+        "leagueId": "19220"
+      },
+      "playerCount": 38,
+      "matchCount": 11,
+      "dataReady": true,
+      "isDefault": true,
+      "publicUrl": "https://dota2-inhouse-league-dashboard.pages.dev/?league=pokemon-dota",
+      "adminUrl": "https://dota2-inhouse-league-dashboard.pages.dev/?league=pokemon-dota&admin=1",
+      "createdAt": "2026-06-19 09:16:44",
+      "updatedAt": "2026-06-19 17:51:13"
+    },
+    "leagues": [
+      {
+        "id": 1,
+        "slug": "pokemon-dota",
+        "name": "第三届宝可梦 DOTA2 内战",
+        "ownerName": "MiracleZYF",
+        "contact": "",
+        "status": "active",
+        "settings": {
+          "seasonName": "S1 积分周期",
+          "minRegisteredPlayers": 8,
+          "minCaptainGames": 6,
+          "winPoints": 10,
+          "lossPoints": 3,
+          "autoSync": true,
+          "allowPartialMatches": true,
+          "useLeagueScan": true,
+          "leagueId": "19220"
+        },
+        "playerCount": 38,
+        "matchCount": 11,
+        "dataReady": true,
+        "isDefault": true,
+        "publicUrl": "https://dota2-inhouse-league-dashboard.pages.dev/?league=pokemon-dota",
+        "adminUrl": "https://dota2-inhouse-league-dashboard.pages.dev/?league=pokemon-dota&admin=1",
+        "createdAt": "2026-06-19 09:16:44",
+        "updatedAt": "2026-06-19 17:51:13"
+      }
+    ],
+    "meta": {
+      "backend": "cloudflare-d1",
+      "loadedAt": "2026-06-19T17:51:13.385Z",
+      "leagueSlug": "pokemon-dota",
+      "dataMode": "default-space"
+    }
+  }
+}

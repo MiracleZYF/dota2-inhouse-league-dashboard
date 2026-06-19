@@ -4,7 +4,9 @@ const ROSTER_VERSION = "2026-06-18-roster-38";
 export const DEFAULT_LEAGUE_SLUG = "pokemon-dota";
 
 export const DEFAULT_SETTINGS = {
-  seasonName: "S1 积分周期",
+  seasonName: "S1 正式赛季",
+  seasonStart: "2026-06-20T12:00",
+  seasonEnd: "",
   minRegisteredPlayers: 8,
   minCaptainGames: 6,
   winPoints: 10,
@@ -156,12 +158,19 @@ function currentLeagueSlug(env) {
   return normalizeLeagueSlug(env?.__leagueSlug, DEFAULT_LEAGUE_SLUG);
 }
 
+function normalizeSettings(settings = {}) {
+  const merged = { ...DEFAULT_SETTINGS, ...(settings || {}) };
+  merged.seasonStart = String(merged.seasonStart || "").trim() || DEFAULT_SETTINGS.seasonStart;
+  merged.seasonEnd = String(merged.seasonEnd || "").trim();
+  return merged;
+}
+
 function leagueSpaceFromRow(row, { includeSecret = false, origin = "" } = {}) {
   if (!row) return null;
   const slug = String(row.slug || "");
   const publicUrl = origin ? `${origin}/?league=${encodeURIComponent(slug)}` : `?league=${encodeURIComponent(slug)}`;
   const adminUrl = origin ? `${publicUrl}&admin=1` : `${publicUrl}&admin=1`;
-  const settings = { ...DEFAULT_SETTINGS, ...safeJsonParse(row.settings_json, {}) };
+  const settings = normalizeSettings(safeJsonParse(row.settings_json, {}));
   return {
     id: row.id,
     slug,
@@ -566,17 +575,17 @@ export async function ensureDatabase(env) {
 export async function getSettings(env) {
   const leagueSlug = currentLeagueSlug(env);
   const row = await env.DB.prepare("SELECT value FROM league_settings WHERE league_slug = ? AND key = 'league'").bind(leagueSlug).first();
-  if (!row?.value) return DEFAULT_SETTINGS;
+  if (!row?.value) return normalizeSettings();
   try {
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(row.value) };
+    return normalizeSettings(JSON.parse(row.value));
   } catch {
-    return DEFAULT_SETTINGS;
+    return normalizeSettings();
   }
 }
 
 export async function saveSettings(env, settings) {
   const leagueSlug = currentLeagueSlug(env);
-  const merged = { ...DEFAULT_SETTINGS, ...(settings || {}) };
+  const merged = normalizeSettings(settings);
   await env.DB.prepare(`INSERT INTO league_settings (league_slug, key, value, updated_at)
     VALUES (?, 'league', ?, CURRENT_TIMESTAMP)
     ON CONFLICT(league_slug, key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`)
@@ -618,12 +627,11 @@ export async function createLeagueSpace(env, payload = {}, { origin = "" } = {})
   const adminKey = String(payload.adminKey || "").trim() || randomToken("adm");
   if (adminKey.length < 6) throw new Error("管理密码至少 6 位");
 
-  const settings = {
-    ...DEFAULT_SETTINGS,
+  const settings = normalizeSettings({
     seasonName: String(payload.seasonName || `${name} S1`).trim(),
     leagueId: String(payload.leagueId || "").trim(),
     useLeagueScan: Boolean(String(payload.leagueId || "").trim()),
-  };
+  });
 
   await env.DB.prepare(`INSERT INTO league_spaces
     (slug, name, owner_name, contact, admin_key, status, settings_json, data_ready, created_at, updated_at)
@@ -651,10 +659,12 @@ export async function updateLeagueSpace(env, slug, payload = {}, { origin = "" }
   const ownerName = "ownerName" in payload || "owner" in payload ? String(payload.ownerName || payload.owner || "").trim() : row.owner_name || "";
   const contact = "contact" in payload ? String(payload.contact || "").trim() : row.contact || "";
   const status = ["active", "paused", "archived"].includes(payload.status) ? payload.status : row.status || "active";
-  const currentSettings = { ...DEFAULT_SETTINGS, ...safeJsonParse(row.settings_json, {}) };
+  const currentSettings = normalizeSettings(safeJsonParse(row.settings_json, {}));
   const nextSettings = { ...currentSettings, ...(payload.settings || {}) };
 
   if ("seasonName" in payload) nextSettings.seasonName = String(payload.seasonName || "").trim() || currentSettings.seasonName;
+  if ("seasonStart" in payload) nextSettings.seasonStart = String(payload.seasonStart || "").trim() || DEFAULT_SETTINGS.seasonStart;
+  if ("seasonEnd" in payload) nextSettings.seasonEnd = String(payload.seasonEnd || "").trim();
   if ("leagueId" in payload) nextSettings.leagueId = String(payload.leagueId || "").trim();
   if ("autoSync" in payload) nextSettings.autoSync = Boolean(payload.autoSync);
   if ("useLeagueScan" in payload) nextSettings.useLeagueScan = Boolean(payload.useLeagueScan);
@@ -664,6 +674,7 @@ export async function updateLeagueSpace(env, slug, payload = {}, { origin = "" }
   if ("winPoints" in payload) nextSettings.winPoints = Math.max(0, Number(payload.winPoints) || DEFAULT_SETTINGS.winPoints);
   if ("lossPoints" in payload) nextSettings.lossPoints = Math.max(0, Number(payload.lossPoints) || DEFAULT_SETTINGS.lossPoints);
 
+  Object.assign(nextSettings, normalizeSettings(nextSettings));
   if (!String(nextSettings.leagueId || "").trim()) nextSettings.useLeagueScan = false;
 
   let nextAdminKey = row.admin_key || "";
