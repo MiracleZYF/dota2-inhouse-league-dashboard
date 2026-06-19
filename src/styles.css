@@ -629,6 +629,13 @@ button:disabled {
   justify-content: flex-end;
 }
 
+.panel-action-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .panel h2 {
   display: flex;
   align-items: center;
@@ -1958,18 +1965,139 @@ input[type="range"] {
   font-style: normal;
 }
 
+.playoff-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0 18px 14px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.playoff-status-strip strong {
+  color: var(--gold);
+}
+
 .playoff-board {
   min-height: 620px;
   display: grid;
-  grid-template-columns: 1fr 1fr 320px;
-  gap: 22px;
-  align-items: center;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
   padding: 8px 18px 22px;
 }
 
-.playoff-round {
+.playoff-round,
+.playoff-series-panel {
   display: grid;
   gap: 12px;
+}
+
+.playoff-series-panel {
+  align-content: start;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(13, 25, 37, 0.66);
+}
+
+.playoff-series-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.playoff-series-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.playoff-series-head span,
+.playoff-series-head strong {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.playoff-series-head strong {
+  color: var(--gold);
+  text-align: right;
+}
+
+.series-team-scoreboard {
+  display: grid;
+  gap: 8px;
+}
+
+.series-team-row {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--text);
+  background: rgba(7, 16, 24, 0.55);
+}
+
+.series-team-row.winner {
+  border-color: rgba(245, 209, 77, 0.42);
+  background: rgba(245, 209, 77, 0.08);
+}
+
+.series-team-row.empty {
+  color: var(--muted);
+}
+
+.series-team-row strong {
+  min-width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  color: var(--gold);
+  background: rgba(247, 182, 75, 0.12);
+}
+
+.series-game-list {
+  display: grid;
+  gap: 8px;
+}
+
+.series-game-chip {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px dashed rgba(148, 163, 184, 0.22);
+  border-radius: 5px;
+  color: var(--muted);
+  background: rgba(7, 16, 24, 0.42);
+}
+
+.series-game-chip.filled {
+  border-style: solid;
+  color: var(--text);
+}
+
+.series-game-chip span,
+.series-game-chip small,
+.series-game-chip strong {
+  display: block;
+}
+
+.series-game-chip span,
+.series-game-chip small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.series-game-chip strong {
+  margin: 2px 0;
 }
 
 .series-card {
@@ -2012,6 +2140,7 @@ input[type="range"] {
 }
 
 .champion-card {
+  grid-column: 1 / -1;
   min-height: 220px;
   display: grid;
   justify-items: center;
@@ -2454,6 +2583,62 @@ input[type="range"] {
 .manual-roster-actions strong {
   color: var(--gold);
   font-size: 13px;
+}
+
+.playoff-bind-card {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(13, 25, 37, 0.68);
+  overflow: hidden;
+}
+
+.playoff-bind-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+}
+
+.playoff-bind-grid label {
+  display: grid;
+  gap: 6px;
+}
+
+.playoff-bind-grid label > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.playoff-bind-grid select,
+.setting-field select {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--text);
+  background: rgba(3, 9, 15, 0.72);
+  padding: 0 9px;
+}
+
+.playoff-bind-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 12px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.playoff-bind-foot strong {
+  color: var(--gold);
+}
+
+.playoff-bind-foot button {
+  margin-left: auto;
 }
 
 .match-summary-banner {
@@ -3090,6 +3275,7 @@ input[type="range"] {
   .leaderboard-layout,
   .leaderboard-detail-grid,
   .playoff-board,
+  .playoff-bind-grid,
   .rules-layout,
   .match-layout {
     grid-template-columns: 1fr;
@@ -3269,6 +3455,15 @@ input[type="range"] {
   .panel-actions {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .panel-action-group {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .playoff-bind-foot button {
+    margin-left: 0;
   }
 
   .search-field,

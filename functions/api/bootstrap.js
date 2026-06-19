@@ -1,15 +1,16 @@
-import { ensureDatabase, getAuditLogs, getMatches, getPlayers, getSettings, getSyncRuns, json } from "../_lib/dota.js";
+import { ensureDatabase, getAuditLogs, getMatches, getPlayers, getPlayoffState, getSettings, getSyncRuns, json } from "../_lib/dota.js";
 
 export async function onRequestGet({ env }) {
   try {
     await ensureDatabase(env);
-    const [players, matches, settings, syncRuns, auditLogs] = await Promise.all([getPlayers(env), getMatches(env), getSettings(env), getSyncRuns(env), getAuditLogs(env)]);
+    const [players, matches, settings, syncRuns, auditLogs, playoff] = await Promise.all([getPlayers(env), getMatches(env), getSettings(env), getSyncRuns(env), getAuditLogs(env), getPlayoffState(env)]);
     return json({
       players,
       matches,
       settings,
       syncRuns,
       auditLogs,
+      playoff,
       meta: {
         backend: "cloudflare-d1",
         loadedAt: new Date().toISOString(),

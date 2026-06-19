@@ -14,6 +14,22 @@ export const DEFAULT_SETTINGS = {
   leagueId: "19220",
 };
 
+export const PLAYOFF_SERIES = {
+  semiA: { key: "semiA", label: "半决赛 A", shortLabel: "半决 A", targetWins: 2 },
+  semiB: { key: "semiB", label: "半决赛 B", shortLabel: "半决 B", targetWins: 2 },
+  final: { key: "final", label: "决赛", shortLabel: "决赛", targetWins: 2 },
+};
+
+export const DEFAULT_PLAYOFF_STATE = {
+  version: 1,
+  status: "drafting",
+  teams: [],
+  games: [],
+  championTeamId: "",
+  runnerUpTeamId: "",
+  updatedAt: "",
+};
+
 const INITIAL_PLAYERS = [
   { id: 1, name: "果粒橙", dotaId: "155292084", role: "1 / 2", gameName: "我要玩旮旯给木", profileUrl: "https://steamcommunity.com/profiles/76561198115557812/", avatarUrl: "https://avatars.steamstatic.com/43b37b323147bfd12f7ef41a8a9f40cfa384f57e_full.jpg" },
   { id: 2, name: "吴", dotaId: "1255889937", role: "2 / 4", gameName: "pluviophile", profileUrl: "https://steamcommunity.com/profiles/76561199216155665/", avatarUrl: "https://avatars.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_full.jpg" },
@@ -218,6 +234,11 @@ export async function ensureDatabase(env) {
       details_json TEXT NOT NULL DEFAULT '{}',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS playoff_state (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_matches_start_time ON matches(start_time)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_matches_status ON matches(status)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_sync_runs_finished_at ON sync_runs(finished_at)"),
@@ -272,6 +293,237 @@ export async function saveSettings(env, settings) {
     .bind(JSON.stringify(merged))
     .run();
   return merged;
+}
+
+function normalizePlayoffTeam(team, index = 0) {
+  const seed = Number(team?.seed) || index + 1;
+  const captainId = team?.captainId ?? team?.captain_id ?? team?.captain?.id ?? "";
+  const captainDotaId = String(team?.captainDotaId || team?.captain_dota_id || team?.captain?.dotaId || "").trim();
+  const fallbackId = captainId || captainDotaId || seed;
+  const players = (Array.isArray(team?.players) ? team.players : [])
+    .map((player, playerIndex) => ({
+      id: player?.id ?? player?.playerId ?? playerIndex + 1,
+      name: String(player?.name || player?.playerName || `队员 ${playerIndex + 1}`).trim(),
+      dotaId: String(player?.dotaId || player?.dota_id || "").trim(),
+      role: String(player?.role || "").trim(),
+      points: Number(player?.points) || 0,
+    }))
+    .filter((player) => player.name || player.dotaId);
+
+  return {
+    id: String(team?.id || `team-${fallbackId}`),
+    seed,
+    name: String(team?.name || team?.teamName || `${players[0]?.name || `第 ${seed} 队`}队`).trim(),
+    captainId,
+    captainDotaId,
+    captainName: String(team?.captainName || team?.captain_name || players[0]?.name || "").trim(),
+    players,
+  };
+}
+
+function normalizePlayoffGame(game) {
+  const seriesKey = String(game?.seriesKey || game?.series_key || "").trim();
+  const gameNumber = Number(game?.gameNumber || game?.game_number);
+  if (!PLAYOFF_SERIES[seriesKey] || ![1, 2, 3].includes(gameNumber)) return null;
+  return {
+    id: `${seriesKey}-${gameNumber}`,
+    seriesKey,
+    gameNumber,
+    matchId: String(game?.matchId || game?.match_id || "").trim(),
+    radiantTeamId: String(game?.radiantTeamId || game?.radiant_team_id || "").trim(),
+    direTeamId: String(game?.direTeamId || game?.dire_team_id || "").trim(),
+    winnerTeamId: String(game?.winnerTeamId || game?.winner_team_id || "").trim(),
+    winnerSide: String(game?.winnerSide || game?.winner_side || "").trim(),
+    matchTime: String(game?.matchTime || game?.match_time || "").trim(),
+    recordedAt: String(game?.recordedAt || game?.recorded_at || "").trim(),
+  };
+}
+
+function normalizePlayoffState(rawState) {
+  const source = rawState && typeof rawState === "object" ? rawState : {};
+  const teams = (Array.isArray(source.teams) ? source.teams : [])
+    .map(normalizePlayoffTeam)
+    .sort((a, b) => a.seed - b.seed);
+  const games = (Array.isArray(source.games) ? source.games : [])
+    .map(normalizePlayoffGame)
+    .filter(Boolean)
+    .filter((game) => game.matchId && game.radiantTeamId && game.direTeamId && game.winnerTeamId);
+
+  return {
+    ...DEFAULT_PLAYOFF_STATE,
+    ...source,
+    version: 1,
+    teams,
+    games,
+    championTeamId: String(source.championTeamId || ""),
+    runnerUpTeamId: String(source.runnerUpTeamId || ""),
+    updatedAt: String(source.updatedAt || ""),
+  };
+}
+
+function playoffTeamBySeed(teams, seed) {
+  return teams.find((team) => Number(team.seed) === Number(seed)) || null;
+}
+
+function summarizeSeries(state, seriesKey) {
+  const series = PLAYOFF_SERIES[seriesKey];
+  const games = state.games
+    .filter((game) => game.seriesKey === seriesKey)
+    .sort((a, b) => a.gameNumber - b.gameNumber);
+  const scoreByTeam = {};
+  games.forEach((game) => {
+    if (!game.winnerTeamId) return;
+    scoreByTeam[game.winnerTeamId] = (scoreByTeam[game.winnerTeamId] || 0) + 1;
+  });
+
+  let defaultTeams = [];
+  if (seriesKey === "semiA") defaultTeams = [playoffTeamBySeed(state.teams, 1), playoffTeamBySeed(state.teams, 4)].filter(Boolean);
+  if (seriesKey === "semiB") defaultTeams = [playoffTeamBySeed(state.teams, 2), playoffTeamBySeed(state.teams, 3)].filter(Boolean);
+
+  const usedTeamIds = Array.from(new Set(games.flatMap((game) => [game.radiantTeamId, game.direTeamId]).filter(Boolean)));
+  const teams = usedTeamIds.length
+    ? usedTeamIds.map((teamId) => state.teams.find((team) => team.id === teamId)).filter(Boolean)
+    : defaultTeams;
+  const winnerTeamId = Object.entries(scoreByTeam).find(([, score]) => score >= series.targetWins)?.[0] || "";
+
+  return {
+    ...series,
+    teams,
+    games,
+    scoreByTeam,
+    winnerTeamId,
+  };
+}
+
+export function summarizePlayoffState(state) {
+  const normalized = normalizePlayoffState(state);
+  const series = {
+    semiA: summarizeSeries(normalized, "semiA"),
+    semiB: summarizeSeries(normalized, "semiB"),
+    final: summarizeSeries(normalized, "final"),
+  };
+  const finalScores = series.final.scoreByTeam || {};
+  const championTeamId = series.final.winnerTeamId || "";
+  const runnerUpTeamId = championTeamId
+    ? Object.keys(finalScores).find((teamId) => teamId !== championTeamId) || ""
+    : "";
+  const status = championTeamId ? "completed" : normalized.teams.length >= 4 ? "playoff" : "drafting";
+
+  return {
+    ...normalized,
+    status,
+    championTeamId,
+    runnerUpTeamId,
+    series,
+  };
+}
+
+export async function getPlayoffState(env) {
+  const row = await env.DB.prepare("SELECT value FROM playoff_state WHERE key = 'current'").first();
+  if (!row?.value) return summarizePlayoffState(DEFAULT_PLAYOFF_STATE);
+  try {
+    return summarizePlayoffState(JSON.parse(row.value));
+  } catch {
+    return summarizePlayoffState(DEFAULT_PLAYOFF_STATE);
+  }
+}
+
+async function savePlayoffState(env, state) {
+  const summarized = summarizePlayoffState({
+    ...state,
+    updatedAt: new Date().toISOString(),
+  });
+  const stored = {
+    version: summarized.version,
+    status: summarized.status,
+    teams: summarized.teams,
+    games: summarized.games,
+    championTeamId: summarized.championTeamId,
+    runnerUpTeamId: summarized.runnerUpTeamId,
+    updatedAt: summarized.updatedAt,
+  };
+  await env.DB.prepare(`INSERT INTO playoff_state (key, value, updated_at)
+    VALUES ('current', ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`)
+    .bind(JSON.stringify(stored))
+    .run();
+  return getPlayoffState(env);
+}
+
+export async function updatePlayoffTeams(env, teams = []) {
+  const current = await getPlayoffState(env);
+  const nextTeams = (Array.isArray(teams) ? teams : [])
+    .map(normalizePlayoffTeam)
+    .filter((team) => team.id && team.players.length)
+    .sort((a, b) => a.seed - b.seed);
+  if (!nextTeams.length) throw new Error("没有可保存的淘汰赛队伍");
+  return savePlayoffState(env, {
+    ...current,
+    teams: nextTeams,
+  });
+}
+
+function matchWinnerSide(match) {
+  const winners = (match?.registeredPlayers || [])
+    .filter((player) => player.result === true && player.side)
+    .map((player) => player.side);
+  const unique = Array.from(new Set(winners));
+  return unique.length === 1 ? unique[0] : "";
+}
+
+export async function bindPlayoffMatch(env, { matchId, seriesKey, gameNumber, radiantTeamId, direTeamId } = {}) {
+  const current = await getPlayoffState(env);
+  const cleanSeriesKey = String(seriesKey || "").trim();
+  const cleanGameNumber = Number(gameNumber);
+  if (!PLAYOFF_SERIES[cleanSeriesKey]) throw new Error("淘汰赛轮次无效");
+  if (![1, 2, 3].includes(cleanGameNumber)) throw new Error("局数只能是 G1/G2/G3");
+
+  const teamIds = new Set(current.teams.map((team) => team.id));
+  const cleanRadiantTeamId = String(radiantTeamId || "").trim();
+  const cleanDireTeamId = String(direTeamId || "").trim();
+  if (!teamIds.has(cleanRadiantTeamId) || !teamIds.has(cleanDireTeamId)) throw new Error("请选择已保存的淘汰赛队伍");
+  if (cleanRadiantTeamId === cleanDireTeamId) throw new Error("天辉和夜魇不能绑定同一支队");
+
+  const match = await getMatch(env, matchId);
+  if (!match) throw new Error("比赛不存在，请先识别或手动添加 Match ID");
+  const winnerSide = matchWinnerSide(match);
+  if (!["天辉", "夜魇"].includes(winnerSide)) throw new Error("这场比赛还没有明确胜方，请先在比赛详情里指定天辉胜或夜魇胜");
+
+  const winnerTeamId = winnerSide === "天辉" ? cleanRadiantTeamId : cleanDireTeamId;
+  const game = {
+    id: `${cleanSeriesKey}-${cleanGameNumber}`,
+    seriesKey: cleanSeriesKey,
+    gameNumber: cleanGameNumber,
+    matchId: String(match.id),
+    radiantTeamId: cleanRadiantTeamId,
+    direTeamId: cleanDireTeamId,
+    winnerTeamId,
+    winnerSide,
+    matchTime: match.time || "",
+    recordedAt: new Date().toISOString(),
+  };
+
+  const games = current.games.filter((item) => item.id !== game.id && String(item.matchId) !== String(game.matchId));
+  return savePlayoffState(env, {
+    ...current,
+    games: [...games, game],
+  });
+}
+
+export async function clearPlayoffGame(env, { seriesKey, gameNumber } = {}) {
+  const current = await getPlayoffState(env);
+  const cleanSeriesKey = String(seriesKey || "").trim();
+  const cleanGameNumber = Number(gameNumber);
+  const id = `${cleanSeriesKey}-${cleanGameNumber}`;
+  if (!PLAYOFF_SERIES[cleanSeriesKey] || ![1, 2, 3].includes(cleanGameNumber)) throw new Error("淘汰赛局数无效");
+  return savePlayoffState(env, {
+    ...current,
+    games: current.games.filter((game) => game.id !== id),
+  });
+}
+
+export async function resetPlayoffState(env) {
+  return savePlayoffState(env, DEFAULT_PLAYOFF_STATE);
 }
 
 function rowToPlayer(row) {
