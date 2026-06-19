@@ -588,8 +588,11 @@ export async function saveSettings(env, settings) {
   return merged;
 }
 
-export async function listLeagueSpaces(env, { origin = "" } = {}) {
-  const result = await env.DB.prepare("SELECT * FROM league_spaces ORDER BY data_ready DESC, updated_at DESC, id DESC").all();
+export async function listLeagueSpaces(env, { origin = "", includeArchived = false } = {}) {
+  const query = includeArchived
+    ? "SELECT * FROM league_spaces ORDER BY data_ready DESC, updated_at DESC, id DESC"
+    : "SELECT * FROM league_spaces WHERE COALESCE(status, 'active') != 'archived' ORDER BY data_ready DESC, updated_at DESC, id DESC";
+  const result = await env.DB.prepare(query).all();
   return (result.results || []).map((row) => leagueSpaceFromRow(row, { origin }));
 }
 

@@ -1,6 +1,7 @@
 import {
   ensureDatabase,
   getAuditLogs,
+  getLeagueSpace,
   getLeagueSlugFromRequest,
   getMatchDetail,
   getMatches,
@@ -94,12 +95,23 @@ export async function onRequest({ request, env }) {
 
   try {
     await ensureDatabase(env);
-    const scopedEnv = withLeague(env, getLeagueSlugFromRequest(request));
+    const leagueSlug = getLeagueSlugFromRequest(request);
+    const scopedEnv = withLeague(env, leagueSlug);
     const startedAt = new Date().toISOString();
     const url = new URL(request.url);
     const body = request.method === "GET" ? {} : await readJson(request);
     const settings = await getSettings(scopedEnv);
     const force = url.searchParams.get("force") === "1" || body.force === true;
+    const leagueSpace = await getLeagueSpace(env, leagueSlug);
+
+    if (leagueSpace && leagueSpace.status !== "active" && !force) {
+      return json({
+        skipped: true,
+        message: `当前空间状态为「${leagueSpace.status === "paused" ? "暂停同步" : "已归档"}」，自动同步已跳过`,
+        leagueSpace,
+        matches: await getMatches(scopedEnv),
+      });
+    }
 
     if (settings.autoSync === false && !force) {
       return json({

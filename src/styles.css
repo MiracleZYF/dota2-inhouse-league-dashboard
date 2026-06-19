@@ -1809,6 +1809,76 @@ a.primary-button {
   padding: 0 18px 18px;
 }
 
+.league-list-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 0 18px 14px;
+}
+
+.league-list-search {
+  min-width: 0;
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  background: rgba(7, 16, 24, 0.72);
+}
+
+.league-list-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: var(--text);
+  background: transparent;
+}
+
+.league-filter-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.league-filter-tabs button {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  background: rgba(13, 25, 37, 0.68);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.league-filter-tabs button.active {
+  border-color: rgba(52, 215, 181, 0.42);
+  color: var(--text);
+  background: rgba(52, 215, 181, 0.12);
+}
+
+.league-filter-tabs button span {
+  min-width: 22px;
+  min-height: 22px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: #c9d6e2;
+  background: rgba(148, 163, 184, 0.12);
+  font-size: 12px;
+}
+
 .league-list-item {
   min-height: 72px;
   display: flex;
@@ -1821,8 +1891,25 @@ a.primary-button {
   background: rgba(13, 25, 37, 0.62);
 }
 
+.league-list-item.archived {
+  border-style: dashed;
+  opacity: 0.82;
+}
+
+.league-list-main {
+  min-width: 0;
+}
+
+.league-list-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .league-list-item strong,
-.league-list-item span {
+.league-list-item span,
+.league-list-item p {
   display: block;
 }
 
@@ -1830,6 +1917,34 @@ a.primary-button {
   margin-top: 4px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.league-list-item p {
+  margin: 8px 0 0;
+  color: #c9d6e2;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.league-list-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.league-list-meta span {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  color: #c9d6e2;
+  background: rgba(8, 17, 28, 0.38);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .league-list-actions {
@@ -4058,7 +4173,8 @@ input[type="range"] {
   }
 
   .league-form-grid,
-  .league-link-row {
+  .league-link-row,
+  .league-list-toolbar {
     grid-template-columns: 1fr;
   }
 
@@ -4101,6 +4217,10 @@ input[type="range"] {
   }
 
   .league-list-actions {
+    justify-content: flex-start;
+  }
+
+  .league-filter-tabs {
     justify-content: flex-start;
   }
 

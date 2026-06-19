@@ -3995,6 +3995,16 @@ function buildLeagueEditForm(league, settings = DEFAULT_SETTINGS) {
   };
 }
 
+const LEAGUE_STATUS_META = {
+  active: { label: "正常运营", shortLabel: "运营中", className: "status-success" },
+  paused: { label: "暂停同步", shortLabel: "暂停", className: "status-warning" },
+  archived: { label: "已归档", shortLabel: "归档", className: "status-muted" },
+};
+
+function getLeagueStatusMeta(status) {
+  return LEAGUE_STATUS_META[status] || LEAGUE_STATUS_META.active;
+}
+
 function LeagueSpacesView({
   leagues = [],
   currentLeague,
@@ -4030,6 +4040,8 @@ function LeagueSpacesView({
     seasonName: "",
   });
   const [editForm, setEditForm] = useState(() => buildLeagueEditForm(currentLeague, settings));
+  const [leagueFilter, setLeagueFilter] = useState("all");
+  const [leagueSearch, setLeagueSearch] = useState("");
 
   useEffect(() => {
     setEditForm(buildLeagueEditForm(currentLeague, settings));
@@ -4085,7 +4097,31 @@ function LeagueSpacesView({
   const publicUrl = activeLeague?.publicUrl || "";
   const adminAction = !createdMode && isAdmin;
   const readonlyAdminHref = !adminAction ? adminUrl : "";
-  const statusLabel = { active: "正常运营", paused: "暂停同步", archived: "已归档" }[editForm.status] || "正常运营";
+  const currentStatusMeta = getLeagueStatusMeta(editForm.status);
+  const searchableLeagues = useMemo(() => {
+    const leagueMap = new Map();
+    [...leagues, currentLeague].filter(Boolean).forEach((league) => {
+      if (!leagueMap.has(league.slug)) leagueMap.set(league.slug, league);
+    });
+    return Array.from(leagueMap.values());
+  }, [leagues, currentLeague]);
+  const leagueCounts = searchableLeagues.reduce(
+    (counts, league) => {
+      const status = league.status || "active";
+      counts.all += 1;
+      counts[status] = (counts[status] || 0) + 1;
+      return counts;
+    },
+    { all: 0, active: 0, paused: 0, archived: 0 },
+  );
+  const leagueSearchText = leagueSearch.trim().toLowerCase();
+  const filteredLeagues = searchableLeagues.filter((league) => {
+    const status = league.status || "active";
+    const matchesStatus = leagueFilter === "all" || status === leagueFilter;
+    const haystack = [league.name, league.slug, league.ownerName, league.contact, league.settings?.leagueId].filter(Boolean).join(" ").toLowerCase();
+    const matchesSearch = !leagueSearchText || haystack.includes(leagueSearchText);
+    return matchesStatus && matchesSearch;
+  });
   const createdLeaguePackage = createdLeague
     ? [
         `联赛：${createdLeague.name}`,
@@ -4310,7 +4346,7 @@ function LeagueSpacesView({
                   <h3>维护 {currentLeague.name}</h3>
                   <span>这些内容会写回当前联赛空间，公开页和管理端都会同步更新。</span>
                 </div>
-                <span className={`status-pill ${editForm.status === "active" ? "status-success" : editForm.status === "paused" ? "status-warning" : "status-muted"}`}>{statusLabel}</span>
+                <span className={`status-pill ${currentStatusMeta.className}`}>{currentStatusMeta.label}</span>
               </div>
 
               <div className="league-form-grid">
@@ -4501,27 +4537,61 @@ function LeagueSpacesView({
         </div>
       </Panel>
 
-      <Panel title="已创建空间" action={<span className="status-pill status-muted">{leagues.length} 个</span>}>
+      <Panel title="已创建空间" action={<span className="status-pill status-muted">{filteredLeagues.length} / {searchableLeagues.length} 个</span>}>
+        <div className="league-list-toolbar">
+          <label className="league-list-search">
+            <Search size={15} />
+            <input value={leagueSearch} onChange={(event) => setLeagueSearch(event.target.value)} placeholder="搜索名称、路径、负责人或 League ID" />
+          </label>
+          <div className="league-filter-tabs" role="group" aria-label="联赛空间筛选">
+            {[
+              ["all", "全部", leagueCounts.all],
+              ["active", "运营中", leagueCounts.active],
+              ["paused", "暂停", leagueCounts.paused],
+              ["archived", "归档", leagueCounts.archived],
+            ].map(([value, label, count]) => (
+              <button className={leagueFilter === value ? "active" : ""} type="button" key={value} onClick={() => setLeagueFilter(value)}>
+                {label}
+                <span>{count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="league-list">
-          {leagues.length ? (
-            leagues.map((league) => (
-              <article className="league-list-item" key={league.slug}>
-                <div>
-                  <strong>{league.name}</strong>
-                  <span>{league.slug} · {league.dataReady ? "正式可用" : "初始化中"}</span>
-                </div>
-                <div className="league-list-actions">
-                  <a className="ghost-button compact-button" href={league.publicUrl}>
-                    <ExternalLink size={14} />
-                    公开页
-                  </a>
-                  <a className="ghost-button compact-button" href={league.adminUrl}>
-                    <Settings size={14} />
-                    管理端
-                  </a>
-                </div>
-              </article>
-            ))
+          {filteredLeagues.length ? (
+            filteredLeagues.map((league) => {
+              const statusMeta = getLeagueStatusMeta(league.status);
+              const leagueRoom = league.settings?.leagueId || "未设置";
+              return (
+                <article className={`league-list-item ${league.status || "active"}`} key={league.slug}>
+                  <div className="league-list-main">
+                    <div className="league-list-title">
+                      <strong>{league.name}</strong>
+                      <span className={`status-pill ${statusMeta.className}`}>{statusMeta.shortLabel}</span>
+                    </div>
+                    <span>{league.slug} · {league.dataReady ? "正式可用" : "初始化中"} · League ID {leagueRoom}</span>
+                    <div className="league-list-meta">
+                      <span>{league.playerCount || 0} 名玩家</span>
+                      <span>{league.matchCount || 0} 场比赛</span>
+                      {league.ownerName && <span>负责人 {league.ownerName}</span>}
+                    </div>
+                    {league.status === "archived" && <p>已归档空间会从普通公开列表中隐藏，但原链接仍可访问和恢复。</p>}
+                  </div>
+                  <div className="league-list-actions">
+                    <a className="ghost-button compact-button" href={league.publicUrl}>
+                      <ExternalLink size={14} />
+                      公开页
+                    </a>
+                    <a className="ghost-button compact-button" href={league.adminUrl}>
+                      <Settings size={14} />
+                      管理端
+                    </a>
+                  </div>
+                </article>
+              );
+            })
+          ) : searchableLeagues.length ? (
+            <EmptyState title="没有匹配的联赛空间" body="换一个关键词，或切换上方状态筛选。" />
           ) : (
             <EmptyState title="暂无联赛空间" body="创建第一个空间后，这里会显示可复制和可访问的入口。" />
           )}
