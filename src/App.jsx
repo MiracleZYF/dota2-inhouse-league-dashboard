@@ -381,9 +381,11 @@ function DateTimePicker({
   className = "",
 }) {
   const rootRef = useRef(null);
+  const triggerRef = useRef(null);
   const selectedDate = parseDateTimeValue(value);
   const normalizedValue = selectedDate ? formatDateTimeInput(selectedDate) : "";
   const [open, setOpen] = useState(false);
+  const [popoverStyle, setPopoverStyle] = useState({});
   const [viewMonth, setViewMonth] = useState(() => {
     const base = selectedDate || new Date();
     return new Date(base.getFullYear(), base.getMonth(), 1);
@@ -392,10 +394,24 @@ function DateTimePicker({
   const timeValue = normalizedValue ? normalizedValue.slice(11, 16) : defaultTime;
   const today = new Date();
 
+  function updatePopoverPosition() {
+    if (!triggerRef.current || typeof window === "undefined") return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    const margin = 12;
+    const gap = 8;
+    const width = Math.min(294, window.innerWidth - margin * 2);
+    const estimatedHeight = Math.min(450, window.innerHeight - margin * 2);
+    const preferredTop = rect.bottom + gap;
+    const top = Math.max(margin, Math.min(preferredTop, window.innerHeight - estimatedHeight - margin));
+    const left = Math.min(Math.max(margin, rect.left), window.innerWidth - width - margin);
+    setPopoverStyle({ left: `${left}px`, top: `${top}px`, width: `${width}px`, maxHeight: `${window.innerHeight - margin * 2}px` });
+  }
+
   useEffect(() => {
     if (!open) return undefined;
     const base = selectedDate || new Date();
     setViewMonth(new Date(base.getFullYear(), base.getMonth(), 1));
+    window.requestAnimationFrame(updatePopoverPosition);
     return undefined;
   }, [open]);
 
@@ -413,9 +429,13 @@ function DateTimePicker({
 
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", updatePopoverPosition);
+    window.addEventListener("scroll", updatePopoverPosition, true);
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", updatePopoverPosition);
+      window.removeEventListener("scroll", updatePopoverPosition, true);
     };
   }, [open]);
 
@@ -432,14 +452,14 @@ function DateTimePicker({
 
   return (
     <div className={`datetime-picker ${open ? "open" : ""} ${className}`} ref={rootRef}>
-      <button className={`datetime-trigger ${normalizedValue ? "" : "empty"}`} type="button" aria-label={ariaLabel} aria-expanded={open} onClick={() => setOpen((current) => !current)}>
+      <button className={`datetime-trigger ${normalizedValue ? "" : "empty"}`} type="button" aria-label={ariaLabel} aria-expanded={open} onClick={() => setOpen((current) => !current)} ref={triggerRef}>
         <CalendarDays size={15} />
         <span>{normalizedValue ? formatDateTimeDisplay(normalizedValue) : placeholder}</span>
         <ChevronDown size={14} />
       </button>
 
       {open && (
-        <div className="datetime-popover" role="dialog" aria-label={ariaLabel || "选择时间"}>
+        <div className="datetime-popover" role="dialog" aria-label={ariaLabel || "选择时间"} style={popoverStyle}>
           <div className="calendar-head">
             <button className="icon-button compact-icon" type="button" aria-label="上个月" onClick={() => setViewMonth((current) => addCalendarMonths(current, -1))}>
               <ChevronLeft size={15} />
@@ -5726,7 +5746,7 @@ export function App() {
     if (profileSyncing) return;
 
     setProfileSyncing(true);
-    setProfileSyncMessage("正在从 OpenDota 同步游戏昵称、头像和 Steam 主页...");
+    setProfileSyncMessage("正在按限速队列从 OpenDota 同步游戏昵称、头像和 Steam 主页...");
     try {
       const data = await apiRequest("/api/players/sync-profiles", { method: "POST", admin: true });
       if (Array.isArray(data.players)) setPlayers(data.players);
@@ -5736,7 +5756,7 @@ export function App() {
       setNotifications((current) => [
         {
           id: `profile-sync-${Date.now()}`,
-          title: "玩家昵称同步完成",
+          title: data.rateLimited ? "OpenDota 限流，已暂停队列" : "玩家昵称同步完成",
           body: message,
           time: "刚刚",
           read: false,

@@ -1075,6 +1075,109 @@ export async function updatePlayer(env, dotaId, patch = {}) {
   return rowToPlayer(updated);
 }
 
+function formatProfileSyncTime(date = new Date()) {
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+    .format(date)
+    .replace(/\//g, "-");
+}
+
+function prioritizeProfileSyncQueue(players) {
+  return [...players].sort((left, right) => {
+    const leftNeedsSync = !left.publicData || left.profileError;
+    const rightNeedsSync = !right.publicData || right.profileError;
+    if (leftNeedsSync !== rightNeedsSync) return leftNeedsSync ? -1 : 1;
+    return Number(left.id || 0) - Number(right.id || 0);
+  });
+}
+
+export async function syncPlayerProfiles(env, { limit = 45, throttleMs = 850, retryAttempts = 2 } = {}) {
+  const leagueSlug = currentLeagueSlug(env);
+  const roster = prioritizeProfileSyncQueue(await getPlayers(env));
+  const safeLimit = Math.max(1, Math.min(roster.length || 1, Number(limit) || 45));
+  const safeThrottleMs = Math.max(250, Math.min(3000, Number(throttleMs) || 850));
+  const results = [];
+  let rateLimited = false;
+
+  for (const player of roster.slice(0, safeLimit)) {
+    if (results.length > 0) await delay(safeThrottleMs);
+
+    const dotaId = String(player.dotaId || "").trim();
+    if (!/^\d+$/.test(dotaId)) {
+      results.push({ id: player.id, ok: false, error: "DOTA2 ID 无效" });
+      continue;
+    }
+
+    try {
+      const response = await openDotaFetchWithRetry(env, `/players/${dotaId}`, undefined, { attempts: retryAttempts, baseDelayMs: 1800 });
+      if (!response.ok) {
+        const error = describeOpenDotaError(response.status);
+        results.push({ id: player.id, ok: false, error, status: response.status });
+        if (response.status === 429) {
+          rateLimited = true;
+          break;
+        }
+        continue;
+      }
+
+      const data = await response.json();
+      const profile = data?.profile || {};
+      const gameName = String(profile.personaname || "").trim();
+      if (!gameName) throw new Error("未返回游戏昵称");
+      results.push({
+        id: player.id,
+        ok: true,
+        name: isPlaceholderPlayerName(player.name) ? gameName : player.name,
+        gameName,
+        avatarUrl: profile.avatarfull || profile.avatarmedium || profile.avatar || "",
+        profileUrl: profile.profileurl || "",
+      });
+    } catch (error) {
+      results.push({ id: player.id, ok: false, error: error instanceof Error ? error.message : "请求失败" });
+    }
+  }
+
+  const syncedAt = formatProfileSyncTime();
+  const statements = results.map((result) => {
+    if (!result.ok) {
+      return env.DB.prepare(`UPDATE league_players
+        SET profile_error = ?, status = CASE WHEN public_data = 1 THEN '资料保留，等待重试' ELSE '资料待重试' END, updated_at = CURRENT_TIMESTAMP
+        WHERE league_slug = ? AND id = ?`)
+        .bind(result.error, leagueSlug, result.id);
+    }
+
+    return env.DB.prepare(`UPDATE league_players
+      SET name = ?, game_name = ?, avatar_url = ?, profile_url = ?, profile_synced_at = ?, profile_error = '', public_data = 1, status = '资料已同步', updated_at = CURRENT_TIMESTAMP
+      WHERE league_slug = ? AND id = ?`)
+      .bind(result.name, result.gameName, result.avatarUrl, result.profileUrl, syncedAt, leagueSlug, result.id);
+  });
+  if (statements.length) await env.DB.batch(statements);
+
+  const successCount = results.filter((result) => result.ok).length;
+  const failedCount = results.length - successCount;
+  const skippedCount = Math.max(0, roster.length - results.length);
+  const message = rateLimited
+    ? `限速同步已暂停：${successCount} 个成功，${failedCount} 个待重试，${skippedCount} 个留到下一轮。`
+    : `限速同步完成：${successCount} 个成功，${failedCount} 个失败，${skippedCount} 个未处理。`;
+
+  return {
+    players: await getPlayers(env),
+    successCount,
+    failedCount,
+    skippedCount,
+    processedCount: results.length,
+    rateLimited,
+    results,
+    message,
+  };
+}
+
 function parseJson(value, fallback) {
   try {
     return value ? JSON.parse(value) : fallback;
@@ -1495,6 +1598,37 @@ export async function openDotaFetch(env, path, init) {
   const url = new URL(`${OPENDOTA_BASE_URL}${path}`);
   if (env.OPENDOTA_API_KEY) url.searchParams.set("api_key", env.OPENDOTA_API_KEY);
   return fetch(url.toString(), init);
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function retryAfterMs(response, fallbackMs) {
+  const retryAfter = Number(response?.headers?.get("retry-after"));
+  if (Number.isFinite(retryAfter) && retryAfter > 0) return Math.min(retryAfter * 1000, 10000);
+  return fallbackMs;
+}
+
+export function describeOpenDotaError(status) {
+  if (status === 429) return "OpenDota 限流，已暂停本轮队列，稍后会自动重试";
+  if (status >= 500) return `OpenDota 服务暂时异常 HTTP ${status}`;
+  return `OpenDota HTTP ${status}`;
+}
+
+export async function openDotaFetchWithRetry(env, path, init, { attempts = 2, baseDelayMs = 1400 } = {}) {
+  let response = null;
+  const safeAttempts = Math.max(1, Number(attempts) || 1);
+
+  for (let attempt = 1; attempt <= safeAttempts; attempt += 1) {
+    response = await openDotaFetch(env, path, init);
+    if (response.ok || (response.status !== 429 && response.status < 500)) return response;
+    if (attempt < safeAttempts) {
+      await delay(retryAfterMs(response, baseDelayMs * attempt));
+    }
+  }
+
+  return response;
 }
 
 export async function steamDotaFetch(env, method, params = {}, init) {
@@ -2060,17 +2194,34 @@ export async function syncRecentMatches(env, { dateRange = makeRecentDateRange()
     }
   }
 
-  const results = await Promise.allSettled(
-    players.map(async (player) => {
-      const response = await openDotaFetch(env, `/players/${player.dotaId}/recentMatches`);
-      if (!response.ok) throw new Error(`${player.name} 拉取失败 ${response.status}`);
-      const recentMatches = await response.json();
-      return recentMatches.map((match) => ({ player, match }));
-    }),
-  );
+  const shouldFetchRecentMatches = !leagueScan.enabled || leagueScan.failed || !leagueScan.fetched || settings.fetchRecentMatchesSupplement === true;
+  const recentRows = [];
+  const recentErrors = [];
+  let recentRateLimited = false;
 
-  const recentRows = results.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
-  const failedCount = results.filter((result) => result.status === "rejected").length;
+  if (shouldFetchRecentMatches) {
+    const throttleMs = Math.max(250, Math.min(3000, Number(env.OPENDOTA_THROTTLE_MS) || 850));
+    for (const player of players) {
+      if (recentRows.length || recentErrors.length) await delay(throttleMs);
+      try {
+        const response = await openDotaFetchWithRetry(env, `/players/${player.dotaId}/recentMatches`, undefined, { attempts: 2, baseDelayMs: 1800 });
+        if (!response.ok) {
+          recentErrors.push({ player: player.name, status: response.status, error: describeOpenDotaError(response.status) });
+          if (response.status === 429) {
+            recentRateLimited = true;
+            break;
+          }
+          continue;
+        }
+        const recentMatches = await response.json();
+        recentRows.push(...recentMatches.map((match) => ({ player, match })));
+      } catch (error) {
+        recentErrors.push({ player: player.name, error: error instanceof Error ? error.message : "请求失败" });
+      }
+    }
+  }
+
+  const failedCount = recentErrors.length;
   const recentCandidates = buildCandidatesFromRecentMatches(players, recentRows, dateRange, settings);
   const candidates = mergeMatchCandidates([...leagueCandidates, ...recentCandidates]);
   const existingIds = new Set((await getMatches(env)).map((match) => String(match.id)));
@@ -2093,6 +2244,13 @@ export async function syncRecentMatches(env, { dateRange = makeRecentDateRange()
     duplicatedCount,
     sourceDuplicateCount,
     leagueScan,
+    recentMatches: {
+      skipped: !shouldFetchRecentMatches,
+      fetchedRows: recentRows.length,
+      failedCount,
+      rateLimited: recentRateLimited,
+      errors: recentErrors.slice(0, 8),
+    },
     leagueId,
     leagueCandidateCount: leagueCandidates.length,
     recentCandidateCount: recentCandidates.length,

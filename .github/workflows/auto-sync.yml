@@ -4,6 +4,8 @@ on:
   schedule:
     # 19:00 UTC = 03:00 Asia/Shanghai
     - cron: "0 19 * * *"
+    # 04:05 UTC = 12:05 Asia/Shanghai, refresh player profiles with a rate-limited queue
+    - cron: "5 4 * * *"
   workflow_dispatch:
     inputs:
       hours:
@@ -14,6 +16,14 @@ on:
         description: "How many unresolved matches to retry"
         required: false
         default: "12"
+      syncProfiles:
+        description: "Also refresh player OpenDota profiles"
+        required: false
+        default: "false"
+      profileLimit:
+        description: "Maximum player profiles to refresh"
+        required: false
+        default: "45"
 
 jobs:
   auto-sync:
@@ -24,10 +34,17 @@ jobs:
           SYNC_TOKEN: ${{ secrets.ADMIN_TOKEN }}
           HOURS: ${{ github.event.inputs.hours || '72' }}
           RETRY_LIMIT: ${{ github.event.inputs.retryLimit || '12' }}
+          PROFILE_LIMIT: ${{ github.event.inputs.profileLimit || '45' }}
+          SCHEDULE: ${{ github.event.schedule || '' }}
+          WORKFLOW_SYNC_PROFILES: ${{ github.event.inputs.syncProfiles || 'false' }}
         run: |
           test -n "$SYNC_TOKEN"
+          SYNC_PROFILES="$WORKFLOW_SYNC_PROFILES"
+          if [ "$SCHEDULE" = "5 4 * * *" ]; then
+            SYNC_PROFILES="true"
+          fi
           curl --fail-with-body --request POST \
             "https://dota2-inhouse-league-dashboard.pages.dev/api/cron/sync" \
             --header "Authorization: Bearer $SYNC_TOKEN" \
             --header "Content-Type: application/json" \
-            --data "{\"hours\":${HOURS},\"retryLimit\":${RETRY_LIMIT}}"
+            --data "{\"hours\":${HOURS},\"retryLimit\":${RETRY_LIMIT},\"syncProfiles\":${SYNC_PROFILES},\"profileLimit\":${PROFILE_LIMIT}}"

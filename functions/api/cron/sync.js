@@ -13,6 +13,7 @@ import {
   recordSyncRun,
   readJson,
   refreshStoredMatch,
+  syncPlayerProfiles,
   syncRecentMatches,
   withLeague,
 } from "../../_lib/dota.js";
@@ -123,31 +124,59 @@ export async function onRequest({ request, env }) {
 
     const hours = clampNumber(url.searchParams.get("hours") || body.hours, 72, 6, 168);
     const retryLimit = clampNumber(url.searchParams.get("retryLimit") || body.retryLimit, 12, 0, 30);
+    const syncProfiles = url.searchParams.get("syncProfiles") === "1" || body.syncProfiles === true;
+    const profileLimit = clampNumber(url.searchParams.get("profileLimit") || body.profileLimit, 45, 1, 80);
     const syncResult = await syncRecentMatches(scopedEnv, {
       dateRange: makeRecentDateRange(hours),
     });
     const retryResult = retryLimit > 0 ? await retryUnresolvedMatches(scopedEnv, retryLimit) : { attempted: 0, succeeded: 0, results: [] };
+    const profileResult = syncProfiles
+      ? await syncPlayerProfiles(scopedEnv, {
+          limit: profileLimit,
+          throttleMs: 850,
+          retryAttempts: 2,
+        })
+      : null;
     const matches = await getMatches(scopedEnv);
-    const status = syncResult.leagueScan?.failed || syncResult.leagueScan?.partial || syncResult.failedCount || retryResult.results.some((item) => !item.ok) ? "warning" : "success";
+    const status =
+      syncResult.leagueScan?.failed ||
+      syncResult.leagueScan?.partial ||
+      syncResult.failedCount ||
+      retryResult.results.some((item) => !item.ok) ||
+      profileResult?.rateLimited
+        ? "warning"
+        : "success";
     const syncRun = await recordSyncRun(scopedEnv, {
       kind: "auto",
       status,
-      summary: `自动同步完成：新增 ${syncResult.newCandidates.length} 场，重试 ${retryResult.attempted} 场`,
+      summary: `自动同步完成：新增 ${syncResult.newCandidates.length} 场，重试 ${retryResult.attempted} 场${profileResult ? `，资料 ${profileResult.successCount}/${profileResult.processedCount}` : ""}`,
       startedAt,
       details: {
         windowHours: hours,
         retryLimit,
+        syncProfiles,
+        profileLimit,
         newCount: syncResult.newCandidates.length,
         duplicatedCount: syncResult.duplicatedCount,
         failedCount: syncResult.failedCount,
         leagueScan: syncResult.leagueScan,
+        recentMatches: syncResult.recentMatches,
         retry: retryResult,
+        profileSync: profileResult
+          ? {
+              successCount: profileResult.successCount,
+              failedCount: profileResult.failedCount,
+              skippedCount: profileResult.skippedCount,
+              processedCount: profileResult.processedCount,
+              rateLimited: profileResult.rateLimited,
+            }
+          : null,
       },
     });
     await logAuditAction(scopedEnv, {
       action: "auto_sync",
       actor: "GitHub Actions",
-      summary: `自动同步完成：新增 ${syncResult.newCandidates.length} 场，重试 ${retryResult.attempted} 场`,
+      summary: `自动同步完成：新增 ${syncResult.newCandidates.length} 场，重试 ${retryResult.attempted} 场${profileResult ? `，资料 ${profileResult.successCount}/${profileResult.processedCount}` : ""}`,
       details: { syncRunId: syncRun?.id, status },
     });
 
@@ -162,8 +191,10 @@ export async function onRequest({ request, env }) {
         duplicatedCount: syncResult.duplicatedCount,
         failedCount: syncResult.failedCount,
         leagueScan: syncResult.leagueScan,
+        recentMatches: syncResult.recentMatches,
       },
       retry: retryResult,
+      profileSync: profileResult,
       syncRun,
       syncRuns: await getSyncRuns(scopedEnv),
       auditLogs: await getAuditLogs(scopedEnv),
