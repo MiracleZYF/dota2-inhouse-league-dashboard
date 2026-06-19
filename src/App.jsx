@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   BarChart3,
@@ -6,6 +6,7 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   CircleHelp,
   ClipboardList,
@@ -76,6 +77,7 @@ const DATE_RANGE_PRESETS = [
   { id: "last7d", label: "近 7 天" },
   { id: "custom", label: "自定义" },
 ];
+const CALENDAR_WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
 const HERO_CN_NAMES = {
   1: "敌法师",
   2: "斧王",
@@ -219,10 +221,48 @@ function formatDateTimeInput(date) {
   return `${date.getFullYear()}-${padTimeUnit(date.getMonth() + 1)}-${padTimeUnit(date.getDate())}T${padTimeUnit(date.getHours())}:${padTimeUnit(date.getMinutes())}`;
 }
 
+function formatDateTimeDisplay(value) {
+  const normalized = normalizeDateTimeValue(value);
+  if (!normalized) return "";
+  const date = new Date(normalized);
+  if (!Number.isFinite(date.getTime())) return normalized.replace("T", " ");
+  return `${date.getFullYear()}-${padTimeUnit(date.getMonth() + 1)}-${padTimeUnit(date.getDate())} ${padTimeUnit(date.getHours())}:${padTimeUnit(date.getMinutes())}`;
+}
+
 function normalizeDateTimeValue(value, endOfDay = false) {
   if (!value) return "";
   if (String(value).includes("T")) return value;
   return `${value}T${endOfDay ? "23:59" : "00:00"}`;
+}
+
+function parseDateTimeValue(value) {
+  const normalized = normalizeDateTimeValue(value);
+  if (!normalized) return null;
+  const date = new Date(normalized);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function isSameCalendarDate(left, right) {
+  if (!left || !right) return false;
+  return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate();
+}
+
+function addCalendarMonths(date, delta) {
+  return new Date(date.getFullYear(), date.getMonth() + delta, 1);
+}
+
+function getCalendarCells(monthDate) {
+  const firstDay = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const mondayOffset = (firstDay.getDay() + 6) % 7;
+  const start = new Date(firstDay.getFullYear(), firstDay.getMonth(), 1 - mondayOffset);
+  return Array.from({ length: 42 }, (_, index) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + index));
+}
+
+function mergeDateAndTime(date, timeValue = "12:00") {
+  const [hours = "12", minutes = "00"] = String(timeValue || "12:00").split(":");
+  const next = new Date(date);
+  next.setHours(Number(hours) || 0, Number(minutes) || 0, 0, 0);
+  return formatDateTimeInput(next);
 }
 
 function dateTimeValueToSeconds(value, endOfDay = false) {
@@ -329,6 +369,134 @@ function makeDateRangePreset(preset, settings = DEFAULT_SETTINGS) {
   }
 
   return { start: normalizeDateTimeValue(DEFAULT_DATE_RANGE.start), end: normalizeDateTimeValue(DEFAULT_DATE_RANGE.end, true), preset: "custom" };
+}
+
+function DateTimePicker({
+  value,
+  onChange,
+  ariaLabel,
+  placeholder = "选择时间",
+  allowClear = false,
+  defaultTime = "12:00",
+  className = "",
+}) {
+  const rootRef = useRef(null);
+  const selectedDate = parseDateTimeValue(value);
+  const normalizedValue = selectedDate ? formatDateTimeInput(selectedDate) : "";
+  const [open, setOpen] = useState(false);
+  const [viewMonth, setViewMonth] = useState(() => {
+    const base = selectedDate || new Date();
+    return new Date(base.getFullYear(), base.getMonth(), 1);
+  });
+  const monthCells = useMemo(() => getCalendarCells(viewMonth), [viewMonth]);
+  const timeValue = normalizedValue ? normalizedValue.slice(11, 16) : defaultTime;
+  const today = new Date();
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const base = selectedDate || new Date();
+    setViewMonth(new Date(base.getFullYear(), base.getMonth(), 1));
+    return undefined;
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    function handlePointerDown(event) {
+      if (!rootRef.current || rootRef.current.contains(event.target)) return;
+      setOpen(false);
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  function selectDate(date) {
+    onChange?.(mergeDateAndTime(date, timeValue));
+  }
+
+  function changeTime(nextTime) {
+    const base = selectedDate || new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1);
+    onChange?.(mergeDateAndTime(base, nextTime || defaultTime));
+  }
+
+  const monthTitle = `${viewMonth.getFullYear()} 年 ${viewMonth.getMonth() + 1} 月`;
+
+  return (
+    <div className={`datetime-picker ${open ? "open" : ""} ${className}`} ref={rootRef}>
+      <button className={`datetime-trigger ${normalizedValue ? "" : "empty"}`} type="button" aria-label={ariaLabel} aria-expanded={open} onClick={() => setOpen((current) => !current)}>
+        <CalendarDays size={15} />
+        <span>{normalizedValue ? formatDateTimeDisplay(normalizedValue) : placeholder}</span>
+        <ChevronDown size={14} />
+      </button>
+
+      {open && (
+        <div className="datetime-popover" role="dialog" aria-label={ariaLabel || "选择时间"}>
+          <div className="calendar-head">
+            <button className="icon-button compact-icon" type="button" aria-label="上个月" onClick={() => setViewMonth((current) => addCalendarMonths(current, -1))}>
+              <ChevronLeft size={15} />
+            </button>
+            <strong>{monthTitle}</strong>
+            <button className="icon-button compact-icon" type="button" aria-label="下个月" onClick={() => setViewMonth((current) => addCalendarMonths(current, 1))}>
+              <ChevronRight size={15} />
+            </button>
+          </div>
+
+          <div className="calendar-grid calendar-weekdays">
+            {CALENDAR_WEEKDAYS.map((day) => (
+              <span key={day}>{day}</span>
+            ))}
+          </div>
+
+          <div className="calendar-grid calendar-days">
+            {monthCells.map((day) => {
+              const outside = day.getMonth() !== viewMonth.getMonth();
+              const selected = isSameCalendarDate(day, selectedDate);
+              const isToday = isSameCalendarDate(day, today);
+              return (
+                <button
+                  className={`${outside ? "outside" : ""} ${selected ? "selected" : ""} ${isToday ? "today" : ""}`}
+                  key={day.toISOString()}
+                  type="button"
+                  onClick={() => selectDate(day)}
+                >
+                  {day.getDate()}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="calendar-time-row">
+            <label>
+              <span>时间</span>
+              <input type="time" value={timeValue} onChange={(event) => changeTime(event.target.value)} />
+            </label>
+            {allowClear && (
+              <button className="ghost-button compact-button" type="button" onClick={() => onChange?.("")}>
+                <X size={14} />
+                清空
+              </button>
+            )}
+          </div>
+
+          <div className="calendar-actions">
+            <button className="primary-button compact-button" type="button" onClick={() => setOpen(false)}>
+              <Check size={14} />
+              完成
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function formatMatchTime(startTime) {
@@ -4427,14 +4595,27 @@ function LeagueSpacesView({
                   <span>积分周期名称</span>
                   <input value={editForm.seasonName} onChange={(event) => updateEditField("seasonName", event.target.value)} />
                 </label>
-                <label className="setting-field">
+                <div className="setting-field">
                   <span>赛季开始时间</span>
-                  <input type="datetime-local" value={normalizeDateTimeValue(editForm.seasonStart)} onChange={(event) => updateEditField("seasonStart", event.target.value)} />
-                </label>
-                <label className="setting-field">
+                  <DateTimePicker
+                    value={editForm.seasonStart}
+                    onChange={(value) => updateEditField("seasonStart", value || DEFAULT_SEASON_START)}
+                    ariaLabel="选择赛季开始时间"
+                    placeholder="选择开始时间"
+                    defaultTime="12:00"
+                  />
+                </div>
+                <div className="setting-field">
                   <span>赛季结束时间</span>
-                  <input type="datetime-local" value={normalizeDateTimeValue(editForm.seasonEnd)} onChange={(event) => updateEditField("seasonEnd", event.target.value)} />
-                </label>
+                  <DateTimePicker
+                    value={editForm.seasonEnd}
+                    onChange={(value) => updateEditField("seasonEnd", value)}
+                    ariaLabel="选择赛季结束时间"
+                    placeholder="留空表示手动结束"
+                    allowClear
+                    defaultTime="23:59"
+                  />
+                </div>
                 <label className="setting-field">
                   <span>Steam League ID</span>
                   <input inputMode="numeric" value={editForm.leagueId} onChange={(event) => updateEditField("leagueId", event.target.value)} placeholder="未设置则不扫描联赛房" />
@@ -4768,24 +4949,28 @@ function SettingsModal({ settings, onChange, onClose, onReset }) {
             <input value={settings.seasonName} onChange={(event) => updateSetting("seasonName", event.target.value)} />
           </label>
 
-          <label className="setting-field">
+          <div className="setting-field">
             <span>赛季开始时间</span>
-            <input
-              type="datetime-local"
-              value={normalizeDateTimeValue(settings.seasonStart || DEFAULT_SEASON_START)}
-              onChange={(event) => updateSetting("seasonStart", event.target.value || DEFAULT_SEASON_START)}
+            <DateTimePicker
+              value={settings.seasonStart || DEFAULT_SEASON_START}
+              onChange={(value) => updateSetting("seasonStart", value || DEFAULT_SEASON_START)}
+              ariaLabel="选择赛季开始时间"
+              placeholder="选择开始时间"
+              defaultTime="12:00"
             />
-          </label>
+          </div>
 
-          <label className="setting-field">
+          <div className="setting-field">
             <span>赛季结束时间</span>
-            <input
-              type="datetime-local"
-              value={normalizeDateTimeValue(settings.seasonEnd || "")}
-              onChange={(event) => updateSetting("seasonEnd", event.target.value)}
-              title="留空代表由管理员手动结束，积分会统计到当前时间。"
+            <DateTimePicker
+              value={settings.seasonEnd || ""}
+              onChange={(value) => updateSetting("seasonEnd", value)}
+              ariaLabel="选择赛季结束时间"
+              placeholder="留空表示手动结束"
+              allowClear
+              defaultTime="23:59"
             />
-          </label>
+          </div>
 
           <label className="setting-field">
             <span>联赛房 League ID</span>
@@ -6018,20 +6203,22 @@ export function App() {
                 </option>
               ))}
             </select>
-            <input
-              type="datetime-local"
-              aria-label="开始时间"
+            <DateTimePicker
               value={normalizeDateTimeValue(dateRange.start)}
-              onChange={(event) => updateDateRangeField("start", event.target.value)}
-              onInput={(event) => updateDateRangeField("start", event.target.value)}
+              onChange={(value) => updateDateRangeField("start", value)}
+              ariaLabel="选择检索开始时间"
+              placeholder="开始时间"
+              className="range-datetime-picker"
+              defaultTime="00:00"
             />
             <span>~</span>
-            <input
-              type="datetime-local"
-              aria-label="结束时间"
+            <DateTimePicker
               value={normalizeDateTimeValue(dateRange.end, true)}
-              onChange={(event) => updateDateRangeField("end", event.target.value)}
-              onInput={(event) => updateDateRangeField("end", event.target.value)}
+              onChange={(value) => updateDateRangeField("end", value)}
+              ariaLabel="选择检索结束时间"
+              placeholder="结束时间"
+              className="range-datetime-picker"
+              defaultTime="23:59"
             />
             <CalendarDays size={16} />
           </div>

@@ -272,8 +272,7 @@ button:disabled {
   color: #c3cfdd;
 }
 
-.date-range select,
-.date-range input {
+.date-range select {
   border: 0;
   outline: 0;
   color: var(--text);
@@ -282,10 +281,6 @@ button:disabled {
 
 .date-range select {
   width: 98px;
-}
-
-.date-range input {
-  width: 158px;
 }
 
 .date-range.invalid {
@@ -297,17 +292,185 @@ button:disabled {
   color: #0f172a;
 }
 
-.date-range input::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-  opacity: 0.68;
-}
-
 .sync-pill span {
   color: var(--green);
 }
 
 .range-error {
   color: #ffc5c1;
+}
+
+.datetime-picker {
+  position: relative;
+  min-width: 0;
+}
+
+.datetime-trigger {
+  width: 100%;
+  min-height: 40px;
+  display: inline-grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  background: rgba(7, 16, 24, 0.82);
+  text-align: left;
+  cursor: pointer;
+}
+
+.datetime-trigger span {
+  overflow: hidden;
+  color: inherit;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.datetime-trigger.empty span {
+  color: var(--muted);
+}
+
+.datetime-trigger:hover,
+.datetime-picker.open .datetime-trigger {
+  border-color: rgba(52, 215, 181, 0.48);
+  background: rgba(10, 27, 38, 0.92);
+}
+
+.range-datetime-picker {
+  width: 176px;
+}
+
+.date-range .datetime-trigger {
+  min-height: 32px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.datetime-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 70;
+  width: 294px;
+  padding: 12px;
+  border: 1px solid rgba(101, 121, 145, 0.48);
+  border-radius: var(--radius);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.36);
+  background: rgba(12, 23, 35, 0.98);
+}
+
+.range-datetime-picker:last-of-type .datetime-popover {
+  right: 0;
+  left: auto;
+}
+
+.calendar-head {
+  display: grid;
+  grid-template-columns: 32px 1fr 32px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.calendar-head strong {
+  color: var(--text);
+  text-align: center;
+  font-size: 14px;
+}
+
+.compact-icon {
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+}
+
+.calendar-weekdays {
+  margin-bottom: 6px;
+}
+
+.calendar-weekdays span {
+  color: var(--muted);
+  text-align: center;
+  font-size: 12px;
+}
+
+.calendar-days button {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #d9e3ef;
+  background: rgba(18, 32, 47, 0.72);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.calendar-days button:hover {
+  border-color: rgba(52, 215, 181, 0.55);
+  background: rgba(26, 58, 72, 0.78);
+}
+
+.calendar-days button.outside {
+  color: rgba(151, 166, 185, 0.58);
+  background: rgba(12, 22, 34, 0.58);
+}
+
+.calendar-days button.today {
+  border-color: rgba(252, 191, 73, 0.68);
+}
+
+.calendar-days button.selected {
+  color: #071018;
+  border-color: rgba(52, 215, 181, 0.78);
+  background: linear-gradient(135deg, #34d7b5, #8debd9);
+}
+
+.calendar-time-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.calendar-time-row label {
+  display: grid;
+  gap: 6px;
+}
+
+.calendar-time-row label span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.calendar-time-row input {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  background: rgba(7, 16, 24, 0.82);
+}
+
+.calendar-time-row input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.72;
+}
+
+.calendar-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
 }
 
 .mode-pill {
@@ -3063,6 +3226,14 @@ input[type="range"] {
   font-size: 13px;
 }
 
+.setting-field .datetime-trigger span {
+  color: inherit;
+}
+
+.setting-field .datetime-trigger.empty span {
+  color: var(--muted);
+}
+
 .setting-field strong {
   color: var(--text);
   font-size: 20px;
@@ -3070,8 +3241,7 @@ input[type="range"] {
 
 .setting-field input[type="text"],
 .setting-field input:not([type]),
-.setting-field input[type="number"],
-.setting-field input[type="datetime-local"] {
+.setting-field input[type="number"] {
   width: 100%;
   min-height: 40px;
   padding: 0 11px;
