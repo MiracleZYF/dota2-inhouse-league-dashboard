@@ -279,6 +279,18 @@ button:disabled {
   background: transparent;
 }
 
+.season-select select {
+  max-width: 170px;
+  border: 0;
+  outline: 0;
+  appearance: none;
+  color: var(--text);
+  background: transparent;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .date-range select {
   width: 98px;
 }

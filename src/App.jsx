@@ -40,12 +40,35 @@ import {
 const OPENDOTA_BASE_URL = "https://api.opendota.com/api";
 const ADMIN_TOKEN_STORAGE_KEY = "dota2-inhouse-admin-token";
 const DEFAULT_LEAGUE_SLUG = "pokemon-dota";
+const TRIAL_SEASON_START = "2026-06-01T00:00";
+const TRIAL_SEASON_END = "2026-06-20T11:59";
 const DEFAULT_SEASON_START = "2026-06-20T12:00";
+const CURRENT_SEASON_ID = "s1";
+const DEFAULT_SEASONS = [
+  {
+    id: "s0",
+    name: "S0 试运行赛季",
+    start: TRIAL_SEASON_START,
+    end: TRIAL_SEASON_END,
+    status: "archived",
+    locked: true,
+  },
+  {
+    id: "s1",
+    name: "S1 正式赛季",
+    start: DEFAULT_SEASON_START,
+    end: "",
+    status: "active",
+    locked: false,
+  },
+];
 const DEFAULT_DATE_RANGE = { start: DEFAULT_SEASON_START, end: formatDateTimeInput(new Date()), preset: "season" };
 const DEFAULT_SETTINGS = {
   seasonName: "S1 正式赛季",
   seasonStart: DEFAULT_SEASON_START,
   seasonEnd: "",
+  currentSeasonId: CURRENT_SEASON_ID,
+  seasons: DEFAULT_SEASONS,
   minRegisteredPlayers: 8,
   minCaptainGames: 6,
   winPoints: 10,
@@ -279,6 +302,135 @@ function getDateRangeSeconds(dateRange) {
     startSeconds,
     endSeconds,
     valid: Number.isFinite(startSeconds) && Number.isFinite(endSeconds) && startSeconds <= endSeconds,
+  };
+}
+
+function normalizeSeasonId(value, fallback = "") {
+  const clean = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+  return clean || fallback;
+}
+
+function normalizeSeason(raw = {}, fallback = {}, index = 0) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const base = fallback && typeof fallback === "object" ? fallback : {};
+  const id = normalizeSeasonId(source.id, normalizeSeasonId(base.id, `s${index}`));
+  const name = String(source.name || source.seasonName || base.name || `S${index}`).trim();
+  return {
+    id,
+    name,
+    start: normalizeDateTimeValue(source.start || source.seasonStart || base.start || base.seasonStart || DEFAULT_SEASON_START),
+    end: normalizeDateTimeValue(source.end || source.seasonEnd || base.end || base.seasonEnd || "", true),
+    status: ["active", "archived", "draft"].includes(source.status) ? source.status : base.status || "active",
+    locked: Boolean(source.locked ?? base.locked),
+  };
+}
+
+function getSettingsSeasons(settings = DEFAULT_SETTINGS) {
+  const source = settings && typeof settings === "object" ? settings : {};
+  const byId = new Map();
+  DEFAULT_SEASONS.forEach((season, index) => {
+    const normalized = normalizeSeason(season, season, index);
+    byId.set(normalized.id, normalized);
+  });
+
+  if (Array.isArray(source.seasons)) {
+    source.seasons.forEach((season, index) => {
+      const fallbackId = normalizeSeasonId(season?.id, "");
+      const fallback = byId.get(fallbackId) || DEFAULT_SEASONS[index] || DEFAULT_SEASONS[DEFAULT_SEASONS.length - 1];
+      const normalized = normalizeSeason(season, fallback, index);
+      byId.set(normalized.id, { ...(byId.get(normalized.id) || {}), ...normalized });
+    });
+  }
+
+  const requestedCurrentId = normalizeSeasonId(source.currentSeasonId, CURRENT_SEASON_ID);
+  const currentId = byId.has(requestedCurrentId) ? requestedCurrentId : CURRENT_SEASON_ID;
+  const currentSeason = byId.get(currentId) || byId.get(CURRENT_SEASON_ID);
+  if (currentSeason) {
+    if (source.seasonName) currentSeason.name = String(source.seasonName).trim();
+    if (source.seasonStart) currentSeason.start = normalizeDateTimeValue(source.seasonStart);
+    if ("seasonEnd" in source) currentSeason.end = normalizeDateTimeValue(source.seasonEnd || "", true);
+  }
+
+  const defaultOrder = new Map(DEFAULT_SEASONS.map((season, index) => [season.id, index]));
+  return Array.from(byId.values()).sort((left, right) => {
+    const leftOrder = defaultOrder.has(left.id) ? defaultOrder.get(left.id) : 99;
+    const rightOrder = defaultOrder.has(right.id) ? defaultOrder.get(right.id) : 99;
+    return leftOrder - rightOrder || left.name.localeCompare(right.name, "zh-CN");
+  });
+}
+
+function getCurrentSeasonId(settings = DEFAULT_SETTINGS) {
+  const seasons = getSettingsSeasons(settings);
+  const requestedId = normalizeSeasonId(settings?.currentSeasonId, CURRENT_SEASON_ID);
+  if (seasons.some((season) => season.id === requestedId)) return requestedId;
+  if (seasons.some((season) => season.id === CURRENT_SEASON_ID)) return CURRENT_SEASON_ID;
+  return seasons[0]?.id || CURRENT_SEASON_ID;
+}
+
+function getSeasonById(settings = DEFAULT_SETTINGS, seasonId = "") {
+  const seasons = getSettingsSeasons(settings);
+  const cleanId = normalizeSeasonId(seasonId, getCurrentSeasonId(settings));
+  return seasons.find((season) => season.id === cleanId) || seasons.find((season) => season.id === CURRENT_SEASON_ID) || seasons[0] || normalizeSeason(DEFAULT_SEASONS[1], DEFAULT_SEASONS[1], 1);
+}
+
+function applySeasonToSettings(settings = DEFAULT_SETTINGS, season = null) {
+  const seasons = getSettingsSeasons(settings);
+  const target = season || getSeasonById(settings, getCurrentSeasonId(settings));
+  return {
+    ...DEFAULT_SETTINGS,
+    ...(settings || {}),
+    seasons,
+    currentSeasonId: target.id,
+    seasonName: target.name,
+    seasonStart: target.start,
+    seasonEnd: target.end,
+  };
+}
+
+function setCurrentSeason(settings = DEFAULT_SETTINGS, seasonId = CURRENT_SEASON_ID) {
+  const seasons = getSettingsSeasons(settings);
+  const target = getSeasonById({ ...settings, seasons }, seasonId);
+  return {
+    ...settings,
+    seasons,
+    currentSeasonId: target.id,
+    seasonName: target.name,
+    seasonStart: target.start,
+    seasonEnd: target.end,
+  };
+}
+
+function patchSeason(settings = DEFAULT_SETTINGS, patch = {}, seasonId = getCurrentSeasonId(settings)) {
+  const seasons = getSettingsSeasons(settings);
+  const targetId = normalizeSeasonId(seasonId, getCurrentSeasonId(settings));
+  const nextSeasons = seasons.map((season) => {
+    if (season.id !== targetId) return season;
+    return normalizeSeason(
+      {
+        ...season,
+        name: patch.name ?? patch.seasonName ?? season.name,
+        start: patch.start ?? patch.seasonStart ?? season.start,
+        end: patch.end ?? patch.seasonEnd ?? season.end,
+        status: patch.status ?? season.status,
+        locked: patch.locked ?? season.locked,
+      },
+      season,
+    );
+  });
+  const next = { ...settings, seasons: nextSeasons };
+  const currentId = getCurrentSeasonId(next);
+  const currentSeason = getSeasonById(next, currentId);
+  return {
+    ...next,
+    currentSeasonId: currentId,
+    seasonName: currentSeason.name,
+    seasonStart: currentSeason.start,
+    seasonEnd: currentSeason.end,
   };
 }
 
@@ -4224,7 +4376,8 @@ function RulesView({ settings = DEFAULT_SETTINGS }) {
 }
 
 function buildLeagueEditForm(league, settings = DEFAULT_SETTINGS) {
-  const mergedSettings = { ...DEFAULT_SETTINGS, ...(league?.settings || {}), ...(settings || {}) };
+  const rawSettings = { ...DEFAULT_SETTINGS, ...(league?.settings || {}), ...(settings || {}) };
+  const mergedSettings = setCurrentSeason(rawSettings, getCurrentSeasonId(rawSettings));
   return {
     name: league?.name || "",
     ownerName: league?.ownerName || "",
@@ -4292,7 +4445,7 @@ function LeagueSpacesView({
 
   useEffect(() => {
     setEditForm(buildLeagueEditForm(currentLeague, settings));
-  }, [currentLeague?.slug, currentLeague?.updatedAt, settings.seasonName, settings.seasonStart, settings.seasonEnd, settings.leagueId, settings.autoSync, settings.useLeagueScan, settings.allowPartialMatches]);
+  }, [currentLeague?.slug, currentLeague?.updatedAt, settings.currentSeasonId, settings.seasons, settings.seasonName, settings.seasonStart, settings.seasonEnd, settings.leagueId, settings.autoSync, settings.useLeagueScan, settings.allowPartialMatches]);
 
   function updateField(key, value) {
     setForm((current) => ({
@@ -4316,6 +4469,15 @@ function LeagueSpacesView({
   function submitEdit(event) {
     event.preventDefault();
     const nextLeagueId = String(editForm.leagueId || "").trim();
+    const seasonSettings = patchSeason(
+      settings,
+      {
+        seasonName: editForm.seasonName,
+        seasonStart: editForm.seasonStart || DEFAULT_SEASON_START,
+        seasonEnd: editForm.seasonEnd || "",
+      },
+      getCurrentSeasonId(settings),
+    );
     onUpdateCurrent?.({
       name: editForm.name,
       ownerName: editForm.ownerName,
@@ -4324,10 +4486,7 @@ function LeagueSpacesView({
       adminKey: editForm.adminKey,
       resetAdminKey: editForm.resetAdminKey,
       settings: {
-        ...settings,
-        seasonName: editForm.seasonName,
-        seasonStart: editForm.seasonStart || DEFAULT_SEASON_START,
-        seasonEnd: editForm.seasonEnd || "",
+        ...seasonSettings,
         leagueId: nextLeagueId,
         autoSync: editForm.autoSync,
         useLeagueScan: Boolean(nextLeagueId) && editForm.useLeagueScan,
@@ -4946,7 +5105,18 @@ function NotificationPanel({ notifications, onClose, onMarkAllRead, onOpenNotifi
 }
 
 function SettingsModal({ settings, onChange, onClose, onReset }) {
+  const seasons = getSettingsSeasons(settings);
+  const currentSeason = getSeasonById(settings, getCurrentSeasonId(settings));
+
   function updateSetting(key, value) {
+    if (key === "currentSeasonId") {
+      onChange((current) => setCurrentSeason(current, value));
+      return;
+    }
+    if (["seasonName", "seasonStart", "seasonEnd"].includes(key)) {
+      onChange((current) => patchSeason(current, { [key]: value }, getCurrentSeasonId(current)));
+      return;
+    }
     onChange((current) => ({ ...current, [key]: value }));
   }
 
@@ -4964,6 +5134,17 @@ function SettingsModal({ settings, onChange, onClose, onReset }) {
         </div>
 
         <div className="settings-grid">
+          <label className="setting-field">
+            <span>默认展示赛季</span>
+            <select value={currentSeason.id} onChange={(event) => updateSetting("currentSeasonId", event.target.value)}>
+              {seasons.map((season) => (
+                <option value={season.id} key={season.id}>
+                  {season.name}{season.status === "archived" ? "（封存）" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+
           <label className="setting-field full">
             <span>赛季名称</span>
             <input value={settings.seasonName} onChange={(event) => updateSetting("seasonName", event.target.value)} />
@@ -5114,6 +5295,8 @@ export function App() {
   const [auditLogs, setAuditLogs] = useState([]);
   const [dateRange, setDateRange] = useState(() => makeSeasonDateRange(DEFAULT_SETTINGS));
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [selectedSeasonId, setSelectedSeasonId] = useState(() => getCurrentSeasonId(DEFAULT_SETTINGS));
+  const [seasonManuallySelected, setSeasonManuallySelected] = useState(false);
   const [playoff, setPlayoff] = useState(DEFAULT_PLAYOFF);
   const [leagueSpace, setLeagueSpace] = useState(null);
   const [leagues, setLeagues] = useState([]);
@@ -5136,14 +5319,27 @@ export function App() {
   const [matchDetailError, setMatchDetailError] = useState("");
   const [heroNames, setHeroNames] = useState({});
 
-  const visibleMatches = useMemo(() => matches.filter(isReviewableMatch), [matches]);
-  const scoreEntries = useMemo(() => buildScoreEntries(players, matches, settings), [players, matches, settings]);
-  const rankedPlayers = useMemo(() => buildStandingsFromScoredMatches(players, scoreEntries, settings), [players, scoreEntries, settings]);
-  const captains = rankedPlayers.filter((player) => player.played >= settings.minCaptainGames).slice(0, 4);
+  const seasons = useMemo(() => getSettingsSeasons(settings), [settings]);
+  const currentSeasonId = useMemo(() => getCurrentSeasonId(settings), [settings]);
+  const selectedSeason = useMemo(() => getSeasonById(settings, selectedSeasonId), [settings, selectedSeasonId]);
+  const seasonSettings = useMemo(() => applySeasonToSettings(settings, selectedSeason), [settings, selectedSeason]);
+  const seasonMatches = useMemo(
+    () =>
+      matches.filter((match) => {
+        if (isMatchInsideSeason(match, seasonSettings)) return true;
+        const hasStartTime = Boolean(Number(match?.startTime || 0));
+        return !hasStartTime && selectedSeason.id === currentSeasonId;
+      }),
+    [matches, seasonSettings.seasonStart, seasonSettings.seasonEnd, selectedSeason.id, currentSeasonId],
+  );
+  const visibleMatches = useMemo(() => seasonMatches.filter(isReviewableMatch), [seasonMatches]);
+  const scoreEntries = useMemo(() => buildScoreEntries(players, matches, seasonSettings), [players, matches, seasonSettings]);
+  const rankedPlayers = useMemo(() => buildStandingsFromScoredMatches(players, scoreEntries, seasonSettings), [players, scoreEntries, seasonSettings]);
+  const captains = rankedPlayers.filter((player) => player.played >= seasonSettings.minCaptainGames).slice(0, 4);
   const activeNav = navItems.find((item) => item.id === activeView) || navItems[0];
   const selectedMatch = matches.find((match) => match.id === selectedMatchId);
   const unreadCount = notifications.filter((item) => !item.read).length;
-  const seasonWindow = useMemo(() => getSeasonWindow(settings), [settings]);
+  const seasonWindow = useMemo(() => getSeasonWindow(seasonSettings), [seasonSettings]);
   const dateRangeStatus = useMemo(() => getDateRangeSeconds(dateRange), [dateRange]);
   const dateRangeLabel = useMemo(() => formatDateRangeLabel(dateRange), [dateRange]);
   const isSetupLeagueSpace = Boolean(leagueSpace && leagueSpace.dataReady === false);
@@ -5221,9 +5417,20 @@ export function App() {
   }, [backendReady]);
 
   useEffect(() => {
+    if (!seasons.some((season) => season.id === selectedSeasonId)) {
+      setSelectedSeasonId(currentSeasonId);
+      setSeasonManuallySelected(false);
+      return;
+    }
+    if (!seasonManuallySelected && selectedSeasonId !== currentSeasonId) {
+      setSelectedSeasonId(currentSeasonId);
+    }
+  }, [currentSeasonId, seasonManuallySelected, seasons, selectedSeasonId]);
+
+  useEffect(() => {
     if (dateRange.preset !== "season") return;
-    setDateRange(makeSeasonDateRange(settings));
-  }, [dateRange.preset, settings.seasonStart, settings.seasonEnd]);
+    setDateRange(makeSeasonDateRange(seasonSettings));
+  }, [dateRange.preset, seasonSettings.seasonStart, seasonSettings.seasonEnd]);
 
   useEffect(() => {
     if (dataLoading || !isFirstRunLeagueSpace || activeView !== "overview") return;
@@ -5239,7 +5446,16 @@ export function App() {
       setDateRange((current) => ({ ...current, preset: "custom" }));
       return;
     }
-    setDateRange(makeDateRangePreset(preset, settings));
+    setDateRange(makeDateRangePreset(preset, seasonSettings));
+  }
+
+  function changeSelectedSeason(nextSeasonId) {
+    const nextSeason = getSeasonById(settings, nextSeasonId);
+    setSelectedSeasonId(nextSeason.id);
+    setSeasonManuallySelected(true);
+    if (dateRange.preset === "season") {
+      setDateRange(makeSeasonDateRange(applySeasonToSettings(settings, nextSeason)));
+    }
   }
 
   function applyServerState(data) {
@@ -5285,11 +5501,15 @@ export function App() {
     const exportedAt = new Date().toISOString();
     const snapshot = {
       exportedAt,
-      seasonName: settings.seasonName,
+      selectedSeasonId: selectedSeason.id,
+      selectedSeason,
+      seasonName: selectedSeason.name,
       dateRange,
       settings,
+      seasons,
       players,
-      matches,
+      matches: seasonMatches,
+      allMatches: matches,
       playoff,
       syncRuns,
       auditLogs,
@@ -5822,14 +6042,14 @@ export function App() {
       const data = await apiRequest("/api/sync-recent", {
         method: "POST",
         admin: true,
-        body: { dateRange, settings },
+        body: { dateRange, settings: seasonSettings },
       });
       const newCandidates = data.newCandidates || [];
       const duplicatedCount = data.duplicatedCount || 0;
       const failedCount = data.failedCount || 0;
       const leagueScan = data.leagueScan || {};
       const leagueSummary = leagueScan.enabled
-        ? `联赛房 ${leagueScan.leagueId || settings.leagueId} 扫到 ${leagueScan.fetched || 0} 场（${leagueScan.pagesFetched || 0} 页），命中 ${leagueScan.candidateCount || 0} 场`
+        ? `联赛房 ${leagueScan.leagueId || seasonSettings.leagueId} 扫到 ${leagueScan.fetched || 0} 场（${leagueScan.pagesFetched || 0} 页），命中 ${leagueScan.candidateCount || 0} 场`
         : "联赛房扫描未启用";
       const partialWarning = Boolean(failedCount || leagueScan.failed || leagueScan.partial);
       applyServerState(data);
@@ -5912,7 +6132,7 @@ export function App() {
             gameMode: detail.game_mode,
             isRankedLadder: rankedLadder,
           },
-          settings,
+          seasonSettings,
           detail,
         );
         setMatches((current) =>
@@ -6025,6 +6245,8 @@ export function App() {
 
   function resetSettings() {
     setSettings(DEFAULT_SETTINGS);
+    setSelectedSeasonId(CURRENT_SEASON_ID);
+    setSeasonManuallySelected(false);
   }
 
   async function createLeagueSpace(form) {
@@ -6135,7 +6357,8 @@ export function App() {
 
   async function saveSettingsAndClose() {
     try {
-      const data = await apiRequest("/api/settings", { method: "PUT", admin: true, body: { settings } });
+      const normalizedSettings = setCurrentSeason(settings, getCurrentSeasonId(settings));
+      const data = await apiRequest("/api/settings", { method: "PUT", admin: true, body: { settings: normalizedSettings } });
       if (data.settings) setSettings(data.settings);
       setLastSync("设置已保存");
       setShowSettings(false);
@@ -6183,7 +6406,7 @@ export function App() {
         <div className="season-card">
           <div className="season-row">
             <span>当前阶段</span>
-            <strong>{settings.seasonName}</strong>
+            <strong>{selectedSeason.name}</strong>
           </div>
           <div className="season-day" title={seasonWindow.label}>{seasonWindow.dayLabel}</div>
           <div className="progress-track">
@@ -6208,13 +6431,19 @@ export function App() {
             <activeNav.icon size={22} />
             <div>
               <span>{activeNav.label}</span>
-              <strong>{settings.seasonName}</strong>
+              <strong>{selectedSeason.name}</strong>
             </div>
           </div>
-          <div className="season-select">
-            <strong>{settings.seasonName}</strong>
+          <label className="season-select">
+            <select aria-label="选择赛季" value={selectedSeason.id} onChange={(event) => changeSelectedSeason(event.target.value)}>
+              {seasons.map((season) => (
+                <option value={season.id} key={season.id}>
+                  {season.name}{season.status === "archived" ? "（封存）" : ""}
+                </option>
+              ))}
+            </select>
             <ChevronDown size={16} />
-          </div>
+          </label>
           <div className={`date-range ${dateRangeStatus.valid ? "" : "invalid"}`}>
             <select aria-label="快捷时间段" value={dateRange.preset || "custom"} onChange={(event) => applyDateRangePreset(event.target.value)}>
               {DATE_RANGE_PRESETS.map((preset) => (
@@ -6340,7 +6569,7 @@ export function App() {
             dateRangeLabel={dateRangeLabel}
             dateRangeValid={dateRangeStatus.valid}
             refreshingMatchIds={refreshingMatchIds}
-            settings={settings}
+            settings={seasonSettings}
             seasonWindow={seasonWindow}
             isAdmin={isAdmin}
           />
@@ -6361,7 +6590,7 @@ export function App() {
         )}
         {!isSetupLeagueSpace && activeView === "matches" && (
           <MatchesView
-            matches={isAdmin ? matches : visibleMatches}
+            matches={isAdmin ? seasonMatches : visibleMatches}
             onAddMatch={addManualMatch}
             onConfirm={confirmMatch}
             onReject={rejectMatch}
@@ -6373,12 +6602,12 @@ export function App() {
             dateRange={dateRange}
             dateRangeLabel={dateRangeLabel}
             dateRangeValid={dateRangeStatus.valid}
-            settings={settings}
+            settings={seasonSettings}
             onOpenSettings={() => setShowSettings(true)}
             isAdmin={isAdmin}
           />
         )}
-        {!isSetupLeagueSpace && activeView === "leaderboard" && <LeaderboardView players={rankedPlayers} matches={matches} scoreEntries={scoreEntries} settings={settings} />}
+        {!isSetupLeagueSpace && activeView === "leaderboard" && <LeaderboardView players={rankedPlayers} matches={seasonMatches} scoreEntries={scoreEntries} settings={seasonSettings} />}
         {!isSetupLeagueSpace && activeView === "draft" && <DraftView players={rankedPlayers} captains={captains} playoff={playoff} onSaveTeams={savePlayoffTeams} saving={playoffSaving} isAdmin={isAdmin} />}
         {!isSetupLeagueSpace && activeView === "playoff" && (
           <PlayoffView
@@ -6392,7 +6621,7 @@ export function App() {
             isAdmin={isAdmin}
           />
         )}
-        {!isSetupLeagueSpace && activeView === "rules" && <RulesView settings={settings} />}
+        {!isSetupLeagueSpace && activeView === "rules" && <RulesView settings={seasonSettings} />}
       </main>
 
       {isAdmin && showImport && <ImportModal onClose={() => setShowImport(false)} onImport={importPlayers} />}
@@ -6416,7 +6645,7 @@ export function App() {
           onSaveManualRoster={saveManualRoster}
           playoff={playoff}
           onBindPlayoffMatch={bindMatchToPlayoff}
-          settings={settings}
+          settings={seasonSettings}
           isAdmin={isAdmin}
         />
       )}

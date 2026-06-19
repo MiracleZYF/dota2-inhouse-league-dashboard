@@ -3,10 +3,35 @@ const STEAM_DOTA_MATCH_BASE_URL = "https://api.steampowered.com/IDOTA2Match_570"
 const ROSTER_VERSION = "2026-06-18-roster-38";
 export const DEFAULT_LEAGUE_SLUG = "pokemon-dota";
 
+const TRIAL_SEASON_START = "2026-06-01T00:00";
+const TRIAL_SEASON_END = "2026-06-20T11:59";
+const DEFAULT_SEASON_START = "2026-06-20T12:00";
+const CURRENT_SEASON_ID = "s1";
+const DEFAULT_SEASONS = [
+  {
+    id: "s0",
+    name: "S0 试运行赛季",
+    start: TRIAL_SEASON_START,
+    end: TRIAL_SEASON_END,
+    status: "archived",
+    locked: true,
+  },
+  {
+    id: "s1",
+    name: "S1 正式赛季",
+    start: DEFAULT_SEASON_START,
+    end: "",
+    status: "active",
+    locked: false,
+  },
+];
+
 export const DEFAULT_SETTINGS = {
   seasonName: "S1 正式赛季",
-  seasonStart: "2026-06-20T12:00",
+  seasonStart: DEFAULT_SEASON_START,
   seasonEnd: "",
+  currentSeasonId: CURRENT_SEASON_ID,
+  seasons: DEFAULT_SEASONS,
   minRegisteredPlayers: 8,
   minCaptainGames: 6,
   winPoints: 10,
@@ -158,10 +183,80 @@ function currentLeagueSlug(env) {
   return normalizeLeagueSlug(env?.__leagueSlug, DEFAULT_LEAGUE_SLUG);
 }
 
+function normalizeDateTimeSetting(value, fallback = "", endOfDay = false) {
+  const clean = String(value || "").trim();
+  if (!clean) return fallback;
+  if (clean.includes("T")) return clean;
+  return `${clean}T${endOfDay ? "23:59" : "00:00"}`;
+}
+
+function normalizeSeasonId(value, fallback = "") {
+  const clean = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+  return clean || fallback;
+}
+
+function normalizeSeason(raw = {}, fallback = {}, index = 0) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const base = fallback && typeof fallback === "object" ? fallback : {};
+  const id = normalizeSeasonId(source.id, normalizeSeasonId(base.id, `s${index}`));
+  return {
+    id,
+    name: String(source.name || source.seasonName || base.name || `S${index}`).trim(),
+    start: normalizeDateTimeSetting(source.start || source.seasonStart || base.start || base.seasonStart, DEFAULT_SEASON_START),
+    end: normalizeDateTimeSetting(source.end || source.seasonEnd || base.end || base.seasonEnd, "", true),
+    status: ["active", "archived", "draft"].includes(source.status) ? source.status : base.status || "active",
+    locked: Boolean(source.locked ?? base.locked),
+  };
+}
+
+function normalizeSeasons(settings = {}) {
+  const source = settings && typeof settings === "object" ? settings : {};
+  const byId = new Map();
+  DEFAULT_SEASONS.forEach((season, index) => {
+    const normalized = normalizeSeason(season, season, index);
+    byId.set(normalized.id, normalized);
+  });
+
+  if (Array.isArray(source.seasons)) {
+    source.seasons.forEach((season, index) => {
+      const fallbackId = normalizeSeasonId(season?.id, "");
+      const fallback = byId.get(fallbackId) || DEFAULT_SEASONS[index] || DEFAULT_SEASONS[DEFAULT_SEASONS.length - 1];
+      const normalized = normalizeSeason(season, fallback, index);
+      byId.set(normalized.id, { ...(byId.get(normalized.id) || {}), ...normalized });
+    });
+  }
+
+  const requestedCurrentId = normalizeSeasonId(source.currentSeasonId, CURRENT_SEASON_ID);
+  const currentSeasonId = byId.has(requestedCurrentId) ? requestedCurrentId : CURRENT_SEASON_ID;
+  const currentSeason = byId.get(currentSeasonId) || byId.get(CURRENT_SEASON_ID);
+  if (currentSeason) {
+    if (source.seasonName) currentSeason.name = String(source.seasonName).trim();
+    if (source.seasonStart) currentSeason.start = normalizeDateTimeSetting(source.seasonStart, DEFAULT_SEASON_START);
+    if ("seasonEnd" in source) currentSeason.end = normalizeDateTimeSetting(source.seasonEnd, "", true);
+  }
+
+  const defaultOrder = new Map(DEFAULT_SEASONS.map((season, index) => [season.id, index]));
+  const seasons = Array.from(byId.values()).sort((left, right) => {
+    const leftOrder = defaultOrder.has(left.id) ? defaultOrder.get(left.id) : 99;
+    const rightOrder = defaultOrder.has(right.id) ? defaultOrder.get(right.id) : 99;
+    return leftOrder - rightOrder || left.name.localeCompare(right.name, "zh-CN");
+  });
+  return { seasons, currentSeasonId, currentSeason: currentSeason || seasons[0] || DEFAULT_SEASONS[1] };
+}
+
 function normalizeSettings(settings = {}) {
   const merged = { ...DEFAULT_SETTINGS, ...(settings || {}) };
-  merged.seasonStart = String(merged.seasonStart || "").trim() || DEFAULT_SETTINGS.seasonStart;
-  merged.seasonEnd = String(merged.seasonEnd || "").trim();
+  const { seasons, currentSeasonId, currentSeason } = normalizeSeasons(merged);
+  merged.seasons = seasons;
+  merged.currentSeasonId = currentSeasonId;
+  merged.seasonName = currentSeason.name;
+  merged.seasonStart = currentSeason.start || DEFAULT_SETTINGS.seasonStart;
+  merged.seasonEnd = currentSeason.end || "";
   return merged;
 }
 
