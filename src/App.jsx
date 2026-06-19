@@ -4031,6 +4031,15 @@ function LeagueSpacesView({
   const publicUrl = activeLeague?.publicUrl || "";
   const adminAction = !createdMode && isAdmin;
   const readonlyAdminHref = !adminAction ? adminUrl : "";
+  const createdLeaguePackage = createdLeague
+    ? [
+        `联赛：${createdLeague.name}`,
+        `公开链接：${createdLeague.publicUrl}`,
+        `管理链接：${createdLeague.adminUrl}`,
+        `管理密码：${createdLeague.adminKey || "使用创建时填写的管理密码"}`,
+        "运营顺序：导入玩家名单 -> 填写 Steam League ID -> 手动同步一次",
+      ].join("\n")
+    : "";
   const setupSteps = [
     {
       icon: ExternalLink,
@@ -4072,6 +4081,41 @@ function LeagueSpacesView({
 
   return (
     <div className="view-stack">
+      {createdLeague && (
+        <Panel title="创建完成" action={<span className="status-pill status-success">请先保存</span>}>
+          <div className="league-created-handoff">
+            <div className="league-created-main">
+              <div className="league-created-icon">
+                <ShieldCheck size={24} />
+              </div>
+              <div>
+                <span className="status-pill status-warning">管理密码只显示这一次</span>
+                <h3>{createdLeague.name} 已经创建好</h3>
+                <p>先复制整套交接信息，确认管理密码已经保存，再打开新管理端导入玩家和配置联赛房。</p>
+              </div>
+            </div>
+            <div className="league-created-actions">
+              <button className="primary-button" type="button" onClick={() => onCopy?.(createdLeaguePackage)}>
+                <ClipboardList size={16} />
+                复制交接信息
+              </button>
+              <button className="ghost-button" type="button" onClick={() => onCopy?.(createdLeague.adminKey)} disabled={!createdLeague.adminKey}>
+                <ShieldCheck size={16} />
+                复制管理密码
+              </button>
+              <a className="ghost-button" href={createdLeague.adminUrl}>
+                <Settings size={16} />
+                打开新管理端
+              </a>
+              <a className="ghost-button" href={createdLeague.publicUrl}>
+                <ExternalLink size={16} />
+                打开公开页
+              </a>
+            </div>
+          </div>
+        </Panel>
+      )}
+
       {firstRun && (
         <Panel title="首次初始化" action={<span className="status-pill status-warning">新空间</span>}>
           <div className="league-first-run">
