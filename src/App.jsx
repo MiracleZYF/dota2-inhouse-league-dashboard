@@ -3988,6 +3988,7 @@ function LeagueSpacesView({
   playersCount = 0,
   matchesCount = 0,
   syncRunsCount = 0,
+  firstRun = false,
   isAdmin = false,
   syncing = false,
   canSync = true,
@@ -4071,6 +4072,32 @@ function LeagueSpacesView({
 
   return (
     <div className="view-stack">
+      {firstRun && (
+        <Panel title="首次初始化" action={<span className="status-pill status-warning">新空间</span>}>
+          <div className="league-first-run">
+            <div className="league-first-run-copy">
+              <span className="status-pill status-info">建议按顺序完成</span>
+              <h3>{currentLeague?.name || "新的联赛空间"} 还没有运营数据</h3>
+              <p>先导入本群 DOTA2 ID，再填写 Steam League ID，最后跑一次手动同步。完成后这个空间就可以独立识别内战、计分和展示淘汰赛，不会影响其他联赛空间。</p>
+            </div>
+            <div className="league-first-run-actions">
+              <button className="primary-button" type="button" onClick={onOpenImport}>
+                <Upload size={16} />
+                导入玩家名单
+              </button>
+              <button className="ghost-button" type="button" onClick={onOpenSettings}>
+                <Settings size={16} />
+                填写 League ID
+              </button>
+              <button className="ghost-button" type="button" onClick={onSyncNow} disabled={!leagueRoomReady || syncing || !canSync}>
+                <RefreshCw size={16} className={syncing ? "spin-icon" : ""} />
+                {syncing ? "同步中" : "跑第一次同步"}
+              </button>
+            </div>
+          </div>
+        </Panel>
+      )}
+
       <Panel title="联赛空间" action={<span className="status-pill status-info">自助创建 Beta</span>}>
         <div className="league-space-layout">
           <form className="league-create-card" onSubmit={submit}>
@@ -4502,6 +4529,15 @@ export function App() {
   const dateRangeStatus = useMemo(() => getDateRangeSeconds(dateRange), [dateRange]);
   const dateRangeLabel = useMemo(() => formatDateRangeLabel(dateRange), [dateRange]);
   const isSetupLeagueSpace = Boolean(leagueSpace && leagueSpace.dataReady === false);
+  const isFirstRunLeagueSpace = Boolean(
+    isAdmin &&
+      backendReady &&
+      leagueSpace &&
+      leagueSpace.isDefault === false &&
+      leagueSpace.dataReady !== false &&
+      players.length === 0 &&
+      matches.length === 0,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -4565,6 +4601,11 @@ export function App() {
     }, 120000);
     return () => window.clearInterval(intervalId);
   }, [backendReady]);
+
+  useEffect(() => {
+    if (dataLoading || !isFirstRunLeagueSpace || activeView !== "overview") return;
+    setActiveView("spaces");
+  }, [activeView, dataLoading, isFirstRunLeagueSpace]);
 
   function updateDateRangeField(field, value) {
     setDateRange((current) => ({ ...current, [field]: value, preset: "custom" }));
@@ -5578,6 +5619,7 @@ export function App() {
             playersCount={players.length}
             matchesCount={matches.length}
             syncRunsCount={syncRuns.length}
+            firstRun={isFirstRunLeagueSpace}
             isAdmin={isAdmin}
             syncing={syncing}
             canSync={dateRangeStatus.valid}

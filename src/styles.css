@@ -1565,6 +1565,47 @@ a.primary-button {
   white-space: nowrap;
 }
 
+.league-first-run {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  margin: 0 18px 18px;
+  padding: 18px;
+  border: 1px solid rgba(247, 182, 75, 0.34);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(74, 54, 26, 0.36), rgba(13, 25, 37, 0.78));
+}
+
+.league-first-run-copy h3,
+.league-first-run-copy p {
+  margin: 0;
+}
+
+.league-first-run-copy h3 {
+  margin-top: 12px;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.league-first-run-copy p {
+  max-width: 820px;
+  margin-top: 8px;
+  color: #d5e0eb;
+  line-height: 1.65;
+}
+
+.league-first-run-actions {
+  display: grid;
+  gap: 8px;
+  min-width: 190px;
+}
+
+.league-first-run-actions .ghost-button,
+.league-first-run-actions .primary-button {
+  width: 100%;
+}
+
 .league-setup-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3724,6 +3765,7 @@ input[type="range"] {
   .overview-grid,
   .ops-grid,
   .bottom-grid,
+  .league-first-run,
   .leaderboard-layout,
   .leaderboard-detail-grid,
   .league-space-layout,
@@ -3919,6 +3961,14 @@ input[type="range"] {
 
   .league-setup-card {
     min-height: auto;
+  }
+
+  .league-first-run {
+    margin: 0 18px 18px;
+  }
+
+  .league-first-run-actions {
+    min-width: 0;
   }
 
   .league-create-actions,
