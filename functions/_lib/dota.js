@@ -457,9 +457,14 @@ export async function updatePlayoffTeams(env, teams = []) {
     .filter((team) => team.id && team.players.length)
     .sort((a, b) => a.seed - b.seed);
   if (!nextTeams.length) throw new Error("没有可保存的淘汰赛队伍");
+  const nextTeamIds = new Set(nextTeams.map((team) => team.id));
+  const nextGames = current.games.filter(
+    (game) => nextTeamIds.has(game.radiantTeamId) && nextTeamIds.has(game.direTeamId) && nextTeamIds.has(game.winnerTeamId),
+  );
   return savePlayoffState(env, {
     ...current,
     teams: nextTeams,
+    games: nextGames,
   });
 }
 

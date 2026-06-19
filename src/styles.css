@@ -1965,6 +1965,183 @@ input[type="range"] {
   font-style: normal;
 }
 
+.playoff-team-manager {
+  margin: 0 18px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(13, 25, 37, 0.62);
+  overflow: hidden;
+}
+
+.playoff-team-manager-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.playoff-team-manager-head h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.playoff-team-manager-head > div > span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.playoff-team-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 14px 0;
+}
+
+.playoff-team-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 14px;
+}
+
+.playoff-team-grid.readonly {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.playoff-team-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(7, 16, 24, 0.48);
+  overflow: hidden;
+}
+
+.playoff-team-card-title {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.playoff-team-card-title span {
+  min-width: 34px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 5px;
+  color: var(--gold);
+  background: rgba(247, 182, 75, 0.12);
+  font-weight: 800;
+}
+
+.playoff-team-card-title strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playoff-team-editor-head {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  padding: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.playoff-team-editor-head label {
+  display: grid;
+  gap: 5px;
+}
+
+.playoff-team-editor-head label > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.playoff-team-editor-head input,
+.playoff-team-member select {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--text);
+  background: rgba(3, 9, 15, 0.72);
+  padding: 0 9px;
+}
+
+.playoff-team-roster {
+  display: grid;
+}
+
+.playoff-team-member {
+  min-width: 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.playoff-team-member:last-child {
+  border-bottom: 0;
+}
+
+.playoff-team-member.readonly {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 9px;
+  align-items: center;
+  padding: 8px 12px;
+}
+
+.playoff-team-member.readonly img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+
+.playoff-team-member.readonly strong,
+.playoff-team-member.readonly small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playoff-team-member.readonly small {
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.playoff-team-member.editable {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 12px;
+}
+
+.playoff-team-member.editable > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.team-add-member-button {
+  width: calc(100% - 24px);
+  margin: 12px;
+}
+
 .playoff-status-strip {
   display: flex;
   flex-wrap: wrap;
@@ -3275,6 +3452,7 @@ input[type="range"] {
   .leaderboard-layout,
   .leaderboard-detail-grid,
   .playoff-board,
+  .playoff-team-grid,
   .playoff-bind-grid,
   .rules-layout,
   .match-layout {
@@ -3428,6 +3606,24 @@ input[type="range"] {
 
   .manual-roster-row {
     grid-template-columns: 1fr;
+  }
+
+  .playoff-team-manager-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .playoff-team-editor-head {
+    grid-template-columns: 1fr;
+  }
+
+  .playoff-team-member.editable {
+    grid-template-columns: 24px minmax(0, 1fr);
+  }
+
+  .playoff-team-member.editable .ghost-button {
+    grid-column: 2;
+    justify-self: flex-start;
   }
 
   .manual-roster-actions {
