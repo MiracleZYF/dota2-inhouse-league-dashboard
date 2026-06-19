@@ -1,7 +1,7 @@
 import { getSteamMatchDetail, json, requireAdmin } from "../../../_lib/dota.js";
 
 export async function onRequestGet({ request, params, env }) {
-  const authError = requireAdmin(request, env);
+  const authError = await requireAdmin(request, env);
   if (authError) return authError;
 
   const matchId = String(params.matchId || "").trim();

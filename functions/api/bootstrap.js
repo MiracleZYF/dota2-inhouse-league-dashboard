@@ -1,34 +1,16 @@
-import { DEFAULT_LEAGUE_SLUG, ensureDatabase, getAuditLogs, getLeagueSpace, getMatches, getPlayers, getPlayoffState, getSettings, getSyncRuns, json, listLeagueSpaces, normalizeLeagueSlug } from "../_lib/dota.js";
+import { DEFAULT_LEAGUE_SLUG, ensureDatabase, getAuditLogs, getLeagueSlugFromRequest, getLeagueSpace, getMatches, getPlayers, getPlayoffState, getSettings, getSyncRuns, json, listLeagueSpaces, withLeague } from "../_lib/dota.js";
 
 export async function onRequestGet({ request, env }) {
   try {
     await ensureDatabase(env);
     const url = new URL(request.url);
     const origin = url.origin;
-    const leagueSlug = normalizeLeagueSlug(url.searchParams.get("league"), DEFAULT_LEAGUE_SLUG);
+    const leagueSlug = getLeagueSlugFromRequest(request);
+    const scopedEnv = withLeague(env, leagueSlug);
     const leagueSpace = await getLeagueSpace(env, leagueSlug, { origin });
     const leagues = await listLeagueSpaces(env, { origin });
 
-    if (leagueSpace && !leagueSpace.dataReady) {
-      return json({
-        players: [],
-        matches: [],
-        settings: leagueSpace.settings,
-        syncRuns: [],
-        auditLogs: [],
-        playoff: { version: 1, status: "drafting", teams: [], games: [], championTeamId: "", runnerUpTeamId: "", updatedAt: "" },
-        leagueSpace,
-        leagues,
-        meta: {
-          backend: "cloudflare-d1",
-          loadedAt: new Date().toISOString(),
-          leagueSlug,
-          dataMode: "space-setup",
-        },
-      });
-    }
-
-    const [players, matches, settings, syncRuns, auditLogs, playoff] = await Promise.all([getPlayers(env), getMatches(env), getSettings(env), getSyncRuns(env), getAuditLogs(env), getPlayoffState(env)]);
+    const [players, matches, settings, syncRuns, auditLogs, playoff] = await Promise.all([getPlayers(scopedEnv), getMatches(scopedEnv), getSettings(scopedEnv), getSyncRuns(scopedEnv), getAuditLogs(scopedEnv), getPlayoffState(scopedEnv)]);
     return json({
       players,
       matches,
@@ -36,13 +18,13 @@ export async function onRequestGet({ request, env }) {
       syncRuns,
       auditLogs,
       playoff,
-      leagueSpace: leagueSpace || leagues.find((league) => league.slug === DEFAULT_LEAGUE_SLUG) || null,
+      leagueSpace: leagueSpace || null,
       leagues,
       meta: {
         backend: "cloudflare-d1",
         loadedAt: new Date().toISOString(),
         leagueSlug,
-        dataMode: "default-shared",
+        dataMode: leagueSlug === DEFAULT_LEAGUE_SLUG ? "default-space" : "isolated-space",
       },
     });
   } catch (error) {

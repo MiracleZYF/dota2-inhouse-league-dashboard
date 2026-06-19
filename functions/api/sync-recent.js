@@ -1,6 +1,7 @@
 import {
   ensureDatabase,
   getAuditLogs,
+  getLeagueSlugFromRequest,
   getMatches,
   getSyncRuns,
   json,
@@ -9,22 +10,24 @@ import {
   readJson,
   requireAdmin,
   syncRecentMatches,
+  withLeague,
 } from "../_lib/dota.js";
 
 export async function onRequestPost({ request, env }) {
-  const authError = requireAdmin(request, env);
+  const authError = await requireAdmin(request, env);
   if (authError) return authError;
 
+  const scopedEnv = withLeague(env, getLeagueSlugFromRequest(request));
   try {
     await ensureDatabase(env);
     const startedAt = new Date().toISOString();
     const body = await readJson(request);
-    const result = await syncRecentMatches(env, {
+    const result = await syncRecentMatches(scopedEnv, {
       dateRange: body.dateRange || {},
       settingsOverride: body.settings || {},
     });
     const status = result.leagueScan?.failed || result.leagueScan?.partial || result.failedCount ? "warning" : "success";
-    const syncRun = await recordSyncRun(env, {
+    const syncRun = await recordSyncRun(scopedEnv, {
       kind: "manual",
       status,
       summary: result.message,
@@ -36,7 +39,7 @@ export async function onRequestPost({ request, env }) {
         leagueScan: result.leagueScan,
       },
     });
-    await logAuditAction(env, {
+    await logAuditAction(scopedEnv, {
       action: "manual_sync",
       actor: "管理员",
       summary: `手动同步完成：新增 ${result.newCandidates.length} 场，重复 ${result.duplicatedCount} 场`,
@@ -45,13 +48,13 @@ export async function onRequestPost({ request, env }) {
 
     return json({
       ...result,
-      matches: await getMatches(env),
-      syncRuns: await getSyncRuns(env),
-      auditLogs: await getAuditLogs(env),
+      matches: await getMatches(scopedEnv),
+      syncRuns: await getSyncRuns(scopedEnv),
+      auditLogs: await getAuditLogs(scopedEnv),
     });
   } catch (error) {
     try {
-      await recordSyncRun(env, {
+      await recordSyncRun(scopedEnv, {
         kind: "manual",
         status: "failed",
         summary: error instanceof Error ? error.message : "同步比赛失败",

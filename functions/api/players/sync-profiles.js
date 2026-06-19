@@ -1,4 +1,4 @@
-import { ensureDatabase, getPlayers, isPlaceholderPlayerName, json, openDotaFetch, requireAdmin } from "../../_lib/dota.js";
+import { ensureDatabase, getLeagueSlugFromRequest, getPlayers, isPlaceholderPlayerName, json, openDotaFetch, requireAdmin, withLeague } from "../../_lib/dota.js";
 
 function formatProfileSyncTime(date = new Date()) {
   return new Intl.DateTimeFormat("zh-CN", {
@@ -14,12 +14,14 @@ function formatProfileSyncTime(date = new Date()) {
 }
 
 export async function onRequestPost({ request, env }) {
-  const authError = requireAdmin(request, env);
+  const authError = await requireAdmin(request, env);
   if (authError) return authError;
 
   try {
     await ensureDatabase(env);
-    const roster = await getPlayers(env);
+    const leagueSlug = getLeagueSlugFromRequest(request);
+    const scopedEnv = withLeague(env, leagueSlug);
+    const roster = await getPlayers(scopedEnv);
     const results = [];
 
     for (const player of roster) {
@@ -52,23 +54,23 @@ export async function onRequestPost({ request, env }) {
     const syncedAt = formatProfileSyncTime();
     const statements = results.map((result) => {
       if (!result.ok) {
-        return env.DB.prepare(`UPDATE players
+        return env.DB.prepare(`UPDATE league_players
           SET profile_error = ?, status = CASE WHEN public_data = 1 THEN '资料保留，重试失败' ELSE '资料同步失败' END, updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?`)
-          .bind(result.error, result.id);
+          WHERE league_slug = ? AND id = ?`)
+          .bind(result.error, leagueSlug, result.id);
       }
 
-      return env.DB.prepare(`UPDATE players
+      return env.DB.prepare(`UPDATE league_players
         SET name = ?, game_name = ?, avatar_url = ?, profile_url = ?, profile_synced_at = ?, profile_error = '', public_data = 1, status = '资料已同步', updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?`)
-        .bind(result.name, result.gameName, result.avatarUrl, result.profileUrl, syncedAt, result.id);
+        WHERE league_slug = ? AND id = ?`)
+        .bind(result.name, result.gameName, result.avatarUrl, result.profileUrl, syncedAt, leagueSlug, result.id);
     });
     if (statements.length) await env.DB.batch(statements);
 
     const successCount = results.filter((result) => result.ok).length;
     const failedCount = results.length - successCount;
     return json({
-      players: await getPlayers(env),
+      players: await getPlayers(scopedEnv),
       successCount,
       failedCount,
       message: `同步完成：${successCount} 个成功，${failedCount} 个失败。已有群昵称已保留，占位昵称已用游戏昵称补齐。`,

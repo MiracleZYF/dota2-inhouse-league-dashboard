@@ -1,6 +1,7 @@
 import {
   ensureDatabase,
   getAuditLogs,
+  getLeagueSlugFromRequest,
   getMatchDetail,
   getMatches,
   getSettings,
@@ -12,6 +13,7 @@ import {
   readJson,
   refreshStoredMatch,
   syncRecentMatches,
+  withLeague,
 } from "../../_lib/dota.js";
 
 function clampNumber(value, fallback, min, max) {
@@ -92,29 +94,30 @@ export async function onRequest({ request, env }) {
 
   try {
     await ensureDatabase(env);
+    const scopedEnv = withLeague(env, getLeagueSlugFromRequest(request));
     const startedAt = new Date().toISOString();
     const url = new URL(request.url);
     const body = request.method === "GET" ? {} : await readJson(request);
-    const settings = await getSettings(env);
+    const settings = await getSettings(scopedEnv);
     const force = url.searchParams.get("force") === "1" || body.force === true;
 
     if (settings.autoSync === false && !force) {
       return json({
         skipped: true,
         message: "自动同步已在系统设置中关闭",
-        matches: await getMatches(env),
+        matches: await getMatches(scopedEnv),
       });
     }
 
     const hours = clampNumber(url.searchParams.get("hours") || body.hours, 72, 6, 168);
     const retryLimit = clampNumber(url.searchParams.get("retryLimit") || body.retryLimit, 12, 0, 30);
-    const syncResult = await syncRecentMatches(env, {
+    const syncResult = await syncRecentMatches(scopedEnv, {
       dateRange: makeRecentDateRange(hours),
     });
-    const retryResult = retryLimit > 0 ? await retryUnresolvedMatches(env, retryLimit) : { attempted: 0, succeeded: 0, results: [] };
-    const matches = await getMatches(env);
+    const retryResult = retryLimit > 0 ? await retryUnresolvedMatches(scopedEnv, retryLimit) : { attempted: 0, succeeded: 0, results: [] };
+    const matches = await getMatches(scopedEnv);
     const status = syncResult.leagueScan?.failed || syncResult.leagueScan?.partial || syncResult.failedCount || retryResult.results.some((item) => !item.ok) ? "warning" : "success";
-    const syncRun = await recordSyncRun(env, {
+    const syncRun = await recordSyncRun(scopedEnv, {
       kind: "auto",
       status,
       summary: `自动同步完成：新增 ${syncResult.newCandidates.length} 场，重试 ${retryResult.attempted} 场`,
@@ -129,7 +132,7 @@ export async function onRequest({ request, env }) {
         retry: retryResult,
       },
     });
-    await logAuditAction(env, {
+    await logAuditAction(scopedEnv, {
       action: "auto_sync",
       actor: "GitHub Actions",
       summary: `自动同步完成：新增 ${syncResult.newCandidates.length} 场，重试 ${retryResult.attempted} 场`,
@@ -150,15 +153,16 @@ export async function onRequest({ request, env }) {
       },
       retry: retryResult,
       syncRun,
-      syncRuns: await getSyncRuns(env),
-      auditLogs: await getAuditLogs(env),
+      syncRuns: await getSyncRuns(scopedEnv),
+      auditLogs: await getAuditLogs(scopedEnv),
       matchCount: matches.length,
       matches,
       message: `自动同步完成：新增 ${syncResult.newCandidates.length} 场，重试 ${retryResult.attempted} 场`,
     });
   } catch (error) {
     try {
-      await recordSyncRun(env, {
+      const scopedEnv = withLeague(env, getLeagueSlugFromRequest(request));
+      await recordSyncRun(scopedEnv, {
         kind: "auto",
         status: "failed",
         summary: error instanceof Error ? error.message : "自动同步失败",

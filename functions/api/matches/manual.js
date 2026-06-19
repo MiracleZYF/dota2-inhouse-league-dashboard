@@ -2,6 +2,7 @@ import {
   createPendingMatch,
   ensureDatabase,
   getAuditLogs,
+  getLeagueSlugFromRequest,
   getMatch,
   getMatches,
   json,
@@ -10,20 +11,22 @@ import {
   readJson,
   requireAdmin,
   upsertMatch,
+  withLeague,
 } from "../../_lib/dota.js";
 
 export async function onRequestPost({ request, env }) {
-  const authError = requireAdmin(request, env);
+  const authError = await requireAdmin(request, env);
   if (authError) return authError;
 
   try {
     await ensureDatabase(env);
+    const scopedEnv = withLeague(env, getLeagueSlugFromRequest(request));
     const body = await readJson(request);
     const matchId = String(body.matchId || "").trim();
     if (!matchId) return json({ error: "Match ID 不能为空" }, { status: 400 });
     if (!/^\d+$/.test(matchId)) return json({ error: "Match ID 只能填写数字" }, { status: 400 });
 
-    const existing = await getMatch(env, matchId);
+    const existing = await getMatch(scopedEnv, matchId);
     let match = existing
       ? {
           ...existing,
@@ -36,12 +39,12 @@ export async function onRequestPost({ request, env }) {
     let detail = null;
     let message = existing ? `Match ID ${matchId} 已在识别队列中，已尝试重新识别。` : `Match ID ${matchId} 已加入候选队列。`;
 
-    await upsertMatch(env, match, { preserveStatus: false });
-    const lookup = await refreshStoredMatch(env, matchId, { resetReviewStatus: true, requestOpenDotaParse: true, useSteam: true });
+    await upsertMatch(scopedEnv, match, { preserveStatus: false });
+    const lookup = await refreshStoredMatch(scopedEnv, matchId, { resetReviewStatus: true, requestOpenDotaParse: true, useSteam: true });
     match = lookup.match;
     detail = lookup.detail;
     message = `${message} ${lookup.message}${lookup.warning ? `；${lookup.warning}` : ""}`;
-    await logAuditAction(env, {
+    await logAuditAction(scopedEnv, {
       action: existing ? "manual_reidentify_match" : "manual_add_match",
       matchId,
       actor: "管理员",
@@ -52,8 +55,8 @@ export async function onRequestPost({ request, env }) {
     return json({
       match,
       detail,
-      matches: await getMatches(env),
-      auditLogs: await getAuditLogs(env),
+      matches: await getMatches(scopedEnv),
+      auditLogs: await getAuditLogs(scopedEnv),
       duplicated: Boolean(existing),
       parsed: Boolean(lookup.ok),
       parseRequested: Boolean(lookup.parseRequested),

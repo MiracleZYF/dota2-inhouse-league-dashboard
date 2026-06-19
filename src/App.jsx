@@ -353,6 +353,10 @@ function getInitialLeagueSlug() {
   return normalizeLeagueSlugValue(new URLSearchParams(window.location.search).get("league")) || DEFAULT_LEAGUE_SLUG;
 }
 
+function getAdminTokenStorageKey() {
+  return `${ADMIN_TOKEN_STORAGE_KEY}:${getInitialLeagueSlug()}`;
+}
+
 function withLeagueQuery(path) {
   if (typeof window === "undefined" || !path.startsWith("/api/")) return path;
   const leagueSlug = getInitialLeagueSlug();
@@ -363,13 +367,13 @@ function withLeagueQuery(path) {
 
 function getStoredAdminToken() {
   if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(ADMIN_TOKEN_STORAGE_KEY) || "";
+  return window.localStorage.getItem(getAdminTokenStorageKey()) || "";
 }
 
 function askForAdminToken() {
   if (typeof window === "undefined") return "";
-  const token = window.prompt("请输入管理员操作密码（ADMIN_TOKEN）");
-  if (token) window.localStorage.setItem(ADMIN_TOKEN_STORAGE_KEY, token);
+  const token = window.prompt("请输入当前联赛空间的管理密码");
+  if (token) window.localStorage.setItem(getAdminTokenStorageKey(), token);
   return token || "";
 }
 
@@ -394,7 +398,7 @@ async function apiRequest(path, { method = "GET", body, admin = false, retryAuth
   });
 
   if (response.status === 401 && admin && retryAuth && typeof window !== "undefined") {
-    window.localStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
+    window.localStorage.removeItem(getAdminTokenStorageKey());
     return apiRequest(path, { method, body, admin, retryAuth: false });
   }
 
@@ -4079,8 +4083,8 @@ function LeagueSpacesView({ leagues = [], currentLeague, createdLeague, creating
             </div>
 
             <div className="league-beta-note">
-              <span className="status-pill status-warning">Beta</span>
-              <p>新空间已独立注册，暂不读取默认联赛数据。下一步会开放独立玩家库、比赛库和自动同步配置。</p>
+              <span className="status-pill status-success">已隔离</span>
+              <p>每个空间都有独立玩家库、比赛库、积分设置和淘汰赛状态；公开链接可发到群里，管理链接和管理密码只给运营者。</p>
             </div>
           </section>
         </div>
@@ -4119,12 +4123,12 @@ function LeagueSpacesView({ leagues = [], currentLeague, createdLeague, creating
 function LeagueSetupState({ league, onNavigate }) {
   return (
     <div className="view-stack">
-      <Panel title="空间初始化" action={<span className="status-pill status-warning">Beta</span>}>
+      <Panel title="空间升级中" action={<span className="status-pill status-warning">待刷新</span>}>
         <div className="space-setup-state">
           <div>
             <span className="status-pill status-success">已创建</span>
             <h3>{league?.name || "新的联赛空间"}</h3>
-            <p>这个空间已经有独立公开链接和管理链接。为了避免串到默认宝可梦联赛数据，独立玩家库和比赛库开放前，这里只显示初始化状态。</p>
+            <p>这个空间来自旧版注册流程。刷新页面后会自动升级到独立数据空间，再进入玩家库导入账号并开始识别比赛。</p>
           </div>
           <button className="primary-button" type="button" onClick={() => onNavigate?.("spaces")}>
             <UserPlus size={16} />

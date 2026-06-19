@@ -90,13 +90,27 @@ export async function readJson(request) {
   }
 }
 
-export function requireAdmin(request, env) {
+export async function requireAdmin(request, env) {
   const expected = env.ADMIN_TOKEN;
-  if (!expected) return json({ error: "ADMIN_TOKEN 未配置" }, { status: 500 });
   const auth = request.headers.get("authorization") || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : request.headers.get("x-admin-token");
-  if (token !== expected) return json({ error: "管理员密码不正确" }, { status: 401 });
-  return null;
+  if (!token) return json({ error: "请输入管理员密码" }, { status: 401 });
+  if (expected && token === expected) return null;
+
+  try {
+    if (env.DB) {
+      const leagueSlug = getLeagueSlugFromRequest(request);
+      const row = await env.DB.prepare("SELECT admin_key FROM league_spaces WHERE slug = ?").bind(leagueSlug).first();
+      if (row?.admin_key && token === row.admin_key) return null;
+    }
+  } catch {
+    // 如果空间表尚未初始化，继续走统一错误提示。
+  }
+
+  if (!expected && !env.DB) return json({ error: "ADMIN_TOKEN 未配置" }, { status: 500 });
+  if (!expected) return json({ error: "该空间还没有可用的管理密码" }, { status: 401 });
+  if (env.DB) return json({ error: "管理员密码不正确" }, { status: 401 });
+  return json({ error: "管理员密码不正确" }, { status: 401 });
 }
 
 function safeJsonParse(value, fallback) {
@@ -126,6 +140,20 @@ export function normalizeLeagueSlug(value, fallback = "") {
     .replace(/^-+|-+$/g, "")
     .replace(/-{2,}/g, "-");
   return clean || fallback;
+}
+
+export function getLeagueSlugFromRequest(request) {
+  if (!request?.url) return DEFAULT_LEAGUE_SLUG;
+  const url = new URL(request.url);
+  return normalizeLeagueSlug(url.searchParams.get("league"), DEFAULT_LEAGUE_SLUG);
+}
+
+export function withLeague(env, leagueSlug) {
+  return { ...env, __leagueSlug: normalizeLeagueSlug(leagueSlug, DEFAULT_LEAGUE_SLUG) };
+}
+
+function currentLeagueSlug(env) {
+  return normalizeLeagueSlug(env?.__leagueSlug, DEFAULT_LEAGUE_SLUG);
 }
 
 function leagueSpaceFromRow(row, { includeSecret = false, origin = "" } = {}) {
@@ -176,26 +204,110 @@ async function ensureDefaultLeagueSpace(env) {
     .run();
 }
 
+async function activateRegisteredLeagueSpaces(env) {
+  await env.DB.prepare(`UPDATE league_spaces
+    SET data_ready = 1,
+      status = 'active',
+      updated_at = CURRENT_TIMESTAMP
+    WHERE data_ready = 0 OR status = 'setup'`)
+    .run();
+
+  const result = await env.DB.prepare("SELECT slug, settings_json FROM league_spaces").all();
+  const rows = result.results || [];
+  if (rows.length) {
+    await env.DB.batch(rows.map((row) =>
+      env.DB.prepare(`INSERT OR IGNORE INTO league_settings (league_slug, key, value, updated_at)
+        VALUES (?, 'league', ?, CURRENT_TIMESTAMP)`)
+        .bind(row.slug, row.settings_json || JSON.stringify(DEFAULT_SETTINGS)),
+    ));
+  }
+
+  for (const row of rows) {
+    await refreshLeagueSpaceCounts(env, row.slug);
+  }
+}
+
+async function migrateDefaultLeagueData(env) {
+  const leagueSlug = DEFAULT_LEAGUE_SLUG;
+  const scopedPlayerCount = await env.DB.prepare("SELECT COUNT(*) AS count FROM league_players WHERE league_slug = ?").bind(leagueSlug).first();
+  if (!Number(scopedPlayerCount?.count || 0)) {
+    await env.DB.prepare(`INSERT OR IGNORE INTO league_players
+      (league_slug, id, name, dota_id, role, game_name, avatar_url, profile_url, profile_synced_at, profile_error, public_data, status, created_at, updated_at)
+      SELECT ?, id, name, dota_id, role, game_name, avatar_url, profile_url, profile_synced_at, profile_error, public_data, status, created_at, updated_at
+      FROM players`)
+      .bind(leagueSlug)
+      .run();
+  }
+
+  const scopedMatchCount = await env.DB.prepare("SELECT COUNT(*) AS count FROM league_matches WHERE league_slug = ?").bind(leagueSlug).first();
+  if (!Number(scopedMatchCount?.count || 0)) {
+    await env.DB.prepare(`INSERT OR IGNORE INTO league_matches
+      (league_slug, id, time, start_time, lobby_type, game_mode, total, status, score, notes, registered, sides, hidden, is_ranked_ladder, registered_players_json, detail_json, created_at, updated_at)
+      SELECT ?, id, time, start_time, lobby_type, game_mode, total, status, score, notes, registered, sides, hidden, is_ranked_ladder, registered_players_json, detail_json, created_at, updated_at
+      FROM matches`)
+      .bind(leagueSlug)
+      .run();
+  }
+
+  const scopedSettingsCount = await env.DB.prepare("SELECT COUNT(*) AS count FROM league_settings WHERE league_slug = ? AND key = 'league'").bind(leagueSlug).first();
+  if (!Number(scopedSettingsCount?.count || 0)) {
+    const oldSettings = await env.DB.prepare("SELECT value FROM settings WHERE key = 'league'").first();
+    await env.DB.prepare(`INSERT OR IGNORE INTO league_settings (league_slug, key, value, updated_at)
+      VALUES (?, 'league', ?, CURRENT_TIMESTAMP)`)
+      .bind(leagueSlug, oldSettings?.value || JSON.stringify(DEFAULT_SETTINGS))
+      .run();
+  }
+
+  const scopedPlayoffCount = await env.DB.prepare("SELECT COUNT(*) AS count FROM league_playoff_state WHERE league_slug = ?").bind(leagueSlug).first();
+  if (!Number(scopedPlayoffCount?.count || 0)) {
+    await env.DB.prepare(`INSERT OR IGNORE INTO league_playoff_state (league_slug, key, value, updated_at)
+      SELECT ?, key, value, updated_at FROM playoff_state`)
+      .bind(leagueSlug)
+      .run();
+  }
+
+  const scopedSyncCount = await env.DB.prepare("SELECT COUNT(*) AS count FROM league_sync_runs WHERE league_slug = ?").bind(leagueSlug).first();
+  if (!Number(scopedSyncCount?.count || 0)) {
+    await env.DB.prepare(`INSERT INTO league_sync_runs
+      (league_slug, kind, status, summary, details_json, started_at, finished_at)
+      SELECT ?, kind, status, summary, details_json, started_at, finished_at FROM sync_runs`)
+      .bind(leagueSlug)
+      .run();
+  }
+
+  const scopedAuditCount = await env.DB.prepare("SELECT COUNT(*) AS count FROM league_audit_logs WHERE league_slug = ?").bind(leagueSlug).first();
+  if (!Number(scopedAuditCount?.count || 0)) {
+    await env.DB.prepare(`INSERT INTO league_audit_logs
+      (league_slug, action, match_id, actor, summary, details_json, created_at)
+      SELECT ?, action, match_id, actor, summary, details_json, created_at FROM audit_logs`)
+      .bind(leagueSlug)
+      .run();
+  }
+}
+
+async function refreshLeagueSpaceCounts(env, leagueSlug = DEFAULT_LEAGUE_SLUG) {
+  const players = await env.DB.prepare("SELECT COUNT(*) AS count FROM league_players WHERE league_slug = ?").bind(leagueSlug).first();
+  const matches = await env.DB.prepare("SELECT COUNT(*) AS count FROM league_matches WHERE league_slug = ?").bind(leagueSlug).first();
+  await env.DB.prepare("UPDATE league_spaces SET player_count = ?, match_count = ?, updated_at = CURRENT_TIMESTAMP WHERE slug = ?")
+    .bind(Number(players?.count || 0), Number(matches?.count || 0), leagueSlug)
+    .run();
+}
+
 async function reconcileInitialPlayerRoster(env) {
-  const versionRow = await env.DB.prepare("SELECT value FROM settings WHERE key = 'roster_version'").first();
+  const leagueSlug = DEFAULT_LEAGUE_SLUG;
+  const versionRow = await env.DB.prepare("SELECT value FROM league_settings WHERE league_slug = ? AND key = 'roster_version'").bind(leagueSlug).first();
   if (versionRow?.value === ROSTER_VERSION) return;
 
   const now = new Date().toISOString();
   const desiredIds = new Set(INITIAL_PLAYERS.map((player) => String(player.dotaId)));
-  const currentResult = await env.DB.prepare("SELECT * FROM players ORDER BY id ASC").all();
+  const currentResult = await env.DB.prepare("SELECT * FROM league_players WHERE league_slug = ? ORDER BY id ASC").bind(leagueSlug).all();
   const currentRows = currentResult.results || [];
   const currentByDotaId = new Map(currentRows.map((row) => [String(row.dota_id), row]));
   const deleteStatements = currentRows
     .filter((row) => !desiredIds.has(String(row.dota_id)))
-    .map((row) => env.DB.prepare("DELETE FROM players WHERE dota_id = ?").bind(String(row.dota_id)));
+    .map((row) => env.DB.prepare("DELETE FROM league_players WHERE league_slug = ? AND dota_id = ?").bind(leagueSlug, String(row.dota_id)));
 
   if (deleteStatements.length) await env.DB.batch(deleteStatements);
-
-  const offsetStatements = currentRows
-    .filter((row) => desiredIds.has(String(row.dota_id)))
-    .map((row) => env.DB.prepare("UPDATE players SET id = id + 100000 WHERE dota_id = ?").bind(String(row.dota_id)));
-
-  if (offsetStatements.length) await env.DB.batch(offsetStatements);
 
   const upsertStatements = INITIAL_PLAYERS.map((player) => {
     const current = currentByDotaId.get(String(player.dotaId));
@@ -211,10 +323,10 @@ async function reconcileInitialPlayerRoster(env) {
     const publicData = current?.public_data || gameName || avatarUrl || profileUrl ? 1 : 0;
     const status = current?.status && current.status !== "待内战统计" ? current.status : publicData ? "资料已同步" : "待内战统计";
 
-    return env.DB.prepare(`INSERT INTO players
-      (id, name, dota_id, role, game_name, avatar_url, profile_url, profile_synced_at, profile_error, public_data, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(dota_id) DO UPDATE SET
+    return env.DB.prepare(`INSERT INTO league_players
+      (league_slug, id, name, dota_id, role, game_name, avatar_url, profile_url, profile_synced_at, profile_error, public_data, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(league_slug, dota_id) DO UPDATE SET
         id = excluded.id,
         name = excluded.name,
         role = excluded.role,
@@ -227,6 +339,7 @@ async function reconcileInitialPlayerRoster(env) {
         status = excluded.status,
         updated_at = excluded.updated_at`)
       .bind(
+        leagueSlug,
         player.id,
         name,
         player.dotaId,
@@ -244,10 +357,10 @@ async function reconcileInitialPlayerRoster(env) {
   });
 
   await env.DB.batch(upsertStatements);
-  await env.DB.prepare(`INSERT INTO settings (key, value, updated_at)
-    VALUES ('roster_version', ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`)
-    .bind(ROSTER_VERSION)
+  await env.DB.prepare(`INSERT INTO league_settings (league_slug, key, value, updated_at)
+    VALUES (?, 'roster_version', ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(league_slug, key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`)
+    .bind(leagueSlug, ROSTER_VERSION)
     .run();
 }
 
@@ -332,11 +445,88 @@ export async function ensureDatabase(env) {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS league_players (
+      league_slug TEXT NOT NULL DEFAULT '${DEFAULT_LEAGUE_SLUG}',
+      id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      dota_id TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT '全能',
+      game_name TEXT NOT NULL DEFAULT '',
+      avatar_url TEXT NOT NULL DEFAULT '',
+      profile_url TEXT NOT NULL DEFAULT '',
+      profile_synced_at TEXT NOT NULL DEFAULT '',
+      profile_error TEXT NOT NULL DEFAULT '',
+      public_data INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT '待内战统计',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (league_slug, id),
+      UNIQUE (league_slug, dota_id)
+    )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS league_matches (
+      league_slug TEXT NOT NULL DEFAULT '${DEFAULT_LEAGUE_SLUG}',
+      id TEXT NOT NULL,
+      time TEXT NOT NULL DEFAULT '',
+      start_time INTEGER,
+      lobby_type INTEGER,
+      game_mode INTEGER,
+      total INTEGER NOT NULL DEFAULT 10,
+      status TEXT NOT NULL DEFAULT '待确认',
+      score TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      registered INTEGER NOT NULL DEFAULT 0,
+      sides TEXT NOT NULL DEFAULT '-',
+      hidden INTEGER NOT NULL DEFAULT 0,
+      is_ranked_ladder INTEGER NOT NULL DEFAULT 0,
+      registered_players_json TEXT NOT NULL DEFAULT '[]',
+      detail_json TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (league_slug, id)
+    )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS league_settings (
+      league_slug TEXT NOT NULL DEFAULT '${DEFAULT_LEAGUE_SLUG}',
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (league_slug, key)
+    )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS league_sync_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      league_slug TEXT NOT NULL DEFAULT '${DEFAULT_LEAGUE_SLUG}',
+      kind TEXT NOT NULL DEFAULT 'manual',
+      status TEXT NOT NULL DEFAULT 'success',
+      summary TEXT NOT NULL DEFAULT '',
+      details_json TEXT NOT NULL DEFAULT '{}',
+      started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      finished_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS league_audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      league_slug TEXT NOT NULL DEFAULT '${DEFAULT_LEAGUE_SLUG}',
+      action TEXT NOT NULL,
+      match_id TEXT NOT NULL DEFAULT '',
+      actor TEXT NOT NULL DEFAULT '管理员',
+      summary TEXT NOT NULL DEFAULT '',
+      details_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS league_playoff_state (
+      league_slug TEXT NOT NULL DEFAULT '${DEFAULT_LEAGUE_SLUG}',
+      key TEXT NOT NULL,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (league_slug, key)
+    )`),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_matches_start_time ON matches(start_time)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_matches_status ON matches(status)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_sync_runs_finished_at ON sync_runs(finished_at)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at)"),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_league_spaces_status ON league_spaces(status)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_league_matches_start_time ON league_matches(league_slug, start_time)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_league_matches_status ON league_matches(league_slug, status)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_league_sync_runs_finished_at ON league_sync_runs(league_slug, finished_at)"),
+    env.DB.prepare("CREATE INDEX IF NOT EXISTS idx_league_audit_logs_created_at ON league_audit_logs(league_slug, created_at)"),
   ]);
 
   const playerCount = await env.DB.prepare("SELECT COUNT(*) AS count FROM players").first();
@@ -363,15 +553,16 @@ export async function ensureDatabase(env) {
     await env.DB.batch(statements);
   }
 
+  await migrateDefaultLeagueData(env);
   await reconcileInitialPlayerRoster(env);
-
-  const settingsRow = await env.DB.prepare("SELECT value FROM settings WHERE key = 'league'").first();
-  if (!settingsRow) await saveSettings(env, DEFAULT_SETTINGS);
   await ensureDefaultLeagueSpace(env);
+  await activateRegisteredLeagueSpaces(env);
+  await refreshLeagueSpaceCounts(env, DEFAULT_LEAGUE_SLUG);
 }
 
 export async function getSettings(env) {
-  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'league'").first();
+  const leagueSlug = currentLeagueSlug(env);
+  const row = await env.DB.prepare("SELECT value FROM league_settings WHERE league_slug = ? AND key = 'league'").bind(leagueSlug).first();
   if (!row?.value) return DEFAULT_SETTINGS;
   try {
     return { ...DEFAULT_SETTINGS, ...JSON.parse(row.value) };
@@ -381,11 +572,15 @@ export async function getSettings(env) {
 }
 
 export async function saveSettings(env, settings) {
+  const leagueSlug = currentLeagueSlug(env);
   const merged = { ...DEFAULT_SETTINGS, ...(settings || {}) };
-  await env.DB.prepare(`INSERT INTO settings (key, value, updated_at)
-    VALUES ('league', ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`)
-    .bind(JSON.stringify(merged))
+  await env.DB.prepare(`INSERT INTO league_settings (league_slug, key, value, updated_at)
+    VALUES (?, 'league', ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(league_slug, key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`)
+    .bind(leagueSlug, JSON.stringify(merged))
+    .run();
+  await env.DB.prepare("UPDATE league_spaces SET settings_json = ?, updated_at = CURRENT_TIMESTAMP WHERE slug = ?")
+    .bind(JSON.stringify(merged), leagueSlug)
     .run();
   return merged;
 }
@@ -426,8 +621,13 @@ export async function createLeagueSpace(env, payload = {}, { origin = "" } = {})
 
   await env.DB.prepare(`INSERT INTO league_spaces
     (slug, name, owner_name, contact, admin_key, status, settings_json, data_ready, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, 'setup', ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
+    VALUES (?, ?, ?, ?, ?, 'active', ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`)
     .bind(slug, name, ownerName, contact, adminKey, JSON.stringify(settings))
+    .run();
+  await env.DB.prepare(`INSERT INTO league_settings (league_slug, key, value, updated_at)
+    VALUES (?, 'league', ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(league_slug, key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`)
+    .bind(slug, JSON.stringify(settings))
     .run();
 
   const row = await env.DB.prepare("SELECT * FROM league_spaces WHERE slug = ?").bind(slug).first();
@@ -558,7 +758,8 @@ export function summarizePlayoffState(state) {
 }
 
 export async function getPlayoffState(env) {
-  const row = await env.DB.prepare("SELECT value FROM playoff_state WHERE key = 'current'").first();
+  const leagueSlug = currentLeagueSlug(env);
+  const row = await env.DB.prepare("SELECT value FROM league_playoff_state WHERE league_slug = ? AND key = 'current'").bind(leagueSlug).first();
   if (!row?.value) return summarizePlayoffState(DEFAULT_PLAYOFF_STATE);
   try {
     return summarizePlayoffState(JSON.parse(row.value));
@@ -568,6 +769,7 @@ export async function getPlayoffState(env) {
 }
 
 async function savePlayoffState(env, state) {
+  const leagueSlug = currentLeagueSlug(env);
   const summarized = summarizePlayoffState({
     ...state,
     updatedAt: new Date().toISOString(),
@@ -581,10 +783,10 @@ async function savePlayoffState(env, state) {
     runnerUpTeamId: summarized.runnerUpTeamId,
     updatedAt: summarized.updatedAt,
   };
-  await env.DB.prepare(`INSERT INTO playoff_state (key, value, updated_at)
-    VALUES ('current', ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`)
-    .bind(JSON.stringify(stored))
+  await env.DB.prepare(`INSERT INTO league_playoff_state (league_slug, key, value, updated_at)
+    VALUES (?, 'current', ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(league_slug, key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`)
+    .bind(leagueSlug, JSON.stringify(stored))
     .run();
   return getPlayoffState(env);
 }
@@ -692,31 +894,34 @@ function rowToPlayer(row) {
 }
 
 export async function getPlayers(env) {
-  const result = await env.DB.prepare("SELECT * FROM players ORDER BY id ASC").all();
+  const leagueSlug = currentLeagueSlug(env);
+  const result = await env.DB.prepare("SELECT * FROM league_players WHERE league_slug = ? ORDER BY id ASC").bind(leagueSlug).all();
   return (result.results || []).map(rowToPlayer);
 }
 
 export async function upsertPlayers(env, players) {
+  const leagueSlug = currentLeagueSlug(env);
   const now = new Date().toISOString();
-  const currentMax = await env.DB.prepare("SELECT COALESCE(MAX(id), 0) AS max_id FROM players").first();
+  const currentMax = await env.DB.prepare("SELECT COALESCE(MAX(id), 0) AS max_id FROM league_players WHERE league_slug = ?").bind(leagueSlug).first();
   const statements = players.map((player, index) => {
     const id = Number(player.id) || Number(currentMax?.max_id || 0) + index + 1;
     const publicData = player.publicData || player.gameName ? 1 : 0;
-    return env.DB.prepare(`INSERT INTO players
-      (id, name, dota_id, role, game_name, avatar_url, profile_url, profile_synced_at, profile_error, public_data, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(dota_id) DO UPDATE SET
+    return env.DB.prepare(`INSERT INTO league_players
+      (league_slug, id, name, dota_id, role, game_name, avatar_url, profile_url, profile_synced_at, profile_error, public_data, status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(league_slug, dota_id) DO UPDATE SET
         name = excluded.name,
         role = excluded.role,
-        game_name = COALESCE(NULLIF(excluded.game_name, ''), players.game_name),
-        avatar_url = COALESCE(NULLIF(excluded.avatar_url, ''), players.avatar_url),
-        profile_url = COALESCE(NULLIF(excluded.profile_url, ''), players.profile_url),
-        profile_synced_at = COALESCE(NULLIF(excluded.profile_synced_at, ''), players.profile_synced_at),
+        game_name = COALESCE(NULLIF(excluded.game_name, ''), league_players.game_name),
+        avatar_url = COALESCE(NULLIF(excluded.avatar_url, ''), league_players.avatar_url),
+        profile_url = COALESCE(NULLIF(excluded.profile_url, ''), league_players.profile_url),
+        profile_synced_at = COALESCE(NULLIF(excluded.profile_synced_at, ''), league_players.profile_synced_at),
         profile_error = excluded.profile_error,
-        public_data = CASE WHEN excluded.public_data = 1 THEN 1 ELSE players.public_data END,
+        public_data = CASE WHEN excluded.public_data = 1 THEN 1 ELSE league_players.public_data END,
         status = excluded.status,
         updated_at = excluded.updated_at`)
       .bind(
+        leagueSlug,
         id,
         player.name || `新玩家 ${index + 1}`,
         String(player.dotaId || player.dota_id || "").trim(),
@@ -733,29 +938,34 @@ export async function upsertPlayers(env, players) {
       );
   });
   if (statements.length) await env.DB.batch(statements);
+  await refreshLeagueSpaceCounts(env, leagueSlug);
   return getPlayers(env);
 }
 
 export async function replacePlayers(env, players) {
+  const leagueSlug = currentLeagueSlug(env);
   const desiredIds = new Set((players || []).map((player) => String(player.dotaId || player.dota_id || "").trim()).filter(Boolean));
   if (!desiredIds.size) return getPlayers(env);
 
-  const current = await env.DB.prepare("SELECT dota_id FROM players").all();
+  const current = await env.DB.prepare("SELECT dota_id FROM league_players WHERE league_slug = ?").bind(leagueSlug).all();
   const deleteStatements = (current.results || [])
     .filter((row) => !desiredIds.has(String(row.dota_id)))
-    .map((row) => env.DB.prepare("DELETE FROM players WHERE dota_id = ?").bind(String(row.dota_id)));
+    .map((row) => env.DB.prepare("DELETE FROM league_players WHERE league_slug = ? AND dota_id = ?").bind(leagueSlug, String(row.dota_id)));
 
   if (deleteStatements.length) await env.DB.batch(deleteStatements);
   return upsertPlayers(env, players);
 }
 
 export async function deletePlayer(env, dotaId) {
-  await env.DB.prepare("DELETE FROM players WHERE dota_id = ?").bind(String(dotaId)).run();
+  const leagueSlug = currentLeagueSlug(env);
+  await env.DB.prepare("DELETE FROM league_players WHERE league_slug = ? AND dota_id = ?").bind(leagueSlug, String(dotaId)).run();
+  await refreshLeagueSpaceCounts(env, leagueSlug);
   return getPlayers(env);
 }
 
 export async function updatePlayer(env, dotaId, patch = {}) {
-  const current = await env.DB.prepare("SELECT * FROM players WHERE dota_id = ?").bind(String(dotaId)).first();
+  const leagueSlug = currentLeagueSlug(env);
+  const current = await env.DB.prepare("SELECT * FROM league_players WHERE league_slug = ? AND dota_id = ?").bind(leagueSlug, String(dotaId)).first();
   if (!current) return null;
 
   const name = String(patch.name ?? current.name).trim() || current.name;
@@ -768,7 +978,7 @@ export async function updatePlayer(env, dotaId, patch = {}) {
   const profileSyncedAt = patch.profileSyncedAt ?? patch.profile_synced_at ?? current.profile_synced_at ?? "";
   const profileError = patch.profileError ?? patch.profile_error ?? "";
 
-  await env.DB.prepare(`UPDATE players SET
+  await env.DB.prepare(`UPDATE league_players SET
     name = ?,
     role = ?,
     game_name = ?,
@@ -779,11 +989,11 @@ export async function updatePlayer(env, dotaId, patch = {}) {
     public_data = ?,
     status = ?,
     updated_at = CURRENT_TIMESTAMP
-    WHERE dota_id = ?`)
-    .bind(name, role, gameName, avatarUrl, profileUrl, profileSyncedAt, profileError, publicData, status, String(dotaId))
+    WHERE league_slug = ? AND dota_id = ?`)
+    .bind(name, role, gameName, avatarUrl, profileUrl, profileSyncedAt, profileError, publicData, status, leagueSlug, String(dotaId))
     .run();
 
-  const updated = await env.DB.prepare("SELECT * FROM players WHERE dota_id = ?").bind(String(dotaId)).first();
+  const updated = await env.DB.prepare("SELECT * FROM league_players WHERE league_slug = ? AND dota_id = ?").bind(leagueSlug, String(dotaId)).first();
   return rowToPlayer(updated);
 }
 
@@ -820,37 +1030,41 @@ function rowToAuditLog(row) {
 }
 
 export async function getSyncRuns(env, limit = 10) {
+  const leagueSlug = currentLeagueSlug(env);
   const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
-  const result = await env.DB.prepare("SELECT * FROM sync_runs ORDER BY finished_at DESC, id DESC LIMIT ?").bind(safeLimit).all();
+  const result = await env.DB.prepare("SELECT * FROM league_sync_runs WHERE league_slug = ? ORDER BY finished_at DESC, id DESC LIMIT ?").bind(leagueSlug, safeLimit).all();
   return (result.results || []).map(rowToSyncRun);
 }
 
 export async function getAuditLogs(env, limit = 30) {
+  const leagueSlug = currentLeagueSlug(env);
   const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 100);
-  const result = await env.DB.prepare("SELECT * FROM audit_logs ORDER BY created_at DESC, id DESC LIMIT ?").bind(safeLimit).all();
+  const result = await env.DB.prepare("SELECT * FROM league_audit_logs WHERE league_slug = ? ORDER BY created_at DESC, id DESC LIMIT ?").bind(leagueSlug, safeLimit).all();
   return (result.results || []).map(rowToAuditLog);
 }
 
 export async function recordSyncRun(env, { kind = "manual", status = "success", summary = "", details = {}, startedAt } = {}) {
+  const leagueSlug = currentLeagueSlug(env);
   const started = startedAt || new Date().toISOString();
   const finished = new Date().toISOString();
-  const result = await env.DB.prepare(`INSERT INTO sync_runs
-    (kind, status, summary, details_json, started_at, finished_at)
-    VALUES (?, ?, ?, ?, ?, ?)`)
-    .bind(kind, status, summary, JSON.stringify(details || {}), started, finished)
+  const result = await env.DB.prepare(`INSERT INTO league_sync_runs
+    (league_slug, kind, status, summary, details_json, started_at, finished_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    .bind(leagueSlug, kind, status, summary, JSON.stringify(details || {}), started, finished)
     .run();
-  const row = await env.DB.prepare("SELECT * FROM sync_runs WHERE id = ?").bind(result.meta?.last_row_id || 0).first();
+  const row = await env.DB.prepare("SELECT * FROM league_sync_runs WHERE league_slug = ? AND id = ?").bind(leagueSlug, result.meta?.last_row_id || 0).first();
   return row ? rowToSyncRun(row) : null;
 }
 
 export async function logAuditAction(env, { action, matchId = "", actor = "管理员", summary = "", details = {} } = {}) {
   if (!action) return null;
-  const result = await env.DB.prepare(`INSERT INTO audit_logs
-    (action, match_id, actor, summary, details_json, created_at)
-    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`)
-    .bind(action, String(matchId || ""), actor || "管理员", summary || "", JSON.stringify(details || {}))
+  const leagueSlug = currentLeagueSlug(env);
+  const result = await env.DB.prepare(`INSERT INTO league_audit_logs
+    (league_slug, action, match_id, actor, summary, details_json, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`)
+    .bind(leagueSlug, action, String(matchId || ""), actor || "管理员", summary || "", JSON.stringify(details || {}))
     .run();
-  const row = await env.DB.prepare("SELECT * FROM audit_logs WHERE id = ?").bind(result.meta?.last_row_id || 0).first();
+  const row = await env.DB.prepare("SELECT * FROM league_audit_logs WHERE league_slug = ? AND id = ?").bind(leagueSlug, result.meta?.last_row_id || 0).first();
   return row ? rowToAuditLog(row) : null;
 }
 
@@ -879,27 +1093,31 @@ function rowToMatch(row) {
 }
 
 export async function getMatches(env) {
-  const result = await env.DB.prepare("SELECT * FROM matches ORDER BY COALESCE(start_time, 0) DESC, created_at DESC").all();
+  const leagueSlug = currentLeagueSlug(env);
+  const result = await env.DB.prepare("SELECT * FROM league_matches WHERE league_slug = ? ORDER BY COALESCE(start_time, 0) DESC, created_at DESC").bind(leagueSlug).all();
   return (result.results || []).map(rowToMatch);
 }
 
 export async function getMatch(env, matchId) {
-  const row = await env.DB.prepare("SELECT * FROM matches WHERE id = ?").bind(String(matchId)).first();
+  const leagueSlug = currentLeagueSlug(env);
+  const row = await env.DB.prepare("SELECT * FROM league_matches WHERE league_slug = ? AND id = ?").bind(leagueSlug, String(matchId)).first();
   return row ? rowToMatch(row) : null;
 }
 
 export async function getMatchDetail(env, matchId) {
-  const row = await env.DB.prepare("SELECT detail_json FROM matches WHERE id = ?").bind(String(matchId)).first();
+  const leagueSlug = currentLeagueSlug(env);
+  const row = await env.DB.prepare("SELECT detail_json FROM league_matches WHERE league_slug = ? AND id = ?").bind(leagueSlug, String(matchId)).first();
   return parseJson(row?.detail_json, null);
 }
 
 export async function upsertMatch(env, match, { preserveStatus = true } = {}) {
-  const existing = await env.DB.prepare("SELECT status FROM matches WHERE id = ?").bind(String(match.id)).first();
+  const leagueSlug = currentLeagueSlug(env);
+  const existing = await env.DB.prepare("SELECT status FROM league_matches WHERE league_slug = ? AND id = ?").bind(leagueSlug, String(match.id)).first();
   const status = preserveStatus && existing?.status ? existing.status : match.status || "待确认";
-  await env.DB.prepare(`INSERT INTO matches
-    (id, time, start_time, lobby_type, game_mode, total, status, score, notes, registered, sides, hidden, is_ranked_ladder, registered_players_json, detail_json, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    ON CONFLICT(id) DO UPDATE SET
+  await env.DB.prepare(`INSERT INTO league_matches
+    (league_slug, id, time, start_time, lobby_type, game_mode, total, status, score, notes, registered, sides, hidden, is_ranked_ladder, registered_players_json, detail_json, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(league_slug, id) DO UPDATE SET
       time = excluded.time,
       start_time = excluded.start_time,
       lobby_type = excluded.lobby_type,
@@ -913,9 +1131,10 @@ export async function upsertMatch(env, match, { preserveStatus = true } = {}) {
       hidden = excluded.hidden,
       is_ranked_ladder = excluded.is_ranked_ladder,
       registered_players_json = excluded.registered_players_json,
-      detail_json = COALESCE(excluded.detail_json, matches.detail_json),
+      detail_json = COALESCE(excluded.detail_json, league_matches.detail_json),
       updated_at = CURRENT_TIMESTAMP`)
     .bind(
+      leagueSlug,
       String(match.id),
       match.time || "",
       match.startTime || null,
@@ -933,6 +1152,7 @@ export async function upsertMatch(env, match, { preserveStatus = true } = {}) {
       match.detail ? JSON.stringify(match.detail) : null,
     )
     .run();
+  await refreshLeagueSpaceCounts(env, leagueSlug);
   return getMatch(env, match.id);
 }
 
@@ -946,20 +1166,23 @@ export async function updateMatchStatus(env, matchId, status) {
   };
   const notes = current?.status === "已入库" && status === "已确认" ? "管理员已撤销入库，积分榜已回滚；比赛保留为已确认，可重新复核后再次入库" : notesByStatus[status] || "";
   if (status === "待确认") {
-    await env.DB.prepare("UPDATE matches SET status = ?, notes = ?, hidden = 0, is_ranked_ladder = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-      .bind(status, notes, String(matchId))
+    const leagueSlug = currentLeagueSlug(env);
+    await env.DB.prepare("UPDATE league_matches SET status = ?, notes = ?, hidden = 0, is_ranked_ladder = 0, updated_at = CURRENT_TIMESTAMP WHERE league_slug = ? AND id = ?")
+      .bind(status, notes, leagueSlug, String(matchId))
       .run();
     return getMatch(env, matchId);
   }
-  await env.DB.prepare("UPDATE matches SET status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-    .bind(status, notes, String(matchId))
+  const leagueSlug = currentLeagueSlug(env);
+  await env.DB.prepare("UPDATE league_matches SET status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE league_slug = ? AND id = ?")
+    .bind(status, notes, leagueSlug, String(matchId))
     .run();
   return getMatch(env, matchId);
 }
 
 export async function updateMatchWinner(env, matchId, winnerSide) {
   if (!["天辉", "夜魇"].includes(winnerSide)) throw new Error("胜方只能选择天辉或夜魇");
-  const row = await env.DB.prepare("SELECT registered_players_json, detail_json, notes FROM matches WHERE id = ?").bind(String(matchId)).first();
+  const leagueSlug = currentLeagueSlug(env);
+  const row = await env.DB.prepare("SELECT registered_players_json, detail_json, notes FROM league_matches WHERE league_slug = ? AND id = ?").bind(leagueSlug, String(matchId)).first();
   if (!row) return null;
   const registeredPlayers = parseJson(row.registered_players_json, []);
   if (!registeredPlayers.length) throw new Error("这场比赛还没有可修正的命中玩家");
@@ -972,8 +1195,8 @@ export async function updateMatchWinner(env, matchId, winnerSide) {
   const notes = `管理员手动指定${winnerSide}胜；${cleanNotes}`;
   const detail = parseJson(row.detail_json, null);
   const nextDetail = detail && typeof detail === "object" ? { ...detail, radiant_win: winnerSide === "天辉", manual_winner_override: true } : detail;
-  await env.DB.prepare("UPDATE matches SET registered_players_json = ?, detail_json = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-    .bind(JSON.stringify(nextPlayers), nextDetail ? JSON.stringify(nextDetail) : row.detail_json || null, notes, String(matchId))
+  await env.DB.prepare("UPDATE league_matches SET registered_players_json = ?, detail_json = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE league_slug = ? AND id = ?")
+    .bind(JSON.stringify(nextPlayers), nextDetail ? JSON.stringify(nextDetail) : row.detail_json || null, notes, leagueSlug, String(matchId))
     .run();
   return getMatch(env, matchId);
 }
@@ -1000,7 +1223,8 @@ function normalizeManualRosterRows(rows) {
 }
 
 export async function updateMatchManualRoster(env, matchId, manualRoster = []) {
-  const row = await env.DB.prepare("SELECT * FROM matches WHERE id = ?").bind(String(matchId)).first();
+  const leagueSlug = currentLeagueSlug(env);
+  const row = await env.DB.prepare("SELECT * FROM league_matches WHERE league_slug = ? AND id = ?").bind(leagueSlug, String(matchId)).first();
   if (!row) return null;
 
   const rosterRows = normalizeManualRosterRows(manualRoster);
@@ -1069,7 +1293,7 @@ export async function updateMatchManualRoster(env, matchId, manualRoster = []) {
   const cleanNotes = currentNotes.replace(/^管理员手动补全阵容；?/, "");
   const notes = `管理员手动补全阵容；${cleanNotes || "非玩家库人员只用于展示，不进入积分统计。"}`;
 
-  await env.DB.prepare(`UPDATE matches SET
+  await env.DB.prepare(`UPDATE league_matches SET
     total = ?,
     registered = ?,
     sides = ?,
@@ -1078,7 +1302,7 @@ export async function updateMatchManualRoster(env, matchId, manualRoster = []) {
     registered_players_json = ?,
     detail_json = ?,
     updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?`)
+    WHERE league_slug = ? AND id = ?`)
     .bind(
       Math.max(nextPlayers.length, Number(row.total || 10), 10),
       registeredPlayers.length,
@@ -1087,6 +1311,7 @@ export async function updateMatchManualRoster(env, matchId, manualRoster = []) {
       notes,
       JSON.stringify(registeredPlayers),
       JSON.stringify(nextDetail),
+      leagueSlug,
       String(matchId),
     )
     .run();
