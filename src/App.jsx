@@ -5453,9 +5453,8 @@ export function App() {
     const nextSeason = getSeasonById(settings, nextSeasonId);
     setSelectedSeasonId(nextSeason.id);
     setSeasonManuallySelected(true);
-    if (dateRange.preset === "season") {
-      setDateRange(makeSeasonDateRange(applySeasonToSettings(settings, nextSeason)));
-    }
+    setDateRange(makeSeasonDateRange(applySeasonToSettings(settings, nextSeason)));
+    setLastSync(`已切换到 ${nextSeason.name}`);
   }
 
   function applyServerState(data) {
