@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 
 const OPENDOTA_BASE_URL = "https://api.opendota.com/api";
+const DOTA_ASSET_BASE_URL = "https://cdn.cloudflare.steamstatic.com";
 const ADMIN_TOKEN_STORAGE_KEY = "dota2-inhouse-admin-token";
 const DEFAULT_LEAGUE_SLUG = "pokemon-dota";
 const TRIAL_SEASON_START = "2026-06-01T00:00";
@@ -760,6 +761,32 @@ function formatHeroName(heroId, heroNames) {
   return heroNames[String(heroId)] || HERO_CN_NAMES[String(heroId)] || `英雄 #${heroId}`;
 }
 
+function toDotaAssetUrl(path) {
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${DOTA_ASSET_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+function heroDisplayData(heroId, heroNames = {}, heroMeta = {}) {
+  const id = String(heroId || "");
+  const meta = heroMeta[id] || {};
+  return {
+    id,
+    name: meta.name || formatHeroName(id, heroNames),
+    imageUrl: meta.imageUrl || "",
+    iconUrl: meta.iconUrl || "",
+  };
+}
+
+function formatPercent(value, digits = 0) {
+  if (!Number.isFinite(value)) return "-";
+  return `${(value * 100).toFixed(digits)}%`;
+}
+
+function calcKda(kills = 0, deaths = 0, assists = 0) {
+  return (Number(kills || 0) + Number(assists || 0)) / Math.max(1, Number(deaths || 0));
+}
+
 function normalizeAccountId(accountId) {
   if (accountId === undefined || accountId === null || accountId === "") return "";
   return String(accountId);
@@ -1309,6 +1336,127 @@ function buildScoreEntries(players, matches, settings) {
     );
 }
 
+function buildHeroInsights(scoreEntries, matches, players, heroNames = {}, heroMeta = {}) {
+  const entries = scoreEntries.filter((entry) => entry.heroId);
+  const playerById = new Map(players.map((player) => [String(player.id), player]));
+  const heroRowsById = new Map();
+  const comboRowsByKey = new Map();
+
+  entries.forEach((entry) => {
+    const heroId = String(entry.heroId);
+    const hero = heroDisplayData(heroId, heroNames, heroMeta);
+    if (!heroRowsById.has(heroId)) {
+      heroRowsById.set(heroId, {
+        heroId,
+        hero,
+        picks: 0,
+        wins: 0,
+        losses: 0,
+        kills: 0,
+        deaths: 0,
+        assists: 0,
+        players: new Map(),
+      });
+    }
+
+    const heroRow = heroRowsById.get(heroId);
+    heroRow.picks += 1;
+    heroRow.wins += entry.won ? 1 : 0;
+    heroRow.losses += entry.won ? 0 : 1;
+    heroRow.kills += Number(entry.kills || 0);
+    heroRow.deaths += Number(entry.deaths || 0);
+    heroRow.assists += Number(entry.assists || 0);
+
+    const playerBucket = heroRow.players.get(entry.accountId) || {
+      accountId: entry.accountId,
+      name: entry.playerName,
+      games: 0,
+      wins: 0,
+    };
+    playerBucket.games += 1;
+    playerBucket.wins += entry.won ? 1 : 0;
+    heroRow.players.set(entry.accountId, playerBucket);
+
+    const player = playerById.get(String(entry.playerId)) || {};
+    const comboKey = `${entry.accountId}-${heroId}`;
+    if (!comboRowsByKey.has(comboKey)) {
+      comboRowsByKey.set(comboKey, {
+        key: comboKey,
+        accountId: entry.accountId,
+        playerId: entry.playerId,
+        playerName: entry.playerName,
+        playerAvatarUrl: avatarUrl(player.name ? player : entry.playerName),
+        heroId,
+        hero,
+        games: 0,
+        wins: 0,
+        losses: 0,
+        kills: 0,
+        deaths: 0,
+        assists: 0,
+      });
+    }
+
+    const comboRow = comboRowsByKey.get(comboKey);
+    comboRow.games += 1;
+    comboRow.wins += entry.won ? 1 : 0;
+    comboRow.losses += entry.won ? 0 : 1;
+    comboRow.kills += Number(entry.kills || 0);
+    comboRow.deaths += Number(entry.deaths || 0);
+    comboRow.assists += Number(entry.assists || 0);
+  });
+
+  const totalHeroSlots = entries.length;
+  const scoredMatchCount = matches.filter(isScoredInhouseMatch).length;
+  const heroRows = Array.from(heroRowsById.values())
+    .map((row) => {
+      const topPlayers = Array.from(row.players.values())
+        .sort((a, b) => b.games - a.games || b.wins - a.wins || a.name.localeCompare(b.name, "zh-CN"))
+        .slice(0, 3);
+      return {
+        ...row,
+        pickRate: totalHeroSlots ? row.picks / totalHeroSlots : 0,
+        winRate: row.picks ? row.wins / row.picks : 0,
+        avgKda: calcKda(row.kills, row.deaths, row.assists),
+        uniquePlayers: row.players.size,
+        topPlayers,
+      };
+    })
+    .sort((a, b) => b.picks - a.picks || b.winRate - a.winRate || b.avgKda - a.avgKda || a.hero.name.localeCompare(b.hero.name, "zh-CN"));
+
+  const comboRows = Array.from(comboRowsByKey.values())
+    .map((row) => {
+      const winRate = row.games ? row.wins / row.games : 0;
+      const avgKda = calcKda(row.kills, row.deaths, row.assists);
+      return {
+        ...row,
+        winRate,
+        avgKda,
+        signatureScore: row.games * 2 + winRate * 4 + Math.min(avgKda, 8) * 0.35,
+        sampleLabel: row.games >= 3 ? "稳定招牌" : row.games >= 2 ? "初具招牌" : "样本观察",
+      };
+    })
+    .sort((a, b) => b.signatureScore - a.signatureScore || b.games - a.games || b.winRate - a.winRate);
+  const multiGameCombos = comboRows.filter((row) => row.games >= 2);
+  const signatureRows = (multiGameCombos.length >= 4 ? multiGameCombos : comboRows).slice(0, 8);
+
+  const rarePickCeiling = Math.max(2, Math.ceil(totalHeroSlots * 0.06));
+  const surpriseHeroes = heroRows
+    .filter((row) => row.picks <= rarePickCeiling && row.wins > 0)
+    .sort((a, b) => b.winRate - a.winRate || b.avgKda - a.avgKda || b.picks - a.picks)
+    .slice(0, 6);
+
+  return {
+    scoredMatchCount,
+    totalHeroSlots,
+    heroCount: heroRows.length,
+    topHero: heroRows[0] || null,
+    heroRows,
+    signatureRows,
+    surpriseHeroes,
+  };
+}
+
 function buildMatchScorePreview(displayedPlayers, settings = DEFAULT_SETTINGS) {
   const entries = displayedPlayers
     .filter((player) => player.isRegistered)
@@ -1741,6 +1889,7 @@ const navItems = [
   { id: "players", label: "玩家库", icon: Users },
   { id: "matches", label: "比赛识别", icon: Search },
   { id: "leaderboard", label: "积分榜", icon: BarChart3 },
+  { id: "insights", label: "英雄洞察", icon: Medal },
   { id: "draft", label: "队长选人", icon: Crown },
   { id: "playoff", label: "淘汰赛", icon: Trophy },
   { id: "rules", label: "规则", icon: ScrollText },
@@ -3705,6 +3854,192 @@ function PendingStoreTable({ matches }) {
   );
 }
 
+function HeroPortrait({ hero, size = "md" }) {
+  const initial = hero?.name ? hero.name.slice(0, 1) : "?";
+  return (
+    <span className={`hero-portrait hero-portrait-${size}`}>
+      <span className="hero-portrait-fallback">{initial}</span>
+      {hero?.imageUrl && <img src={hero.imageUrl} alt={hero.name || "英雄头像"} loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
+    </span>
+  );
+}
+
+function HeroIdentity({ hero, subText, size = "sm" }) {
+  return (
+    <div className="hero-identity">
+      <HeroPortrait hero={hero} size={size} />
+      <div>
+        <strong>{hero?.name || "未知英雄"}</strong>
+        {subText && <span>{subText}</span>}
+      </div>
+    </div>
+  );
+}
+
+function HeroInsightsView({ players, matches, scoreEntries, heroNames, heroMeta }) {
+  const insights = useMemo(() => buildHeroInsights(scoreEntries, matches, players, heroNames, heroMeta), [scoreEntries, matches, players, heroNames, heroMeta]);
+  const maxHeroPicks = Math.max(...insights.heroRows.map((row) => row.picks), 1);
+
+  if (!insights.totalHeroSlots) {
+    return (
+      <div className="hero-insights-page">
+        <EmptyState title="暂无英雄洞察" body="当前赛季还没有带英雄信息的已入库比赛。完成比赛入库后，这里会自动生成热门英雄和招牌英雄统计。" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="hero-insights-page">
+      <div className="score-kpi-row hero-kpi-row">
+        <section className="score-kpi-card">
+          <span>入库比赛</span>
+          <strong>{insights.scoredMatchCount}</strong>
+          <small>当前赛季已入库</small>
+        </section>
+        <section className="score-kpi-card">
+          <span>英雄样本</span>
+          <strong>{insights.totalHeroSlots}</strong>
+          <small>玩家单场英雄记录</small>
+        </section>
+        <section className="score-kpi-card">
+          <span>使用英雄</span>
+          <strong>{insights.heroCount}</strong>
+          <small>已出现的不同英雄</small>
+        </section>
+        <section className="score-kpi-card">
+          <span>最高热度</span>
+          <strong>{insights.topHero ? formatPercent(insights.topHero.pickRate, 1) : "-"}</strong>
+          <small>{insights.topHero?.hero.name || "暂无"}</small>
+        </section>
+        <section className="score-kpi-card">
+          <span>招牌候选</span>
+          <strong>{insights.signatureRows.length}</strong>
+          <small>玩家英雄组合</small>
+        </section>
+      </div>
+
+      <div className="hero-insight-layout">
+        <Panel title="热门英雄池" action={<span className="status-pill status-info">按出场/BP 热度排序</span>}>
+          <div className="hero-card-grid">
+            {insights.heroRows.slice(0, 8).map((row, index) => (
+              <article className="hero-stat-card" key={row.heroId}>
+                <div className="hero-card-top">
+                  <span className="hero-rank">#{index + 1}</span>
+                  <HeroPortrait hero={row.hero} size="lg" />
+                  <div>
+                    <strong>{row.hero.name}</strong>
+                    <span>{row.picks} 次出场 · {row.uniquePlayers} 人使用</span>
+                  </div>
+                </div>
+                <div className="hero-meter" aria-label={`${row.hero.name} 出场热度`}>
+                  <span style={{ width: `${Math.max(10, Math.round((row.picks / maxHeroPicks) * 100))}%` }} />
+                </div>
+                <div className="hero-stat-grid">
+                  <div>
+                    <span>BP/出场率</span>
+                    <strong>{formatPercent(row.pickRate, 1)}</strong>
+                  </div>
+                  <div>
+                    <span>胜率</span>
+                    <strong>{formatPercent(row.winRate, 0)}</strong>
+                  </div>
+                  <div>
+                    <span>场均 KDA</span>
+                    <strong>{row.avgKda.toFixed(1)}</strong>
+                  </div>
+                </div>
+                <p className="hero-top-users">
+                  {row.topPlayers.length ? row.topPlayers.map((player) => `${player.name} ${player.games} 场`).join(" / ") : "暂无常用者"}
+                </p>
+              </article>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="统计口径" className="rules-panel">
+          <div className="rule-list">
+            <div>
+              <strong>赛季范围</strong>
+              <span>跟随左侧赛季</span>
+            </div>
+            <div>
+              <strong>比赛状态</strong>
+              <span>仅已入库</span>
+            </div>
+            <div>
+              <strong>玩家范围</strong>
+              <span>仅玩家库计分</span>
+            </div>
+            <div>
+              <strong>Ban 数据</strong>
+              <span>待 picks_bans 接入</span>
+            </div>
+            <div>
+              <strong>招牌判定</strong>
+              <span>场次 + 胜率 + KDA</span>
+            </div>
+          </div>
+        </Panel>
+      </div>
+
+      <div className="hero-insight-layout secondary">
+        <Panel title="招牌英雄候选" action={<span className="status-pill status-success">玩家 × 英雄</span>}>
+          <div className="signature-grid">
+            {insights.signatureRows.map((row) => (
+              <article className="signature-card" key={row.key}>
+                <div className="signature-player">
+                  <img src={row.playerAvatarUrl} alt="" loading="lazy" />
+                  <div>
+                    <strong>{row.playerName}</strong>
+                    <span>{row.sampleLabel}</span>
+                  </div>
+                </div>
+                <HeroIdentity hero={row.hero} subText={`${row.games} 场 · ${row.wins} 胜 ${row.losses} 负`} size="md" />
+                <div className="signature-stats">
+                  <div>
+                    <span>胜率</span>
+                    <strong>{formatPercent(row.winRate, 0)}</strong>
+                  </div>
+                  <div>
+                    <span>KDA</span>
+                    <strong>{row.avgKda.toFixed(1)}</strong>
+                  </div>
+                  <div>
+                    <span>评分</span>
+                    <strong>{row.signatureScore.toFixed(1)}</strong>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="冷门奇兵" action={<span className="status-pill status-warning">低出场高收益</span>}>
+          {insights.surpriseHeroes.length ? (
+            <div className="surprise-hero-list">
+              {insights.surpriseHeroes.map((row) => (
+                <article className="surprise-hero-row" key={row.heroId}>
+                  <HeroIdentity hero={row.hero} subText={`${row.picks} 次出场`} size="sm" />
+                  <div>
+                    <strong>{formatPercent(row.winRate, 0)}</strong>
+                    <span>胜率</span>
+                  </div>
+                  <div>
+                    <strong>{row.avgKda.toFixed(1)}</strong>
+                    <span>KDA</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <EmptyState title="暂无冷门奇兵" body="当低出场英雄打出胜场后，这里会自动出现可聊的冷门表现。" />
+          )}
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
 function LeaderboardView({ players, matches, scoreEntries, settings }) {
   const scoredMatches = matches.filter(isScoredInhouseMatch);
   const pendingStoreMatches = matches.filter((match) => match.status === "已确认");
@@ -5401,6 +5736,7 @@ export function App() {
   const [matchDetailLoading, setMatchDetailLoading] = useState(false);
   const [matchDetailError, setMatchDetailError] = useState("");
   const [heroNames, setHeroNames] = useState({});
+  const [heroMeta, setHeroMeta] = useState({});
 
   const seasons = useMemo(() => getSettingsSeasons(settings), [settings]);
   const currentSeasonId = useMemo(() => getCurrentSeasonId(settings), [settings]);
@@ -5517,6 +5853,12 @@ export function App() {
     if (dateRange.preset !== "season") return;
     setDateRange(makeSeasonDateRange(seasonSettings));
   }, [dateRange.preset, seasonSettings.seasonStart, seasonSettings.seasonEnd]);
+
+  useEffect(() => {
+    if (activeView !== "insights") return;
+    if (!scoreEntries.some((entry) => entry.heroId)) return;
+    loadHeroNames();
+  }, [activeView, scoreEntries.length]);
 
   useEffect(() => {
     if (dataLoading || !isFirstRunLeagueSpace || activeView !== "overview") return;
@@ -6091,16 +6433,36 @@ export function App() {
   }
 
   async function loadHeroNames() {
-    if (Object.keys(heroNames).length) return;
+    if (Object.keys(heroNames).length && Object.keys(heroMeta).length) return;
     try {
       const response = await fetch(`${OPENDOTA_BASE_URL}/constants/heroes`);
       if (!response.ok) return;
       const data = await response.json();
-      const mapped = Object.values(data).reduce((names, hero) => {
-        if (hero?.id) names[String(hero.id)] = HERO_CN_NAMES[String(hero.id)] || hero.localized_name || hero.name || `英雄 #${hero.id}`;
-        return names;
-      }, {});
+      const mapped = {};
+      const meta = {};
+      Object.values(data).forEach((hero) => {
+        if (!hero?.id) return;
+        const id = String(hero.id);
+        const name = HERO_CN_NAMES[id] || hero.localized_name || hero.name || `英雄 #${hero.id}`;
+        mapped[id] = name;
+        meta[id] = {
+          id,
+          name,
+          code: String(hero.name || "").replace(/^npc_dota_hero_/, ""),
+          imageUrl: toDotaAssetUrl(hero.img),
+          iconUrl: toDotaAssetUrl(hero.icon),
+        };
+      });
+      Object.entries(HERO_CN_NAMES).forEach(([id, name]) => {
+        if (!mapped[id]) mapped[id] = name;
+        meta[id] = {
+          ...(meta[id] || {}),
+          id,
+          name,
+        };
+      });
       setHeroNames({ ...mapped, ...HERO_CN_NAMES });
+      setHeroMeta(meta);
     } catch {
       // 英雄字典失败不影响对局复核，界面会保留英雄 ID 兜底。
     }
@@ -6695,6 +7057,9 @@ export function App() {
           />
         )}
         {!isSetupLeagueSpace && activeView === "leaderboard" && <LeaderboardView players={rankedPlayers} matches={seasonMatches} scoreEntries={scoreEntries} settings={seasonSettings} />}
+        {!isSetupLeagueSpace && activeView === "insights" && (
+          <HeroInsightsView players={players} matches={seasonMatches} scoreEntries={scoreEntries} heroNames={heroNames} heroMeta={heroMeta} />
+        )}
         {!isSetupLeagueSpace && activeView === "draft" && <DraftView players={rankedPlayers} captains={captains} playoff={playoff} onSaveTeams={savePlayoffTeams} saving={playoffSaving} isAdmin={isAdmin} />}
         {!isSetupLeagueSpace && activeView === "playoff" && (
           <PlayoffView

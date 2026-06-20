@@ -2427,6 +2427,224 @@ input[type="range"] {
   gap: 14px;
 }
 
+.hero-insights-page {
+  display: grid;
+  gap: 14px;
+}
+
+.hero-insight-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 14px;
+}
+
+.hero-insight-layout.secondary {
+  grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr);
+}
+
+.hero-card-grid,
+.signature-grid,
+.surprise-hero-list {
+  display: grid;
+  gap: 12px;
+  padding: 0 18px 18px;
+}
+
+.hero-card-grid,
+.signature-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.hero-stat-card,
+.signature-card,
+.surprise-hero-row {
+  min-width: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: rgba(13, 25, 37, 0.72);
+}
+
+.hero-stat-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.hero-card-top {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.hero-rank {
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.hero-card-top strong,
+.hero-identity strong,
+.signature-player strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hero-card-top span,
+.hero-identity span,
+.signature-player span,
+.hero-top-users,
+.surprise-hero-row span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hero-portrait {
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, rgba(52, 215, 181, 0.18), rgba(242, 91, 85, 0.14));
+  color: var(--text);
+  font-weight: 800;
+}
+
+.hero-portrait-lg {
+  width: 76px;
+  height: 48px;
+}
+
+.hero-portrait-md {
+  width: 58px;
+  height: 38px;
+}
+
+.hero-portrait-sm {
+  width: 44px;
+  height: 30px;
+}
+
+.hero-portrait img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hero-portrait-fallback {
+  position: relative;
+  z-index: 0;
+}
+
+.hero-meter {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(148, 163, 184, 0.14);
+}
+
+.hero-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--teal), var(--gold));
+}
+
+.hero-stat-grid,
+.signature-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.hero-stat-grid div,
+.signature-stats div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 5px;
+  background: rgba(7, 16, 24, 0.48);
+}
+
+.hero-stat-grid span,
+.signature-stats span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.hero-stat-grid strong,
+.signature-stats strong {
+  color: var(--text);
+  font-size: 16px;
+}
+
+.hero-top-users {
+  min-height: 18px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signature-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.signature-player,
+.hero-identity {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.signature-player img {
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: var(--radius);
+  object-fit: cover;
+  background: var(--panel-3);
+}
+
+.surprise-hero-list {
+  grid-template-columns: 1fr;
+}
+
+.surprise-hero-row {
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.surprise-hero-row > div:not(.hero-identity) {
+  min-width: 58px;
+  display: grid;
+  gap: 2px;
+  text-align: right;
+}
+
+.surprise-hero-row strong {
+  color: var(--text);
+  font-size: 16px;
+}
+
 .score-ledger-table {
   min-width: 840px;
 }
@@ -4191,6 +4409,8 @@ input[type="range"] {
   .league-first-run,
   .leaderboard-layout,
   .leaderboard-detail-grid,
+  .hero-insight-layout,
+  .hero-insight-layout.secondary,
   .league-space-layout,
   .league-manage-layout,
   .playoff-board,
@@ -4336,6 +4556,10 @@ input[type="range"] {
   .note-grid,
   .recognition-checklist,
   .score-kpi-row,
+  .hero-card-grid,
+  .signature-grid,
+  .hero-stat-grid,
+  .signature-stats,
   .review-rail-stats,
   .rules-layout {
     grid-template-columns: 1fr;
