@@ -3100,6 +3100,11 @@ input[type="range"] {
   background: rgba(2, 7, 13, 0.76);
 }
 
+.match-detail-backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
 .modal {
   width: min(620px, 100%);
   border: 1px solid var(--line);
@@ -3172,7 +3177,8 @@ input[type="range"] {
 
 .match-detail-modal {
   width: min(1060px, 100%);
-  max-height: min(860px, calc(100dvh - 32px));
+  height: min(860px, calc(100dvh - 32px));
+  max-height: calc(100dvh - 32px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -3187,7 +3193,8 @@ input[type="range"] {
   flex: 1 1 auto;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 18px 0 0;
+  padding: 18px 0 96px;
+  scroll-padding-bottom: 96px;
   scrollbar-color: rgba(52, 215, 181, 0.58) rgba(7, 16, 24, 0.7);
 }
 
@@ -4099,6 +4106,11 @@ input[type="range"] {
   background: rgba(16, 27, 39, 0.96);
 }
 
+.match-detail-modal .modal-actions {
+  flex-wrap: wrap;
+  box-shadow: 0 -14px 28px rgba(2, 7, 13, 0.22);
+}
+
 @media (max-width: 1360px) {
   .topbar {
     grid-template-columns: 1fr;
@@ -4271,7 +4283,23 @@ input[type="range"] {
   }
 
   .match-detail-modal {
+    height: calc(100dvh - 20px);
     max-height: calc(100dvh - 20px);
+  }
+
+  .match-detail-body {
+    padding-bottom: 132px;
+    scroll-padding-bottom: 132px;
+  }
+
+  .match-detail-modal .modal-actions {
+    max-height: 34dvh;
+    overflow-y: auto;
+    justify-content: stretch;
+  }
+
+  .match-detail-modal .modal-actions button {
+    flex: 1 1 150px;
   }
 
   .settings-grid,

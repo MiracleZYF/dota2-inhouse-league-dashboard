@@ -2807,7 +2807,7 @@ function MatchDetailModal({
   }
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div className="modal-backdrop match-detail-backdrop" role="presentation">
       <div className="modal match-detail-modal" role="dialog" aria-modal="true" aria-label="比赛详情">
         <div className="modal-head">
           <div>
