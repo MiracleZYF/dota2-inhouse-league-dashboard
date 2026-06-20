@@ -3177,22 +3177,25 @@ input[type="range"] {
 
 .match-detail-modal {
   width: min(1060px, 100%);
+  height: min(860px, calc(100vh - 32px));
   height: min(860px, calc(100dvh - 32px));
+  max-height: calc(100vh - 32px);
   max-height: calc(100dvh - 32px);
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
 }
 
 .match-detail-modal .modal-head {
-  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .match-detail-body {
   min-height: 0;
-  flex: 1 1 auto;
+  min-width: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   padding: 18px 0 96px;
   scroll-padding-bottom: 96px;
   scrollbar-color: rgba(52, 215, 181, 0.58) rgba(7, 16, 24, 0.7);
@@ -4283,7 +4286,9 @@ input[type="range"] {
   }
 
   .match-detail-modal {
+    height: calc(100vh - 20px);
     height: calc(100dvh - 20px);
+    max-height: calc(100vh - 20px);
     max-height: calc(100dvh - 20px);
   }
 

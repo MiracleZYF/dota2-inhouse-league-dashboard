@@ -2722,6 +2722,8 @@ function MatchDetailModal({
   settings = DEFAULT_SETTINGS,
   isAdmin = false,
 }) {
+  const detailBodyRef = useRef(null);
+
   if (!match) return null;
 
   const canConfirm = isAdmin && match.status === "待确认";
@@ -2764,6 +2766,15 @@ function MatchDetailModal({
   const storeBlockedByUnknownResult = canStore && scorePreview.unknownCount > 0;
   const reviewSteps = buildReviewSteps(recognition, match.status);
   const reviewWarnings = buildReviewWarnings(recognition, scorePreview, match.status);
+
+  function handleModalWheel(event) {
+    const body = detailBodyRef.current;
+    if (!body || !event.deltaY) return;
+    if (event.target instanceof Element && event.target.closest(".match-detail-body")) return;
+    if (body.scrollHeight <= body.clientHeight) return;
+    event.preventDefault();
+    body.scrollTop += event.deltaY;
+  }
 
   function renderTeam(title, teamPlayers, won) {
     return (
@@ -2808,7 +2819,7 @@ function MatchDetailModal({
 
   return (
     <div className="modal-backdrop match-detail-backdrop" role="presentation">
-      <div className="modal match-detail-modal" role="dialog" aria-modal="true" aria-label="比赛详情">
+      <div className="modal match-detail-modal" role="dialog" aria-modal="true" aria-label="比赛详情" onWheel={handleModalWheel}>
         <div className="modal-head">
           <div>
             <h2>比赛详情</h2>
@@ -2819,7 +2830,7 @@ function MatchDetailModal({
           </button>
         </div>
 
-        <div className="match-detail-body">
+        <div className="match-detail-body" ref={detailBodyRef}>
           <div className="match-summary-banner">
             <div>
               <span>本场结论</span>
