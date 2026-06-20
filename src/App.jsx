@@ -482,6 +482,50 @@ function isMatchInsideSeason(match, settings = DEFAULT_SETTINGS) {
   return startTime >= window.startSeconds && startTime <= window.endSeconds;
 }
 
+function timestampValueToSeconds(value) {
+  if (value === undefined || value === null || value === "") return NaN;
+  if (Number.isFinite(Number(value))) return Number(value);
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? Math.floor(time / 1000) : NaN;
+}
+
+function dateRangeOverlapsSeason(dateRange, settings = DEFAULT_SETTINGS) {
+  if (!dateRange) return false;
+  const season = getSeasonWindow(settings);
+  const range = getDateRangeSeconds(dateRange);
+  if (!season.valid || !range.valid) return false;
+  return range.startSeconds <= season.endSeconds && range.endSeconds >= season.startSeconds;
+}
+
+function getRecordSeasonId(record) {
+  const details = record?.details || {};
+  return String(details.seasonId || details.season?.id || "").trim();
+}
+
+function isSyncRunInsideSeason(run, settings = DEFAULT_SETTINGS) {
+  const seasonId = getRecordSeasonId(run);
+  if (seasonId) return seasonId === settings.currentSeasonId;
+  if (dateRangeOverlapsSeason(run?.details?.dateRange, settings)) return true;
+  const seconds = timestampValueToSeconds(run?.finishedAt || run?.startedAt);
+  if (!Number.isFinite(seconds)) return false;
+  return isMatchInsideSeason({ startTime: seconds }, settings);
+}
+
+function isAuditLogInsideSeason(log, settings = DEFAULT_SETTINGS, matchById = new Map()) {
+  const seasonId = getRecordSeasonId(log);
+  if (seasonId) return seasonId === settings.currentSeasonId;
+
+  const match = log?.matchId ? matchById.get(String(log.matchId)) : null;
+  if (match?.startTime) return isMatchInsideSeason(match, settings);
+
+  const detailStartTime = timestampValueToSeconds(log?.details?.matchStartTime || log?.details?.startTime);
+  if (Number.isFinite(detailStartTime)) return isMatchInsideSeason({ startTime: detailStartTime }, settings);
+
+  const seconds = timestampValueToSeconds(log?.createdAt);
+  if (!Number.isFinite(seconds)) return false;
+  return isMatchInsideSeason({ startTime: seconds }, settings);
+}
+
 function formatDateRangeLabel(dateRange) {
   const start = normalizeDateTimeValue(dateRange.start);
   const end = normalizeDateTimeValue(dateRange.end, true);
@@ -5336,6 +5380,9 @@ export function App() {
   const scoreEntries = useMemo(() => buildScoreEntries(players, matches, seasonSettings), [players, matches, seasonSettings]);
   const rankedPlayers = useMemo(() => buildStandingsFromScoredMatches(players, scoreEntries, seasonSettings), [players, scoreEntries, seasonSettings]);
   const captains = rankedPlayers.filter((player) => player.played >= seasonSettings.minCaptainGames).slice(0, 4);
+  const matchById = useMemo(() => new Map(matches.map((match) => [String(match.id), match])), [matches]);
+  const seasonSyncRuns = useMemo(() => syncRuns.filter((run) => isSyncRunInsideSeason(run, seasonSettings)), [syncRuns, seasonSettings]);
+  const seasonAuditLogs = useMemo(() => auditLogs.filter((log) => isAuditLogInsideSeason(log, seasonSettings, matchById)), [auditLogs, seasonSettings, matchById]);
   const activeNav = navItems.find((item) => item.id === activeView) || navItems[0];
   const selectedMatch = matches.find((match) => match.id === selectedMatchId);
   const unreadCount = notifications.filter((item) => !item.read).length;
@@ -5510,8 +5557,10 @@ export function App() {
       matches: seasonMatches,
       allMatches: matches,
       playoff,
-      syncRuns,
-      auditLogs,
+      syncRuns: seasonSyncRuns,
+      auditLogs: seasonAuditLogs,
+      allSyncRuns: syncRuns,
+      allAuditLogs: auditLogs,
     };
     downloadTextFile(`dota2-inhouse-backup-${exportedAt.slice(0, 10)}.json`, JSON.stringify(snapshot, null, 2), "application/json;charset=utf-8");
     setNotifications((current) => [
@@ -6555,8 +6604,8 @@ export function App() {
             players={rankedPlayers}
             matches={visibleMatches}
             captains={captains}
-            syncRuns={syncRuns}
-            auditLogs={auditLogs}
+            syncRuns={seasonSyncRuns}
+            auditLogs={seasonAuditLogs}
             onNavigate={setActiveView}
             onConfirm={confirmMatch}
             onReject={rejectMatch}

@@ -260,6 +260,40 @@ function normalizeSettings(settings = {}) {
   return merged;
 }
 
+function dateTimeSettingToSeconds(value, endOfDay = false) {
+  const normalized = normalizeDateTimeSetting(value, "", endOfDay);
+  if (!normalized) return NaN;
+  const time = new Date(normalized).getTime();
+  return Number.isFinite(time) ? Math.floor(time / 1000) : NaN;
+}
+
+function seasonForStartTime(settings = DEFAULT_SETTINGS, startTime = 0) {
+  const normalizedSettings = normalizeSettings(settings);
+  const seconds = Number(startTime || 0);
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  return (normalizedSettings.seasons || []).find((season) => {
+    const start = dateTimeSettingToSeconds(season.start || season.seasonStart);
+    const endValue = season.end || season.seasonEnd || "";
+    const end = endValue ? dateTimeSettingToSeconds(endValue, true) : Infinity;
+    return Number.isFinite(start) && seconds >= start && seconds <= end;
+  }) || null;
+}
+
+function seasonLogDetails(settings = DEFAULT_SETTINGS, details = {}, preferredSeason = null) {
+  const base = details && typeof details === "object" ? { ...details } : {};
+  if (base.seasonId) return base;
+  const normalizedSettings = normalizeSettings(settings);
+  const season = preferredSeason || (normalizedSettings.seasons || []).find((item) => item.id === normalizedSettings.currentSeasonId) || normalizedSettings.seasons?.[0];
+  if (!season) return base;
+  return {
+    ...base,
+    seasonId: season.id,
+    seasonName: season.name,
+    seasonStart: season.start,
+    seasonEnd: season.end || "",
+  };
+}
+
 function leagueSpaceFromRow(row, { includeSecret = false, origin = "" } = {}) {
   if (!row) return null;
   const slug = String(row.slug || "");
@@ -1305,16 +1339,16 @@ function rowToAuditLog(row) {
   };
 }
 
-export async function getSyncRuns(env, limit = 10) {
+export async function getSyncRuns(env, limit = 50) {
   const leagueSlug = currentLeagueSlug(env);
-  const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
+  const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 50);
   const result = await env.DB.prepare("SELECT * FROM league_sync_runs WHERE league_slug = ? ORDER BY finished_at DESC, id DESC LIMIT ?").bind(leagueSlug, safeLimit).all();
   return (result.results || []).map(rowToSyncRun);
 }
 
-export async function getAuditLogs(env, limit = 30) {
+export async function getAuditLogs(env, limit = 100) {
   const leagueSlug = currentLeagueSlug(env);
-  const safeLimit = Math.min(Math.max(Number(limit) || 30, 1), 100);
+  const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 100);
   const result = await env.DB.prepare("SELECT * FROM league_audit_logs WHERE league_slug = ? ORDER BY created_at DESC, id DESC LIMIT ?").bind(leagueSlug, safeLimit).all();
   return (result.results || []).map(rowToAuditLog);
 }
@@ -1323,10 +1357,16 @@ export async function recordSyncRun(env, { kind = "manual", status = "success", 
   const leagueSlug = currentLeagueSlug(env);
   const started = startedAt || new Date().toISOString();
   const finished = new Date().toISOString();
+  let normalizedDetails = details || {};
+  try {
+    normalizedDetails = seasonLogDetails(await getSettings(env), normalizedDetails);
+  } catch {
+    normalizedDetails = details || {};
+  }
   const result = await env.DB.prepare(`INSERT INTO league_sync_runs
     (league_slug, kind, status, summary, details_json, started_at, finished_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)`)
-    .bind(leagueSlug, kind, status, summary, JSON.stringify(details || {}), started, finished)
+    .bind(leagueSlug, kind, status, summary, JSON.stringify(normalizedDetails || {}), started, finished)
     .run();
   const row = await env.DB.prepare("SELECT * FROM league_sync_runs WHERE league_slug = ? AND id = ?").bind(leagueSlug, result.meta?.last_row_id || 0).first();
   return row ? rowToSyncRun(row) : null;
@@ -1335,10 +1375,28 @@ export async function recordSyncRun(env, { kind = "manual", status = "success", 
 export async function logAuditAction(env, { action, matchId = "", actor = "管理员", summary = "", details = {} } = {}) {
   if (!action) return null;
   const leagueSlug = currentLeagueSlug(env);
+  let normalizedDetails = details || {};
+  try {
+    const settings = await getSettings(env);
+    let preferredSeason = null;
+    if (matchId) {
+      const match = await getMatch(env, matchId);
+      if (match?.startTime) {
+        preferredSeason = seasonForStartTime(settings, match.startTime);
+        normalizedDetails = {
+          ...(normalizedDetails || {}),
+          matchStartTime: normalizedDetails.matchStartTime || match.startTime,
+        };
+      }
+    }
+    normalizedDetails = seasonLogDetails(settings, normalizedDetails, preferredSeason);
+  } catch {
+    normalizedDetails = details || {};
+  }
   const result = await env.DB.prepare(`INSERT INTO league_audit_logs
     (league_slug, action, match_id, actor, summary, details_json, created_at)
     VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`)
-    .bind(leagueSlug, action, String(matchId || ""), actor || "管理员", summary || "", JSON.stringify(details || {}))
+    .bind(leagueSlug, action, String(matchId || ""), actor || "管理员", summary || "", JSON.stringify(normalizedDetails || {}))
     .run();
   const row = await env.DB.prepare("SELECT * FROM league_audit_logs WHERE league_slug = ? AND id = ?").bind(leagueSlug, result.meta?.last_row_id || 0).first();
   return row ? rowToAuditLog(row) : null;
