@@ -74,6 +74,7 @@ const DEFAULT_SETTINGS = {
   winPoints: 10,
   lossPoints: 3,
   autoSync: true,
+  autoStoreResolvedMatches: true,
   allowPartialMatches: true,
   useLeagueScan: true,
   leagueId: "19220",
@@ -1079,9 +1080,12 @@ function buildMatchDiagnostic(match, settings = DEFAULT_SETTINGS, detail) {
   const expectedTotal = Math.min(Number(recognition.total || 10), 10);
   const hasFullRoster = detailPlayerCount >= expectedTotal;
   const hasKnownWinner = matchHasKnownWinner(match, detail);
+  const notes = `${match?.score || ""} ${match?.notes || ""}`;
+  const needsManualIntervention = notes.includes("需要人工介入") || notes.includes("人工介入");
   const reasons = [];
 
   if (recognition.rankedLadder) reasons.push("房间类型疑似天梯，不建议计入");
+  if (needsManualIntervention) reasons.push("自动识别缺少关键资料，需要管理员手动介入");
   if (!recognition.parsed) reasons.push("还没有拿到模式、阵营和玩家记录");
   if (!hasFullRoster) reasons.push(`完整阵容未返回，目前详情 ${detailPlayerCount}/${expectedTotal}`);
   if (!recognition.meetsThreshold) reasons.push(`命中人数未达阈值 ${recognition.registered}/${recognition.threshold}`);
@@ -1096,6 +1100,8 @@ function buildMatchDiagnostic(match, settings = DEFAULT_SETTINGS, detail) {
     queue = { id: "archived", label: "已驳回/隐藏", tone: "muted" };
   } else if (match.status === "已确认") {
     queue = { id: "actionable", label: "可入库", tone: "info" };
+  } else if (needsManualIntervention) {
+    queue = { id: "needsReview", label: "需人工介入", tone: "warning" };
   } else if (recognition.fullInhouse && hasKnownWinner && recognition.balancedSides) {
     queue = { id: "actionable", label: "可确认", tone: "success" };
   } else if (recognition.parsed || recognition.meetsThreshold) {
@@ -1117,6 +1123,7 @@ function buildMatchDiagnostic(match, settings = DEFAULT_SETTINGS, detail) {
       tone: hasKnownWinner ? "success" : "warning",
       known: hasKnownWinner,
     },
+    needsManualIntervention,
     reasons,
   };
 }
@@ -4432,6 +4439,7 @@ function buildLeagueEditForm(league, settings = DEFAULT_SETTINGS) {
     seasonEnd: mergedSettings.seasonEnd || "",
     leagueId: mergedSettings.leagueId || "",
     autoSync: mergedSettings.autoSync !== false,
+    autoStoreResolvedMatches: mergedSettings.autoStoreResolvedMatches !== false,
     useLeagueScan: mergedSettings.useLeagueScan !== false,
     allowPartialMatches: mergedSettings.allowPartialMatches !== false,
     adminKey: "",
@@ -4489,7 +4497,7 @@ function LeagueSpacesView({
 
   useEffect(() => {
     setEditForm(buildLeagueEditForm(currentLeague, settings));
-  }, [currentLeague?.slug, currentLeague?.updatedAt, settings.currentSeasonId, settings.seasons, settings.seasonName, settings.seasonStart, settings.seasonEnd, settings.leagueId, settings.autoSync, settings.useLeagueScan, settings.allowPartialMatches]);
+  }, [currentLeague?.slug, currentLeague?.updatedAt, settings.currentSeasonId, settings.seasons, settings.seasonName, settings.seasonStart, settings.seasonEnd, settings.leagueId, settings.autoSync, settings.autoStoreResolvedMatches, settings.useLeagueScan, settings.allowPartialMatches]);
 
   function updateField(key, value) {
     setForm((current) => ({
@@ -4533,6 +4541,7 @@ function LeagueSpacesView({
         ...seasonSettings,
         leagueId: nextLeagueId,
         autoSync: editForm.autoSync,
+        autoStoreResolvedMatches: editForm.autoStoreResolvedMatches,
         useLeagueScan: Boolean(nextLeagueId) && editForm.useLeagueScan,
         allowPartialMatches: editForm.allowPartialMatches,
       },
@@ -4868,6 +4877,13 @@ function LeagueSpacesView({
                     <small>优先通过 Steam League ID 拉取比赛记录。</small>
                   </span>
                   <input type="checkbox" checked={editForm.useLeagueScan && Boolean(editForm.leagueId)} onChange={(event) => updateEditField("useLeagueScan", event.target.checked)} disabled={!editForm.leagueId} />
+                </label>
+                <label className="switch-row">
+                  <span>
+                    <strong>完整战绩自动入库</strong>
+                    <small>拿到胜负、10 人战绩和合理命中后自动计分；缺资料仍进人工队列。</small>
+                  </span>
+                  <input type="checkbox" checked={editForm.autoStoreResolvedMatches} onChange={(event) => updateEditField("autoStoreResolvedMatches", event.target.checked)} />
                 </label>
                 <label className="switch-row">
                   <span>
@@ -5299,8 +5315,20 @@ function SettingsModal({ settings, onChange, onClose, onReset }) {
 
           <label className="switch-row">
             <span>
+              <strong>完整战绩自动入库</strong>
+              <small>胜负、10 人战绩和命中规则都满足时自动计分；缺资料则交给人工介入</small>
+            </span>
+            <input
+              type="checkbox"
+              checked={settings.autoStoreResolvedMatches !== false}
+              onChange={(event) => updateSetting("autoStoreResolvedMatches", event.target.checked)}
+            />
+          </label>
+
+          <label className="switch-row">
+            <span>
               <strong>允许 8-9 人候选内战</strong>
-              <small>低于 10 人时进入人工复核，不直接入库</small>
+              <small>达到阈值且有完整战绩时可自动入库；缺资料或命中异常时人工复核</small>
             </span>
             <input
               type="checkbox"

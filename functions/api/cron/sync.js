@@ -70,6 +70,9 @@ async function retryUnresolvedMatches(env, retryLimit) {
         id: match.id,
         ok: result.ok,
         source: result.source,
+        status: result.match?.status,
+        score: result.match?.score,
+        requiresManualIntervention: result.match?.score === "需要人工介入",
         message: result.message,
         openDotaStatus: result.openDotaStatus,
         steamStatus: result.steamStatus,
@@ -86,6 +89,8 @@ async function retryUnresolvedMatches(env, retryLimit) {
   return {
     attempted: results.length,
     succeeded: results.filter((item) => item.ok).length,
+    autoStoredCount: results.filter((item) => item.status === "已入库").length,
+    manualInterventionCount: results.filter((item) => item.requiresManualIntervention).length,
     results,
   };
 }
@@ -130,6 +135,10 @@ export async function onRequest({ request, env }) {
       dateRange: makeRecentDateRange(hours),
     });
     const retryResult = retryLimit > 0 ? await retryUnresolvedMatches(scopedEnv, retryLimit) : { attempted: 0, succeeded: 0, results: [] };
+    retryResult.autoStoredCount = Number(retryResult.autoStoredCount || 0);
+    retryResult.manualInterventionCount = Number(retryResult.manualInterventionCount || 0);
+    const autoStoredTotal = Number(syncResult.autoStoredCount || 0) + retryResult.autoStoredCount;
+    const manualInterventionTotal = Number(syncResult.manualInterventionCount || 0) + retryResult.manualInterventionCount;
     const profileResult = syncProfiles
       ? await syncPlayerProfiles(scopedEnv, {
           limit: profileLimit,
@@ -149,7 +158,7 @@ export async function onRequest({ request, env }) {
     const syncRun = await recordSyncRun(scopedEnv, {
       kind: "auto",
       status,
-      summary: `自动同步完成：新增 ${syncResult.newCandidates.length} 场，重试 ${retryResult.attempted} 场${profileResult ? `，资料 ${profileResult.successCount}/${profileResult.processedCount}` : ""}`,
+      summary: `自动同步完成：新增 ${syncResult.newCandidates.length} 场，自动入库 ${autoStoredTotal} 场，人工介入 ${manualInterventionTotal} 场，重试 ${retryResult.attempted} 场${profileResult ? `，资料 ${profileResult.successCount}/${profileResult.processedCount}` : ""}`,
       startedAt,
       details: {
         windowHours: hours,
@@ -157,6 +166,8 @@ export async function onRequest({ request, env }) {
         syncProfiles,
         profileLimit,
         newCount: syncResult.newCandidates.length,
+        autoStoredCount: syncResult.autoStoredCount,
+        manualInterventionCount: syncResult.manualInterventionCount,
         duplicatedCount: syncResult.duplicatedCount,
         failedCount: syncResult.failedCount,
         leagueScan: syncResult.leagueScan,
@@ -176,7 +187,7 @@ export async function onRequest({ request, env }) {
     await logAuditAction(scopedEnv, {
       action: "auto_sync",
       actor: "GitHub Actions",
-      summary: `自动同步完成：新增 ${syncResult.newCandidates.length} 场，重试 ${retryResult.attempted} 场${profileResult ? `，资料 ${profileResult.successCount}/${profileResult.processedCount}` : ""}`,
+      summary: `自动同步完成：新增 ${syncResult.newCandidates.length} 场，自动入库 ${autoStoredTotal} 场，人工介入 ${manualInterventionTotal} 场，重试 ${retryResult.attempted} 场${profileResult ? `，资料 ${profileResult.successCount}/${profileResult.processedCount}` : ""}`,
       details: { syncRunId: syncRun?.id, status },
     });
 
@@ -188,6 +199,10 @@ export async function onRequest({ request, env }) {
       sync: {
         message: syncResult.message,
         newCount: syncResult.newCandidates.length,
+        autoStoredCount: syncResult.autoStoredCount,
+        manualInterventionCount: syncResult.manualInterventionCount,
+        autoStoredTotal,
+        manualInterventionTotal,
         duplicatedCount: syncResult.duplicatedCount,
         failedCount: syncResult.failedCount,
         leagueScan: syncResult.leagueScan,
@@ -200,7 +215,7 @@ export async function onRequest({ request, env }) {
       auditLogs: await getAuditLogs(scopedEnv),
       matchCount: matches.length,
       matches,
-      message: `自动同步完成：新增 ${syncResult.newCandidates.length} 场，重试 ${retryResult.attempted} 场`,
+      message: `自动同步完成：新增 ${syncResult.newCandidates.length} 场，自动入库 ${autoStoredTotal} 场，人工介入 ${manualInterventionTotal} 场，重试 ${retryResult.attempted} 场`,
     });
   } catch (error) {
     try {

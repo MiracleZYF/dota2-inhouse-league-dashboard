@@ -37,6 +37,7 @@ export const DEFAULT_SETTINGS = {
   winPoints: 10,
   lossPoints: 3,
   autoSync: true,
+  autoStoreResolvedMatches: true,
   allowPartialMatches: true,
   useLeagueScan: true,
   leagueId: "19220",
@@ -2379,9 +2380,16 @@ export async function syncRecentMatches(env, { dateRange = makeRecentDateRange()
   const candidates = mergeMatchCandidates([...leagueCandidates, ...recentCandidates]);
   const existingIds = new Set((await getMatches(env)).map((match) => String(match.id)));
   const newCandidates = candidates.filter((match) => !existingIds.has(String(match.id)));
+  const preparedNewCandidates = [];
+  const storedCandidates = [];
+  const manualInterventionCandidates = [];
 
   for (const match of newCandidates) {
-    await upsertMatch(env, match, { preserveStatus: false });
+    const preparedMatch = match.detail?.players?.length ? buildMatchFromDetail(match, match.detail, players, settings) : buildMatchFromCandidate(match, settings);
+    preparedNewCandidates.push(preparedMatch);
+    await upsertMatch(env, preparedMatch, { preserveStatus: false });
+    if (preparedMatch.status === "已入库") storedCandidates.push(preparedMatch);
+    if (preparedMatch.recognition?.requiresManualIntervention || preparedMatch.score === "需要人工介入") manualInterventionCandidates.push(preparedMatch);
   }
 
   const duplicatedCount = candidates.length - newCandidates.length;
@@ -2392,8 +2400,10 @@ export async function syncRecentMatches(env, { dateRange = makeRecentDateRange()
 
   return {
     matches: await getMatches(env),
-    newCandidates,
+    newCandidates: preparedNewCandidates,
     failedCount,
+    autoStoredCount: storedCandidates.length,
+    manualInterventionCount: manualInterventionCandidates.length,
     duplicatedCount,
     sourceDuplicateCount,
     leagueScan,
@@ -2407,7 +2417,7 @@ export async function syncRecentMatches(env, { dateRange = makeRecentDateRange()
     leagueId,
     leagueCandidateCount: leagueCandidates.length,
     recentCandidateCount: recentCandidates.length,
-    message: `${newCandidates.length} 新增，${duplicatedCount} 重复已跳过；${leagueMessage}${leagueScan.failed ? `（${leagueScan.error}）` : ""}`,
+    message: `${newCandidates.length} 新增，${storedCandidates.length} 场自动入库，${manualInterventionCandidates.length} 场需人工介入，${duplicatedCount} 重复已跳过；${leagueMessage}${leagueScan.failed ? `（${leagueScan.error}）` : ""}`,
   };
 }
 
@@ -2468,6 +2478,110 @@ export function createPendingMatch(matchId, notes = "管理员手动添加；正
   };
 }
 
+function hasNumericStat(value) {
+  return Number.isFinite(Number(value));
+}
+
+function hasUsablePlayerStats(player) {
+  return hasNumericStat(player?.kills) && hasNumericStat(player?.deaths) && hasNumericStat(player?.assists);
+}
+
+function detailHasFullPlayerStats(detail, expectedTotal = 10) {
+  const detailPlayers = Array.isArray(detail?.players) ? detail.players : [];
+  const required = Math.min(Math.max(Number(expectedTotal) || 10, 1), 10);
+  if (detailPlayers.length < required) return false;
+  return detailPlayers.slice(0, required).every((player) => player?.player_slot !== undefined && hasNumericStat(player?.hero_id) && hasUsablePlayerStats(player));
+}
+
+function registeredPlayersHaveKnownResults(players) {
+  const registeredPlayers = (players || []).filter((player) => player.isRegistered);
+  return registeredPlayers.length > 0 && registeredPlayers.every((player) => typeof player.result === "boolean");
+}
+
+function buildManualInterventionReasons({ recognition, threshold, rankedLadder, hasKnownWinner, hasFullPlayerStats, registeredHaveResults, meetsThreshold, balancedSides, fullInhouse, allowPartialMatches, allowAutoStore }) {
+  const reasons = [];
+  if (rankedLadder) return reasons;
+  if (!allowAutoStore) reasons.push("自动入库已关闭");
+  if (!hasKnownWinner) reasons.push("缺少明确胜负");
+  if (!hasFullPlayerStats) reasons.push("缺少完整 10 人战绩/KDA");
+  if (!registeredHaveResults) reasons.push("命中玩家胜负未全部确定");
+  if (!meetsThreshold) reasons.push(`玩家库命中 ${recognition.registered}/${threshold}，低于有效阈值`);
+  if (!balancedSides && recognition.registered > 0) reasons.push(`双方命中不均衡：${recognition.sides}`);
+  if (!allowPartialMatches && !fullInhouse) reasons.push("当前设置要求完整 10 名登记玩家");
+  return reasons;
+}
+
+function describeDetailSource(detail) {
+  if (detail?.data_source === "steam") return "Steam Web API";
+  if (detail?.data_source === "steam-history") return "Steam 联赛列表";
+  if (detail?.data_source === "cached") return "缓存详情";
+  if (detail?.data_source === "manual-roster") return "手动补全阵容";
+  return "OpenDota";
+}
+
+function buildMatchFromCandidate(match, settings = DEFAULT_SETTINGS) {
+  const registeredPlayers = Array.isArray(match?.registeredPlayers) ? match.registeredPlayers : [];
+  const resolvedPlayers = registeredPlayers.map((player) => ({ ...player, isRegistered: true }));
+  const recognition = registeredSideSummary(resolvedPlayers);
+  const threshold = Number(settings?.minRegisteredPlayers || DEFAULT_SETTINGS.minRegisteredPlayers);
+  const total = match.total || 10;
+  const expectedTotal = Math.min(Number(total) || 10, 10);
+  const fullInhouse = recognition.registered >= expectedTotal;
+  const meetsThreshold = recognition.registered >= threshold;
+  const balancedSides = recognition.radiant > 0 && recognition.dire > 0 && Math.abs(recognition.radiant - recognition.dire) <= 1;
+  const hasKnownWinner = registeredPlayers.length > 0 && registeredPlayers.every((player) => typeof player.result === "boolean");
+  const hasFullPlayerStats = registeredPlayers.length >= expectedTotal && registeredPlayers.slice(0, expectedTotal).every(hasUsablePlayerStats);
+  const registeredHaveResults = hasKnownWinner;
+  const allowPartialMatches = settings?.allowPartialMatches !== false;
+  const allowAutoStore = settings?.autoStoreResolvedMatches !== false;
+  const canAutoStore =
+    allowAutoStore &&
+    meetsThreshold &&
+    balancedSides &&
+    hasKnownWinner &&
+    hasFullPlayerStats &&
+    registeredHaveResults &&
+    (allowPartialMatches || fullInhouse);
+  const manualInterventionReasons = buildManualInterventionReasons({
+    recognition,
+    threshold,
+    rankedLadder: false,
+    hasKnownWinner,
+    hasFullPlayerStats,
+    registeredHaveResults,
+    meetsThreshold,
+    balancedSides,
+    fullInhouse,
+    allowPartialMatches,
+    allowAutoStore,
+  });
+  const notesBase = match.notes || "OpenDota recentMatches 自动识别到候选比赛。";
+
+  return {
+    ...match,
+    status: canAutoStore ? "已入库" : match.status || "待确认",
+    score: canAutoStore ? "recentMatches 完整战绩自动入库" : "需要人工介入",
+    notes: canAutoStore
+      ? `${notesBase} 已拿到 10 名登记玩家的 KDA 与胜负，系统自动入库计分。`
+      : `${notesBase} 还不能自动计分：${manualInterventionReasons.join("；") || "缺少完整比赛详情"}。请管理员补阵容/胜方，或稍后重新识别。`,
+    recognition: {
+      ...recognition,
+      total,
+      threshold,
+      fullInhouse,
+      meetsThreshold,
+      balancedSides,
+      rankedLadder: false,
+      hasKnownWinner,
+      hasFullPlayerStats,
+      registeredHaveResults,
+      canAutoStore,
+      requiresManualIntervention: !canAutoStore,
+      manualInterventionReasons,
+    },
+  };
+}
+
 export function buildMatchFromDetail(currentMatch, detail, players, settings = DEFAULT_SETTINGS) {
   const resolvedPlayers = resolveMatchPlayers(currentMatch, detail, players);
   const recognition = registeredSideSummary(resolvedPlayers);
@@ -2479,8 +2593,35 @@ export function buildMatchFromDetail(currentMatch, detail, players, settings = D
   const balancedSides = recognition.radiant > 0 && recognition.dire > 0 && Math.abs(recognition.radiant - recognition.dire) <= 1;
   const lobbyName = describeLobbyType(detail.lobby_type);
   const modeName = describeGameMode(detail.game_mode);
-  const sourceLabel = detail.data_source === "steam" ? "Steam Web API" : "OpenDota";
+  const sourceLabel = describeDetailSource(detail);
   const leagueText = detail.leagueid ? `，League ID ${detail.leagueid}` : "";
+  const hasKnownWinner = hasBooleanWinner(detail);
+  const hasFullPlayerStats = detailHasFullPlayerStats(detail, total);
+  const registeredHaveResults = registeredPlayersHaveKnownResults(resolvedPlayers);
+  const allowPartialMatches = settings?.allowPartialMatches !== false;
+  const allowAutoStore = settings?.autoStoreResolvedMatches !== false;
+  const canAutoStore =
+    allowAutoStore &&
+    !rankedLadder &&
+    meetsThreshold &&
+    balancedSides &&
+    hasKnownWinner &&
+    hasFullPlayerStats &&
+    registeredHaveResults &&
+    (allowPartialMatches || fullInhouse);
+  const manualInterventionReasons = buildManualInterventionReasons({
+    recognition,
+    threshold,
+    rankedLadder,
+    hasKnownWinner,
+    hasFullPlayerStats,
+    registeredHaveResults,
+    meetsThreshold,
+    balancedSides,
+    fullInhouse,
+    allowPartialMatches,
+    allowAutoStore,
+  });
 
   let score = `玩家库命中 ${recognition.registered}`;
   let notes = `${sourceLabel} 已解析：${lobbyName} / ${modeName}${leagueText}，玩家库命中 ${recognition.registered}/${total}，双方命中 ${recognition.sides}。`;
@@ -2488,12 +2629,15 @@ export function buildMatchFromDetail(currentMatch, detail, players, settings = D
   if (rankedLadder) {
     score = "天梯跳过";
     notes = `${notes} 该房间类型属于天梯，已从内战识别队列隐藏，不计入积分。`;
+  } else if (canAutoStore) {
+    score = fullInhouse ? "完整战绩自动入库" : `完整战绩自动入库 ${recognition.registered}/${threshold}`;
+    notes = `${notes} 已拿到完整战绩与明确胜负，系统自动入库计分；仅玩家库成员进入积分。`;
   } else if (fullInhouse) {
-    score = "完整 10 人内战";
-    notes = `${notes} 命中完整 10 人，可优先确认后入库。`;
+    score = manualInterventionReasons.length ? "需要人工介入" : "完整 10 人内战";
+    notes = `${notes} 命中完整 10 人，${manualInterventionReasons.length ? `但${manualInterventionReasons.join("；")}，请管理员补充或复核后入库。` : "可优先确认后入库。"}`;
   } else if (meetsThreshold) {
-    score = `达到阈值 ${recognition.registered}/${threshold}`;
-    notes = `${notes} 已达到当前阈值，但不是完整 10 人，建议管理员结合语音/群内记录复核。`;
+    score = manualInterventionReasons.length ? "需要人工介入" : `达到阈值 ${recognition.registered}/${threshold}`;
+    notes = `${notes} 已达到当前阈值，${manualInterventionReasons.length ? `但${manualInterventionReasons.join("；")}，请管理员结合语音/群内记录复核。` : "可按当前规则确认。"}`;
   } else {
     score = `命中不足 ${recognition.registered}/${threshold}`;
     notes = `${notes} 未达到当前阈值，暂不建议作为有效内战确认。`;
@@ -2503,11 +2647,20 @@ export function buildMatchFromDetail(currentMatch, detail, players, settings = D
     notes = `${notes} 两边命中不均衡，可能是玩家库缺 ID 或这不是完整群内战。`;
   }
 
+  let status = currentMatch.status || "待确认";
+  if (rankedLadder) {
+    status = "已驳回";
+  } else if (currentMatch.status === "已驳回") {
+    status = "已驳回";
+  } else if (currentMatch.status === "已入库" || canAutoStore) {
+    status = "已入库";
+  }
+
   return {
     ...currentMatch,
     hidden: rankedLadder,
     isRankedLadder: rankedLadder,
-    status: rankedLadder ? "已驳回" : currentMatch.status || "待确认",
+    status,
     time: detail.start_time ? formatMatchTime(detail.start_time) : currentMatch.time,
     startTime: detail.start_time || currentMatch.startTime,
     lobbyType: detail.lobby_type,
@@ -2539,6 +2692,12 @@ export function buildMatchFromDetail(currentMatch, detail, players, settings = D
       meetsThreshold,
       balancedSides,
       rankedLadder,
+      hasKnownWinner,
+      hasFullPlayerStats,
+      registeredHaveResults,
+      canAutoStore,
+      requiresManualIntervention: manualInterventionReasons.length > 0,
+      manualInterventionReasons,
       lobbyName,
       modeName,
     },
@@ -2608,8 +2767,9 @@ export async function refreshStoredMatch(env, matchId, { resetReviewStatus = fal
       env,
       {
         ...currentMatch,
-        score: lookup.parseRequested ? "已请求解析" : "待解析",
-        notes: `${lookup.error || "数据源暂未返回这场比赛详情"}；${leagueFallback.error || "稍后重新识别即可重试。"}`,
+        status: ["已入库", "已驳回"].includes(currentMatch.status) ? currentMatch.status : "待确认",
+        score: currentMatch.status === "已入库" ? currentMatch.score : "需要人工介入",
+        notes: `${lookup.error || "数据源暂未返回这场比赛详情"}；${leagueFallback.error || "稍后重新识别即可重试。"} 已交给管理员手动介入，可先补阵容/胜方，或稍后重新识别。`,
       },
       { preserveStatus: false },
     );

@@ -40,6 +40,8 @@ export async function onRequestPost({ request, env }) {
         seasonEnd: seasonSettings.seasonEnd || "",
         dateRange: body.dateRange || {},
         newCount: result.newCandidates.length,
+        autoStoredCount: result.autoStoredCount,
+        manualInterventionCount: result.manualInterventionCount,
         duplicatedCount: result.duplicatedCount,
         failedCount: result.failedCount,
         leagueScan: result.leagueScan,
@@ -48,7 +50,7 @@ export async function onRequestPost({ request, env }) {
     await logAuditAction(scopedEnv, {
       action: "manual_sync",
       actor: "管理员",
-      summary: `手动同步完成：新增 ${result.newCandidates.length} 场，重复 ${result.duplicatedCount} 场`,
+      summary: `手动同步完成：新增 ${result.newCandidates.length} 场，自动入库 ${result.autoStoredCount} 场，人工介入 ${result.manualInterventionCount} 场`,
       details: {
         seasonId: seasonSettings.currentSeasonId || "",
         seasonName: seasonSettings.seasonName || "",
@@ -56,6 +58,8 @@ export async function onRequestPost({ request, env }) {
         seasonEnd: seasonSettings.seasonEnd || "",
         dateRange: body.dateRange || {},
         syncRunId: syncRun?.id,
+        autoStoredCount: result.autoStoredCount,
+        manualInterventionCount: result.manualInterventionCount,
         failedCount: result.failedCount,
       },
     });
