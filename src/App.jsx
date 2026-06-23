@@ -1604,18 +1604,21 @@ function buildStandingsFromScoredMatches(players, scoreEntries, settings) {
     row.wins += entry.won ? 1 : 0;
     row.losses += entry.won ? 0 : 1;
     row.points += entry.points;
-    row.form = [entry.won ? "W" : "L", ...row.form].slice(0, 5);
-    row.scoreEntries = [entry, ...row.scoreEntries].sort((a, b) => b.startTime - a.startTime);
+    row.scoreEntries = [...row.scoreEntries, entry];
   });
 
   return Array.from(standingById.values())
     .filter((player) => player.played > 0)
-    .map((player) => ({
-      ...player,
-      captain: player.played >= settings.minCaptainGames,
-      form: player.form.length ? player.form : ["-", "-", "-", "-", "-"],
-      winRate: player.wins / Math.max(player.played, 1),
-    }))
+    .map((player) => {
+      const sortedEntries = player.scoreEntries.slice().sort((a, b) => b.startTime - a.startTime || Number(b.matchId) - Number(a.matchId));
+      return {
+        ...player,
+        captain: player.played >= settings.minCaptainGames,
+        form: sortedEntries.length ? sortedEntries.slice(0, 5).map((entry) => (entry.won ? "W" : "L")) : ["-", "-", "-", "-", "-"],
+        scoreEntries: sortedEntries,
+        winRate: player.wins / Math.max(player.played, 1),
+      };
+    })
     .sort((a, b) => b.points - a.points || b.wins - a.wins || b.winRate - a.winRate || b.played - a.played);
 }
 
