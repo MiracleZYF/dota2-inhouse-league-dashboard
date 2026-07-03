@@ -934,8 +934,12 @@ function isRankedLadderMatch(match) {
   return [6, 7].includes(Number(matchLobbyType(match)));
 }
 
+function matchHasAuthoritativeWinner(match, detail) {
+  return Boolean(match?.hasKnownWinner) || hasKnownResult(detail?.radiant_win);
+}
+
 function isScoredInhouseMatch(match) {
-  return match.status === "已入库";
+  return match.status === "已入库" && matchHasAuthoritativeWinner(match);
 }
 
 function isReviewableMatch(match) {
@@ -1096,8 +1100,7 @@ function getDetailPlayerCount(match, detail) {
 }
 
 function matchHasKnownWinner(match, detail) {
-  if (hasKnownResult(detail?.radiant_win) || match?.hasKnownWinner) return true;
-  return (match?.registeredPlayers || []).some((player) => hasKnownResult(player.result));
+  return matchHasAuthoritativeWinner(match, detail);
 }
 
 function buildMatchDiagnostic(match, settings = DEFAULT_SETTINGS, detail) {
@@ -1192,7 +1195,7 @@ function resolveMatchPlayers(match, detail, players, heroNames = {}) {
       const fallbackPlayer = (accountId && fallbackByAccount.get(accountId)) || (!accountId ? fallbackBySlotHero.get(`${player.player_slot}-${player.hero_id}`) : null);
       const knownPlayer = rosterPlayer || fallbackPlayer;
       const side = playerSide(player.player_slot);
-      const fallbackResult = hasKnownResult(fallbackPlayer?.result) ? fallbackPlayer.result : null;
+      const fallbackResult = matchHasAuthoritativeWinner(match, detail) && hasKnownResult(fallbackPlayer?.result) ? fallbackPlayer.result : null;
       return {
         accountId: accountId || registeredAccountId(knownPlayer),
         name: knownPlayer?.name || player.personaname || player.name || (accountId ? `未登记玩家 ${accountId}` : "匿名玩家"),
@@ -1226,6 +1229,7 @@ function resolveMatchPlayers(match, detail, players, heroNames = {}) {
       accountId,
       name: rosterPlayer?.name || player.name,
       heroName: formatHeroName(player.heroId, heroNames),
+      result: matchHasAuthoritativeWinner(match, detail) && hasKnownResult(player.result) ? player.result : null,
       isRegistered: true,
       identifySource: "同步记录匹配",
     };

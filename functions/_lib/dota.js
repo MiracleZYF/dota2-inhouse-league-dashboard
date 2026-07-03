@@ -1690,6 +1690,10 @@ function hasBooleanWinner(match) {
   return typeof match?.radiant_win === "boolean";
 }
 
+function canUseFallbackPlayerResults(match, detail) {
+  return hasBooleanWinner(detail) || match?.hasKnownWinner === true;
+}
+
 function playerWon(side, match) {
   if (!hasBooleanWinner(match)) return null;
   return side === "天辉" ? match.radiant_win : !match.radiant_win;
@@ -2438,7 +2442,7 @@ export function resolveMatchPlayers(match, detail, players) {
     const fallbackPlayer = (accountId && fallbackByAccount.get(accountId)) || (!accountId ? fallbackBySlotHero.get(`${player.player_slot}-${player.hero_id}`) : null);
     const knownPlayer = rosterPlayer || fallbackPlayer;
     const side = playerSide(player.player_slot);
-    const fallbackResult = typeof fallbackPlayer?.result === "boolean" ? fallbackPlayer.result : null;
+    const fallbackResult = canUseFallbackPlayerResults(match, detail) && typeof fallbackPlayer?.result === "boolean" ? fallbackPlayer.result : null;
     return {
       accountId: accountId || knownPlayer?.accountId || knownPlayer?.dotaId || "",
       name: knownPlayer?.name || player.personaname || player.name || "匿名玩家",
@@ -2652,8 +2656,10 @@ export function buildMatchFromDetail(currentMatch, detail, players, settings = D
     status = "已驳回";
   } else if (currentMatch.status === "已驳回") {
     status = "已驳回";
-  } else if (currentMatch.status === "已入库" || canAutoStore) {
+  } else if (canAutoStore || (currentMatch.status === "已入库" && hasKnownWinner)) {
     status = "已入库";
+  } else if (currentMatch.status === "已入库" && !hasKnownWinner) {
+    status = "已确认";
   }
 
   return {
