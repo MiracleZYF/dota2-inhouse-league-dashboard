@@ -1624,6 +1624,19 @@ a.primary-button {
   line-height: 1.65;
 }
 
+.empty-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.empty-state-actions .compact-button {
+  min-height: 34px;
+  padding: 0 12px;
+}
+
 .league-space-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.65fr);

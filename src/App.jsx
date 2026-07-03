@@ -2339,12 +2339,14 @@ function MatchQueue({
   settings = DEFAULT_SETTINGS,
   emptyTitle = "暂无候选内战",
   emptyBody = "自动同步会跳过明显天梯对局；只有达到阈值的疑似群内战或手动添加的 Match ID 会进入这里。",
+  emptyAction = null,
 }) {
   if (!matches.length) {
     return (
       <EmptyState
         title={emptyTitle}
         body={emptyBody}
+        action={emptyAction}
       />
     );
   }
@@ -3704,12 +3706,24 @@ function MatchesView({
   const [manualMessage, setManualMessage] = useState("");
   const [addingMatch, setAddingMatch] = useState(false);
   const [activeQueue, setActiveQueue] = useState("actionable");
+  const [queueTouched, setQueueTouched] = useState(false);
   const reviewableMatches = isAdmin ? matches.filter(isReviewableMatch) : matches;
   const workbenchMatches = isAdmin ? matches : reviewableMatches;
   const workQueues = useMemo(() => buildMatchWorkQueues(workbenchMatches, settings), [workbenchMatches, settings]);
-  const visibleQueueDefs = isAdmin ? MATCH_WORK_QUEUE_DEFS : MATCH_WORK_QUEUE_DEFS.filter((queue) => queue.id !== "archived");
+  const visibleQueueDefs = useMemo(
+    () => (isAdmin ? MATCH_WORK_QUEUE_DEFS : MATCH_WORK_QUEUE_DEFS.filter((queue) => queue.id !== "archived")),
+    [isAdmin],
+  );
   const activeQueueDef = visibleQueueDefs.find((queue) => queue.id === activeQueue) || visibleQueueDefs[0];
   const activeMatches = workQueues[activeQueueDef.id] || [];
+  const preferredQueueDef = useMemo(() => {
+    const queueOrder = ["actionable", "needsReview", "waiting", "stored", "all", "archived"];
+    return queueOrder
+      .map((queueId) => visibleQueueDefs.find((queue) => queue.id === queueId))
+      .filter(Boolean)
+      .find((queue) => (workQueues[queue.id]?.length || 0) > 0);
+  }, [visibleQueueDefs, workQueues]);
+  const populatedQueueDefs = visibleQueueDefs.filter((queue) => queue.id !== activeQueueDef.id && (workQueues[queue.id]?.length || 0) > 0);
   const reviewCounts = matches.reduce(
     (counts, match) => {
       const diagnostic = buildMatchDiagnostic(match, settings);
@@ -3721,6 +3735,28 @@ function MatchesView({
     },
     { pending: 0, ready: 0, stored: 0, needsReview: 0 },
   );
+  const queueEmptyBody = populatedQueueDefs.length
+    ? `当前队列没有比赛。已有 ${workQueues.all?.length || workbenchMatches.length} 场记录，可切换到有数据的队列查看。`
+    : "换到其他队列查看，或手动输入 Match ID 重新识别。";
+  const queueEmptyAction = populatedQueueDefs.length ? (
+    <div className="empty-state-actions">
+      {populatedQueueDefs.slice(0, 3).map((queue) => (
+        <button className="ghost-button compact-button" type="button" key={queue.id} onClick={() => chooseQueue(queue.id)}>
+          {queue.label} {workQueues[queue.id]?.length || 0}
+        </button>
+      ))}
+    </div>
+  ) : null;
+
+  useEffect(() => {
+    if (queueTouched || activeMatches.length > 0 || !preferredQueueDef || preferredQueueDef.id === activeQueueDef.id) return;
+    setActiveQueue(preferredQueueDef.id);
+  }, [activeMatches.length, activeQueueDef.id, preferredQueueDef, queueTouched]);
+
+  function chooseQueue(queueId) {
+    setQueueTouched(true);
+    setActiveQueue(queueId);
+  }
 
   async function addMatch() {
     const cleanId = matchId.trim();
@@ -3839,7 +3875,7 @@ function MatchesView({
                 className={queue.id === activeQueueDef.id ? "active" : ""}
                 type="button"
                 key={queue.id}
-                onClick={() => setActiveQueue(queue.id)}
+                onClick={() => chooseQueue(queue.id)}
               >
                 <span>{queue.label}</span>
                 <strong>{workQueues[queue.id]?.length || 0}</strong>
@@ -3869,7 +3905,8 @@ function MatchesView({
             isAdmin={isAdmin}
             settings={settings}
             emptyTitle={activeQueueDef.empty}
-            emptyBody="换到其他队列查看，或手动输入 Match ID 重新识别。"
+            emptyBody={queueEmptyBody}
+            emptyAction={queueEmptyAction}
           />
         </Panel>
 
