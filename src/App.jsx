@@ -1037,7 +1037,7 @@ function buildMatchRecognition(match, settings = DEFAULT_SETTINGS, detail) {
     {
       label: "已拿到对局详情",
       ok: parsed,
-      text: parsed ? `${sourceLabel} 已返回时间、模式和阵容` : "等待 OpenDota/Steam 返回详情",
+      text: parsed ? `${sourceLabel} 已返回时间、模式和阵容` : "等待 OpenDota/Steam/STRATZ 返回详情",
     },
     {
       label: "不是天梯",
@@ -1080,6 +1080,7 @@ function matchSourceMeta(match, detail) {
   const source = detail?.data_source || match?.detailSource || "";
   if (source === "steam") return { label: "Steam MatchDetails", tone: "success" };
   if (source === "steam-history") return { label: "Steam 联赛列表", tone: "info" };
+  if (source === "stratz") return { label: "STRATZ API", tone: "success" };
   if (source === "manual-roster") return { label: "手动补全阵容", tone: "warning" };
   if (source === "opendota") return { label: "OpenDota 详情", tone: "success" };
   const notes = `${match?.notes || ""} ${match?.score || ""}`;
@@ -2059,7 +2060,7 @@ function SyncStatusPanel({ syncRuns = [], onNavigate, onSyncNow, syncing = false
             <div>
               <span>重试解析</span>
               <strong>{retry.attempted ?? 0}</strong>
-              <small>成功 {retry.succeeded ?? 0}</small>
+              <small>成功 {retry.succeeded ?? 0} · 自动入库 {retry.autoStoredCount ?? 0}</small>
             </div>
           </div>
           <p className="panel-note">{latest.summary}</p>
@@ -2893,11 +2894,13 @@ function MatchDetailModal({
       ? "Steam Web API"
       : detail?.data_source === "steam-history"
         ? "Steam 联赛列表"
-        : detail?.data_source === "manual-roster"
-          ? "手动补全阵容"
-          : detail
-            ? "OpenDota"
-            : "-";
+        : detail?.data_source === "stratz"
+          ? "STRATZ API"
+          : detail?.data_source === "manual-roster"
+            ? "手动补全阵容"
+            : detail
+              ? "OpenDota"
+              : "-";
   const leagueId = detail?.leagueid || detail?.league_id || 0;
   const recognition = buildMatchRecognition(
     {
@@ -3173,7 +3176,7 @@ function MatchDetailModal({
 
           {error && (
             <div className="detail-alert">
-              OpenDota/Steam 暂时没有返回这场比赛详情：{error}。如果这是手动输入或测试 match_id，可以继续按本地识别结果复核。
+              OpenDota/Steam/STRATZ 暂时没有返回这场比赛详情：{error}。如果这是手动输入或测试 match_id，可以继续按本地识别结果复核。
             </div>
           )}
 
@@ -3254,7 +3257,7 @@ function MatchDetailModal({
                   ) : (
                     <tr>
                       <td colSpan="9" className="empty-cell">
-                        {loading ? "正在拉取 OpenDota 对局详情..." : "暂无可展示的对局记录"}
+                        {loading ? "正在拉取 OpenDota/Steam/STRATZ 对局详情..." : "暂无可展示的对局记录"}
                       </td>
                     </tr>
                   )}
@@ -3624,7 +3627,7 @@ function MatchesView({
     if (!cleanId) return;
     const existed = matches.some((match) => String(match.id) === cleanId);
     setAddingMatch(true);
-    setManualMessage(`正在${existed ? "重新" : ""}识别 Match ID ${cleanId}，会同时尝试拉取 OpenDota/Steam 详情...`);
+    setManualMessage(`正在${existed ? "重新" : ""}识别 Match ID ${cleanId}，会同时尝试拉取 OpenDota/Steam/STRATZ 详情...`);
     try {
       const result = await onAddMatch?.(cleanId);
       setManualMessage(result?.message || `Match ID ${cleanId} 已加入候选队列。`);
@@ -3688,6 +3691,7 @@ function MatchesView({
               </span>
               <span className="status-pill status-success">OpenDota recentMatches</span>
               <span className="status-pill status-success">Steam MatchDetails 兜底</span>
+              <span className="status-pill status-info">STRATZ API 可选兜底</span>
             </div>
           </>
         ) : (
@@ -3748,7 +3752,7 @@ function MatchesView({
             <p>
               {activeQueueDef.id === "actionable" && "优先处理这里：完整内战可确认，已确认比赛可入库计分。"}
               {activeQueueDef.id === "needsReview" && "这些比赛已经有一定信息，但人数、阵营或胜负仍需要人工判断。"}
-              {activeQueueDef.id === "waiting" && "这些比赛还在等 OpenDota/Steam 返回更多详情，可稍后重新识别。"}
+              {activeQueueDef.id === "waiting" && "这些比赛还在等 OpenDota/Steam/STRATZ 返回更多详情，可稍后重新识别。"}
               {activeQueueDef.id === "stored" && "这些比赛已经进入积分榜，如有误操作可以查看详情后撤销入库。"}
               {activeQueueDef.id === "archived" && "这些比赛不会进入公开候选和积分榜，可以恢复到待确认。"}
               {activeQueueDef.id === "all" && "全部比赛记录，按时间倒序展示。"}
@@ -6489,28 +6493,29 @@ export function App() {
       return;
     }
     setSyncing(true);
-    setLastSync("正在扫描联赛房与 OpenDota");
+    setLastSync("正在扫描联赛房与 OpenDota/Steam/STRATZ");
     try {
       const data = await apiRequest("/api/sync-recent", {
         method: "POST",
         admin: true,
-        body: { dateRange, settings: seasonSettings },
+        body: { dateRange, settings: seasonSettings, retryLimit: 12 },
       });
       const newCandidates = data.newCandidates || [];
       const duplicatedCount = data.duplicatedCount || 0;
       const failedCount = data.failedCount || 0;
       const leagueScan = data.leagueScan || {};
+      const retry = data.retry || {};
       const leagueSummary = leagueScan.enabled
         ? `联赛房 ${leagueScan.leagueId || seasonSettings.leagueId} 扫到 ${leagueScan.fetched || 0} 场（${leagueScan.pagesFetched || 0} 页），命中 ${leagueScan.candidateCount || 0} 场`
         : "联赛房扫描未启用";
-      const partialWarning = Boolean(failedCount || leagueScan.failed || leagueScan.partial);
+      const partialWarning = Boolean(failedCount || leagueScan.failed || leagueScan.partial || (retry.results || []).some((item) => item && !item.ok));
       applyServerState(data);
       setLastSync(`${partialWarning ? "部分异常：" : ""}${data.message || `${newCandidates.length} 新增，${duplicatedCount} 重复已跳过`}`);
       setNotifications((current) => [
         {
           id: `sync-${Date.now()}`,
           title: `${partialWarning ? "同步部分异常" : "同步完成"}：${newCandidates.length} 场新增`,
-          body: `${dateRangeLabel}，${leagueSummary}，${duplicatedCount} 场重复已跳过，${failedCount} 个账号拉取失败。`,
+          body: `${dateRangeLabel}，${leagueSummary}，${duplicatedCount} 场重复已跳过，重试 ${retry.attempted || 0} 场，成功 ${retry.succeeded || 0} 场，${failedCount} 个账号拉取失败。`,
           time: "刚刚",
           read: false,
           action: "matches",
@@ -6539,7 +6544,7 @@ export function App() {
             ? "同步请求返回异常，但后端同步记录已经更新；请查看总览页的自动同步状态。"
             : error instanceof Error
               ? error.message
-              : "OpenDota 请求失败，请稍后重试。",
+              : "OpenDota/Steam/STRATZ 请求失败，请稍后重试。",
           time: "刚刚",
           read: false,
           action: "matches",
@@ -6561,7 +6566,7 @@ export function App() {
     try {
       const data = await apiRequest(`/api/matches/${match.id}`);
       if (Array.isArray(data.matches)) setMatches(data.matches);
-      if (!data.detail) throw new Error(data.error || "OpenDota/Steam 暂未返回对局详情");
+      if (!data.detail) throw new Error(data.error || "OpenDota/Steam/STRATZ 暂未返回对局详情");
       const detail = data.detail;
       setMatchDetails((current) => ({ ...current, [match.id]: detail }));
     } catch (error) {
@@ -6625,7 +6630,7 @@ export function App() {
           }),
         );
       } catch {
-        setMatchDetailError(error instanceof Error ? error.message : "OpenDota/Steam 请求失败");
+        setMatchDetailError(error instanceof Error ? error.message : "OpenDota/Steam/STRATZ 请求失败");
       }
     } finally {
       setMatchDetailLoading(false);
@@ -6651,7 +6656,7 @@ export function App() {
       if (data.detail) {
         setMatchDetails((current) => ({ ...current, [matchId]: data.detail }));
       } else if (String(selectedMatchId) === key) {
-        setMatchDetailError(data.error || "OpenDota/Steam 暂未返回对局详情");
+        setMatchDetailError(data.error || "OpenDota/Steam/STRATZ 暂未返回对局详情");
       }
       const message = data.message || `Match ID ${matchId} 已重新识别`;
       setLastSync(message);

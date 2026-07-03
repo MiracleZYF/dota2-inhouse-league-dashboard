@@ -3,7 +3,6 @@ import {
   getAuditLogs,
   getLeagueSpace,
   getLeagueSlugFromRequest,
-  getMatchDetail,
   getMatches,
   getSettings,
   getSyncRuns,
@@ -12,7 +11,7 @@ import {
   makeRecentDateRange,
   recordSyncRun,
   readJson,
-  refreshStoredMatch,
+  retryUnresolvedMatches,
   syncPlayerProfiles,
   syncRecentMatches,
   withLeague,
@@ -36,63 +35,6 @@ function requireCronAuth(request, env) {
   const token = readBearerToken(request);
   if (token !== expected) return json({ error: "自动同步密钥不正确" }, { status: 401 });
   return null;
-}
-
-function hasRetryHint(match, detail) {
-  if (match.status === "已入库" || match.isRankedLadder) return false;
-  if (!detail) {
-    return match.time === "待解析" || /待解析|已请求解析|暂未返回|OpenDota HTTP|Steam API/i.test(`${match.score || ""} ${match.notes || ""}`);
-  }
-  if (detail.data_source === "steam-history" || detail.data_source === "cached") return true;
-  if (typeof detail.radiant_win !== "boolean") return (match.registeredPlayers || []).some((player) => typeof player.result !== "boolean");
-  return false;
-}
-
-async function retryUnresolvedMatches(env, retryLimit) {
-  const matches = await getMatches(env);
-  const candidates = [];
-
-  for (const match of matches) {
-    if (candidates.length >= retryLimit) break;
-    const detail = await getMatchDetail(env, match.id);
-    if (hasRetryHint(match, detail)) candidates.push(match);
-  }
-
-  const results = [];
-  for (const match of candidates) {
-    try {
-      const result = await refreshStoredMatch(env, match.id, {
-        resetReviewStatus: false,
-        requestOpenDotaParse: true,
-        useSteam: true,
-      });
-      results.push({
-        id: match.id,
-        ok: result.ok,
-        source: result.source,
-        status: result.match?.status,
-        score: result.match?.score,
-        requiresManualIntervention: result.match?.score === "需要人工介入",
-        message: result.message,
-        openDotaStatus: result.openDotaStatus,
-        steamStatus: result.steamStatus,
-      });
-    } catch (error) {
-      results.push({
-        id: match.id,
-        ok: false,
-        error: error instanceof Error ? error.message : "重试失败",
-      });
-    }
-  }
-
-  return {
-    attempted: results.length,
-    succeeded: results.filter((item) => item.ok).length,
-    autoStoredCount: results.filter((item) => item.status === "已入库").length,
-    manualInterventionCount: results.filter((item) => item.requiresManualIntervention).length,
-    results,
-  };
 }
 
 export async function onRequest({ request, env }) {
@@ -134,7 +76,7 @@ export async function onRequest({ request, env }) {
     const syncResult = await syncRecentMatches(scopedEnv, {
       dateRange: makeRecentDateRange(hours),
     });
-    const retryResult = retryLimit > 0 ? await retryUnresolvedMatches(scopedEnv, retryLimit) : { attempted: 0, succeeded: 0, results: [] };
+    const retryResult = retryLimit > 0 ? await retryUnresolvedMatches(scopedEnv, { retryLimit }) : { attempted: 0, succeeded: 0, results: [] };
     retryResult.autoStoredCount = Number(retryResult.autoStoredCount || 0);
     retryResult.manualInterventionCount = Number(retryResult.manualInterventionCount || 0);
     const autoStoredTotal = Number(syncResult.autoStoredCount || 0) + retryResult.autoStoredCount;

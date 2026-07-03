@@ -33,14 +33,14 @@ export async function onRequestPost({ request, env }) {
           status: "待确认",
           hidden: false,
           isRankedLadder: false,
-          notes: "管理员手动重新识别；正在尝试读取 OpenDota/Steam 详情。",
+          notes: "管理员手动重新识别；正在尝试读取 OpenDota/Steam/STRATZ 详情。",
         }
-      : createPendingMatch(matchId, "管理员手动添加；已加入识别队列，正在尝试读取 OpenDota/Steam 详情。");
+      : createPendingMatch(matchId, "管理员手动添加；已加入识别队列，正在尝试读取 OpenDota/Steam/STRATZ 详情。");
     let detail = null;
     let message = existing ? `Match ID ${matchId} 已在识别队列中，已尝试重新识别。` : `Match ID ${matchId} 已加入候选队列。`;
 
     await upsertMatch(scopedEnv, match, { preserveStatus: false });
-    const lookup = await refreshStoredMatch(scopedEnv, matchId, { resetReviewStatus: true, requestOpenDotaParse: true, useSteam: true });
+    const lookup = await refreshStoredMatch(scopedEnv, matchId, { resetReviewStatus: true, requestOpenDotaParse: true, useSteam: true, useStratz: true });
     match = lookup.match;
     detail = lookup.detail;
     message = `${message} ${lookup.message}${lookup.warning ? `；${lookup.warning}` : ""}`;
@@ -49,7 +49,7 @@ export async function onRequestPost({ request, env }) {
       matchId,
       actor: "管理员",
       summary: message,
-      details: { source: lookup.source, openDotaStatus: lookup.openDotaStatus, steamStatus: lookup.steamStatus },
+      details: { source: lookup.source, openDotaStatus: lookup.openDotaStatus, steamStatus: lookup.steamStatus, stratzStatus: lookup.stratzStatus, attempts: lookup.attempts || [] },
     });
 
     return json({
@@ -63,6 +63,8 @@ export async function onRequestPost({ request, env }) {
       source: lookup.source,
       openDotaStatus: lookup.openDotaStatus,
       steamStatus: lookup.steamStatus,
+      stratzStatus: lookup.stratzStatus,
+      attempts: lookup.attempts || [],
       leagueId: detail?.leagueid || 0,
       message,
     });

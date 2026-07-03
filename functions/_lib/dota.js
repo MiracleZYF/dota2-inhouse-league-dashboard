@@ -1,5 +1,6 @@
 const OPENDOTA_BASE_URL = "https://api.opendota.com/api";
 const STEAM_DOTA_MATCH_BASE_URL = "https://api.steampowered.com/IDOTA2Match_570";
+const STRATZ_GRAPHQL_URL = "https://api.stratz.com/graphql";
 const ROSTER_VERSION = "2026-06-18-roster-38";
 export const DEFAULT_LEAGUE_SLUG = "pokemon-dota";
 
@@ -1891,6 +1892,171 @@ export async function getSteamMatchDetail(env, matchId) {
   return { ok: true, status: response.status, detail, payload };
 }
 
+function stratzToken(env) {
+  return env.STRATZ_API_TOKEN || env.STRATZ_TOKEN || env.STRATZ_API_KEY || "";
+}
+
+function normalizeStratzUnixTime(value) {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value <= 0) return undefined;
+    if (value > 1000000000000) return Math.floor(value / 1000);
+    return Math.floor(value);
+  }
+  const trimmed = String(value).trim();
+  if (!trimmed) return undefined;
+  if (/^\d+$/.test(trimmed)) return normalizeStratzUnixTime(Number(trimmed));
+  const parsed = Date.parse(trimmed);
+  return Number.isFinite(parsed) ? Math.floor(parsed / 1000) : undefined;
+}
+
+function normalizeStratzAccountId(value) {
+  if (value === undefined || value === null || value === "") return "";
+  const text = String(value).trim();
+  if (!/^\d+$/.test(text)) return text;
+  try {
+    const steam64Base = 76561197960265728n;
+    const number = BigInt(text);
+    if (number > steam64Base) return String(number - steam64Base);
+  } catch {
+    // Keep the original value if BigInt parsing fails.
+  }
+  return text;
+}
+
+function finiteNumberOrUndefined(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : undefined;
+}
+
+function normalizeStratzWinner(match, players) {
+  if (typeof match?.didRadiantWin === "boolean") return match.didRadiantWin;
+  if (typeof match?.radiantWin === "boolean") return match.radiantWin;
+  if (typeof match?.radiant_win === "boolean") return match.radiant_win;
+  const winningPlayer = (players || []).find((player) => typeof player?.isVictory === "boolean");
+  if (!winningPlayer) return null;
+  return Boolean(winningPlayer.isRadiant) === Boolean(winningPlayer.isVictory);
+}
+
+function normalizeStratzPlayerSlot(player, teamIndex) {
+  const explicitSlot = finiteNumberOrUndefined(player?.playerSlot ?? player?.player_slot);
+  if (explicitSlot !== undefined) return explicitSlot;
+  const safeIndex = Math.min(Math.max(Number(teamIndex) || 0, 0), 4);
+  return player?.isRadiant === false ? 128 + safeIndex : safeIndex;
+}
+
+function normalizeStratzMatchDetail(payload, matchId) {
+  const match = payload?.data?.match || payload?.match || null;
+  if (!match || typeof match !== "object") return null;
+  const sourcePlayers = Array.isArray(match.players) ? match.players : [];
+  if (!sourcePlayers.length) return null;
+
+  const radiantWin = normalizeStratzWinner(match, sourcePlayers);
+  let radiantIndex = 0;
+  let direIndex = 0;
+  const players = sourcePlayers.map((player) => {
+    const isRadiant = player?.isRadiant !== false;
+    const teamIndex = isRadiant ? radiantIndex++ : direIndex++;
+    return {
+      account_id: normalizeStratzAccountId(player?.steamAccountId ?? player?.accountId ?? player?.steamAccount?.id),
+      player_slot: normalizeStratzPlayerSlot(player, teamIndex),
+      hero_id: finiteNumberOrUndefined(player?.heroId ?? player?.hero_id),
+      kills: finiteNumberOrUndefined(player?.kills ?? player?.numKills),
+      deaths: finiteNumberOrUndefined(player?.deaths ?? player?.numDeaths),
+      assists: finiteNumberOrUndefined(player?.assists ?? player?.numAssists),
+      gold_per_min: finiteNumberOrUndefined(player?.goldPerMinute ?? player?.goldPerMin ?? player?.gpm),
+      xp_per_min: finiteNumberOrUndefined(player?.experiencePerMinute ?? player?.xpPerMinute ?? player?.xpm),
+      personaname: player?.steamAccount?.name || player?.name || "",
+    };
+  });
+
+  return {
+    match_id: Number(match.id || match.matchId || matchId),
+    leagueid: finiteNumberOrUndefined(match.leagueId ?? match.league?.id) || 0,
+    lobby_type: finiteNumberOrUndefined(match.lobbyType ?? match.lobby_type),
+    game_mode: finiteNumberOrUndefined(match.gameMode ?? match.game_mode),
+    radiant_win: typeof radiantWin === "boolean" ? radiantWin : null,
+    start_time: normalizeStratzUnixTime(match.startDateTime ?? match.startTime ?? match.start_time),
+    duration: finiteNumberOrUndefined(match.durationSeconds ?? match.duration),
+    data_source: "stratz",
+    players,
+  };
+}
+
+function stratzQueryVariants(matchId) {
+  const id = String(matchId || "").replace(/\D/g, "");
+  return [
+    `query { match(id: ${id}) { id didRadiantWin durationSeconds startDateTime gameMode lobbyType leagueId players { steamAccountId heroId kills deaths assists goldPerMinute experiencePerMinute isRadiant isVictory playerSlot steamAccount { name } } } }`,
+    `query { match(id: ${id}) { id didRadiantWin durationSeconds startDateTime players { steamAccountId heroId kills deaths assists isRadiant isVictory playerSlot } } }`,
+    `query { match(id: ${id}) { id players { steamAccountId heroId kills deaths assists isRadiant isVictory } } }`,
+  ];
+}
+
+function extractStratzApiMessage(payload, rawText) {
+  const messages = Array.isArray(payload?.errors)
+    ? payload.errors.map((error) => error?.message).filter(Boolean)
+    : [];
+  if (messages.length) return messages.join("；").slice(0, 220);
+  if (payload?.error) return String(payload.error).slice(0, 220);
+  if (rawText && !payload) return rawText.trim().replace(/\s+/g, " ").slice(0, 180);
+  return "";
+}
+
+export async function getStratzMatchDetail(env, matchId) {
+  const token = stratzToken(env);
+  if (!token) {
+    return { ok: false, skipped: true, status: 0, error: "STRATZ_API_TOKEN 未配置" };
+  }
+  if (!/^\d+$/.test(String(matchId || ""))) {
+    return { ok: false, status: 0, error: "Match ID 无效" };
+  }
+
+  let lastStatus = 0;
+  let lastError = "";
+  let lastPayload = null;
+
+  for (const query of stratzQueryVariants(matchId)) {
+    let response;
+    let rawText = "";
+    let payload = null;
+    try {
+      response = await fetch(STRATZ_GRAPHQL_URL, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+          "user-agent": "dota2-inhouse-league-dashboard/1.0",
+        },
+        body: JSON.stringify({ query }),
+      });
+      rawText = await response.text().catch(() => "");
+      payload = parseJsonPayload(rawText);
+    } catch (error) {
+      return { ok: false, status: 0, error: error instanceof Error ? error.message : "STRATZ API 请求失败" };
+    }
+
+    lastStatus = response.status;
+    lastPayload = payload;
+    if (!response.ok) {
+      const message = extractStratzApiMessage(payload, rawText);
+      lastError = message ? `STRATZ HTTP ${response.status}：${message}` : `STRATZ HTTP ${response.status}`;
+      break;
+    }
+
+    const detail = normalizeStratzMatchDetail(payload, matchId);
+    if (detail) return { ok: true, status: response.status, detail, payload };
+
+    lastError = extractStratzApiMessage(payload, rawText) || "STRATZ 未返回可用比赛详情";
+  }
+
+  return {
+    ok: false,
+    status: lastStatus,
+    error: lastError || "STRATZ 未返回可用比赛详情",
+    payload: lastPayload,
+  };
+}
+
 export async function getSteamLeagueMatches(env, leagueId, { matchesRequested = 100, maxPages = 6 } = {}) {
   const cleanLeagueId = String(leagueId || "").trim();
   if (!cleanLeagueId) return { ok: false, status: 0, error: "League ID 未配置", matches: [] };
@@ -2017,59 +2183,111 @@ export async function getSteamLeagueMatches(env, leagueId, { matchesRequested = 
   };
 }
 
-export async function fetchMatchDetailWithFallback(env, matchId, { requestOpenDotaParse = false, useSteam = true } = {}) {
-  const openDotaResponse = await openDotaFetch(env, `/matches/${matchId}`);
-  let parseRequested = false;
+function sourceAttemptError(attempt) {
+  if (!attempt) return "";
+  if (attempt.skipped) return "";
+  if (attempt.ok) return "";
+  if (attempt.error) return attempt.error;
+  if (attempt.status) return `${attempt.source} HTTP ${attempt.status}`;
+  return `${attempt.source} 未返回可用详情`;
+}
 
-  if (openDotaResponse.ok) {
+function combinedLookupError(attempts) {
+  return (attempts || [])
+    .map(sourceAttemptError)
+    .filter(Boolean)
+    .join("；") || "数据源暂未返回这场比赛详情";
+}
+
+export async function fetchMatchDetailWithFallback(env, matchId, { requestOpenDotaParse = false, useSteam = true, useStratz = true } = {}) {
+  const attempts = [];
+  let openDotaResponse = null;
+  let openDotaStatus = 0;
+  let parseRequested = false;
+  let openDotaError = "";
+
+  try {
+    openDotaResponse = await openDotaFetch(env, `/matches/${matchId}`);
+    openDotaStatus = openDotaResponse.status;
+  } catch (error) {
+    openDotaError = error instanceof Error ? error.message : "OpenDota 请求失败";
+    attempts.push({ source: "opendota", ok: false, status: 0, error: openDotaError });
+  }
+
+  if (openDotaResponse?.ok) {
     const detail = await openDotaResponse.json();
+    attempts.push({ source: "opendota", ok: true, status: openDotaResponse.status });
     return {
       ok: true,
       source: "opendota",
       detail: { ...detail, data_source: "opendota" },
       openDotaStatus: openDotaResponse.status,
       steamStatus: null,
+      stratzStatus: null,
       parseRequested,
+      attempts,
     };
   }
 
-  if (requestOpenDotaParse && openDotaResponse.status === 404) {
-    await openDotaFetch(env, `/request/${matchId}`, { method: "POST" });
-    parseRequested = true;
+  if (openDotaResponse && !openDotaResponse.ok) {
+    attempts.push({ source: "opendota", ok: false, status: openDotaResponse.status, error: `OpenDota HTTP ${openDotaResponse.status}` });
   }
 
+  if (requestOpenDotaParse && openDotaResponse?.status === 404) {
+    try {
+      await openDotaFetch(env, `/request/${matchId}`, { method: "POST" });
+      parseRequested = true;
+    } catch {
+      // 解析请求失败不阻塞后续 Steam / STRATZ 兜底。
+    }
+  }
+
+  let steamResult = null;
   if (useSteam) {
-    const steamResult = await getSteamMatchDetail(env, matchId);
+    steamResult = await getSteamMatchDetail(env, matchId);
+    attempts.push({ source: "steam", ok: steamResult.ok, status: steamResult.status, error: steamResult.error });
     if (steamResult.ok) {
       return {
         ok: true,
         source: "steam",
         detail: steamResult.detail,
-        openDotaStatus: openDotaResponse.status,
+        openDotaStatus,
         steamStatus: steamResult.status,
+        stratzStatus: null,
         parseRequested,
+        attempts,
       };
     }
+  }
 
-    return {
-      ok: false,
-      source: null,
-      detail: null,
-      openDotaStatus: openDotaResponse.status,
-      steamStatus: steamResult.status,
-      parseRequested,
-      error: `OpenDota HTTP ${openDotaResponse.status}；${steamResult.error}`,
-    };
+  let stratzResult = null;
+  if (useStratz) {
+    stratzResult = await getStratzMatchDetail(env, matchId);
+    attempts.push({ source: "stratz", ok: stratzResult.ok, status: stratzResult.status, skipped: stratzResult.skipped, error: stratzResult.error });
+    if (stratzResult.ok) {
+      return {
+        ok: true,
+        source: "stratz",
+        detail: stratzResult.detail,
+        openDotaStatus,
+        steamStatus: steamResult?.status ?? null,
+        stratzStatus: stratzResult.status,
+        parseRequested,
+        attempts,
+      };
+    }
   }
 
   return {
     ok: false,
     source: null,
     detail: null,
-    openDotaStatus: openDotaResponse.status,
-    steamStatus: null,
+    openDotaStatus,
+    steamStatus: steamResult?.status ?? null,
+    stratzStatus: stratzResult?.status ?? null,
     parseRequested,
-    error: `OpenDota HTTP ${openDotaResponse.status}`,
+    attempts,
+    error: combinedLookupError(attempts),
   };
 }
 
@@ -2514,6 +2732,7 @@ function buildManualInterventionReasons({ recognition, threshold, rankedLadder, 
 function describeDetailSource(detail) {
   if (detail?.data_source === "steam") return "Steam Web API";
   if (detail?.data_source === "steam-history") return "Steam 联赛列表";
+  if (detail?.data_source === "stratz") return "STRATZ API";
   if (detail?.data_source === "cached") return "缓存详情";
   if (detail?.data_source === "manual-roster") return "手动补全阵容";
   return "OpenDota";
@@ -2714,7 +2933,7 @@ async function getLeagueHistoryFallback(env, matchId, settings) {
   return { detail: buildSteamHistoryDetail(leagueMatch, leagueId), error: "" };
 }
 
-export async function refreshStoredMatch(env, matchId, { resetReviewStatus = false, requestOpenDotaParse = true, useSteam = true } = {}) {
+export async function refreshStoredMatch(env, matchId, { resetReviewStatus = false, requestOpenDotaParse = true, useSteam = true, useStratz = true } = {}) {
   const existingMatch = await getMatch(env, matchId);
   const currentMatch = existingMatch || createPendingMatch(matchId);
   const players = await getPlayers(env);
@@ -2722,6 +2941,7 @@ export async function refreshStoredMatch(env, matchId, { resetReviewStatus = fal
   const lookup = await fetchMatchDetailWithFallback(env, matchId, {
     requestOpenDotaParse,
     useSteam,
+    useStratz,
   });
 
   if (lookup.ok) {
@@ -2735,8 +2955,10 @@ export async function refreshStoredMatch(env, matchId, { resetReviewStatus = fal
       source: lookup.source,
       openDotaStatus: lookup.openDotaStatus,
       steamStatus: lookup.steamStatus,
+      stratzStatus: lookup.stratzStatus,
       parseRequested: lookup.parseRequested,
-      message: `已通过 ${lookup.source === "steam" ? "Steam Web API" : "OpenDota"} 刷新比赛详情`,
+      attempts: lookup.attempts,
+      message: `已通过 ${describeDetailSource(lookup.detail)} 刷新比赛详情`,
     };
   }
 
@@ -2755,7 +2977,9 @@ export async function refreshStoredMatch(env, matchId, { resetReviewStatus = fal
       source,
       openDotaStatus: lookup.openDotaStatus,
       steamStatus: lookup.steamStatus,
+      stratzStatus: lookup.stratzStatus,
       parseRequested: lookup.parseRequested,
+      attempts: lookup.attempts,
       warning: lookup.error,
       message: source === "steam-history" ? "单场详情暂未返回，已用 Steam 联赛列表刷新 10 人阵容" : "单场详情暂未返回，已保留当前缓存阵容",
     };
@@ -2782,8 +3006,75 @@ export async function refreshStoredMatch(env, matchId, { resetReviewStatus = fal
     source: null,
     openDotaStatus: lookup.openDotaStatus,
     steamStatus: lookup.steamStatus,
+    stratzStatus: lookup.stratzStatus,
     parseRequested: lookup.parseRequested,
+    attempts: lookup.attempts,
     error: lookup.error || leagueFallback.error || `OpenDota HTTP ${lookup.openDotaStatus}`,
     message: "已重新请求解析，但数据源仍未返回完整详情",
+  };
+}
+
+function hasRetryHint(match, detail) {
+  if (match.status === "已入库" || match.isRankedLadder) return false;
+  if (!detail) {
+    return match.time === "待解析" || /待解析|已请求解析|暂未返回|OpenDota HTTP|Steam API|STRATZ|数据源/i.test(`${match.score || ""} ${match.notes || ""}`);
+  }
+  if (detail.data_source === "steam-history" || detail.data_source === "cached") return true;
+  if (typeof detail.radiant_win !== "boolean") return (match.registeredPlayers || []).some((player) => typeof player.result !== "boolean");
+  return false;
+}
+
+export async function retryUnresolvedMatches(env, { retryLimit = 12, requestOpenDotaParse = true, useSteam = true, useStratz = true } = {}) {
+  const safeLimit = Math.min(Math.max(Number(retryLimit) || 0, 0), 50);
+  if (!safeLimit) return { attempted: 0, succeeded: 0, autoStoredCount: 0, manualInterventionCount: 0, results: [] };
+
+  const matches = await getMatches(env);
+  const candidates = [];
+
+  for (const match of matches) {
+    if (candidates.length >= safeLimit) break;
+    const detail = await getMatchDetail(env, match.id);
+    if (hasRetryHint(match, detail)) candidates.push(match);
+  }
+
+  const results = [];
+  for (const match of candidates) {
+    try {
+      const result = await refreshStoredMatch(env, match.id, {
+        resetReviewStatus: false,
+        requestOpenDotaParse,
+        useSteam,
+        useStratz,
+      });
+      results.push({
+        id: match.id,
+        ok: result.ok,
+        source: result.source,
+        status: result.match?.status,
+        score: result.match?.score,
+        requiresManualIntervention: result.match?.score === "需要人工介入",
+        message: result.message,
+        error: result.error,
+        warning: result.warning,
+        openDotaStatus: result.openDotaStatus,
+        steamStatus: result.steamStatus,
+        stratzStatus: result.stratzStatus,
+        attempts: result.attempts || [],
+      });
+    } catch (error) {
+      results.push({
+        id: match.id,
+        ok: false,
+        error: error instanceof Error ? error.message : "重试失败",
+      });
+    }
+  }
+
+  return {
+    attempted: results.length,
+    succeeded: results.filter((item) => item.ok).length,
+    autoStoredCount: results.filter((item) => item.status === "已入库").length,
+    manualInterventionCount: results.filter((item) => item.requiresManualIntervention).length,
+    results,
   };
 }

@@ -56,7 +56,7 @@ export async function onRequestPost({ request, params, env }) {
       matchId: params.matchId,
       actor: "管理员",
       summary: `重新识别 Match ID ${params.matchId}：${result.message}`,
-      details: { source: result.source, openDotaStatus: result.openDotaStatus, steamStatus: result.steamStatus },
+      details: { source: result.source, openDotaStatus: result.openDotaStatus, steamStatus: result.steamStatus, stratzStatus: result.stratzStatus, attempts: result.attempts || [] },
     });
     return json({
       ...result,
@@ -110,7 +110,7 @@ export async function onRequestPatch({ request, params, env }) {
       const players = currentMatch?.registeredPlayers || [];
       const hasUnknownResult = players.some((player) => typeof player.result !== "boolean");
       if (!players.length || hasUnknownResult) {
-        return json({ error: "这场比赛还没有明确胜负，暂不能入库计分。请等待 OpenDota/Steam 返回完整详情，或后续添加手动胜负修正。" }, { status: 400 });
+        return json({ error: "这场比赛还没有明确胜负，暂不能入库计分。请等待 OpenDota/Steam/STRATZ 返回完整详情，或手动指定胜方。" }, { status: 400 });
       }
     }
     const before = await getMatch(scopedEnv, params.matchId);

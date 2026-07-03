@@ -30,6 +30,14 @@ The production output is generated in `dist`.
 
 Admin write operations require the Cloudflare `ADMIN_TOKEN` environment variable.
 
+## Runtime Data Keys
+
+Set these in Cloudflare Pages -> Settings -> Environment variables:
+
+- `ADMIN_TOKEN`: required for admin write APIs and GitHub Actions sync.
+- `STEAM_API_KEY`: recommended for Steam league room scans and `GetMatchDetails`.
+- `STRATZ_API_TOKEN`: optional fallback for match details when OpenDota or Steam have not returned full data.
+
 ## Automatic Sync
 
 The app exposes a protected endpoint for scheduled sync:
@@ -39,4 +47,6 @@ POST /api/cron/sync
 Authorization: Bearer <ADMIN_TOKEN or CRON_SECRET>
 ```
 
-The included GitHub Actions workflow runs it every day at 19:00 UTC, which is 03:00 in Asia/Shanghai. To enable it, add a GitHub repository secret named `ADMIN_TOKEN` with the same value as the Cloudflare Pages `ADMIN_TOKEN`.
+The included GitHub Actions workflow runs it every day at 19:00 UTC, which is 03:00 in Asia/Shanghai, and at 04:05 UTC, which is 12:05 in Asia/Shanghai for the rate-limited player profile queue. To enable it, add a GitHub repository secret named `ADMIN_TOKEN` with the same value as the Cloudflare Pages `ADMIN_TOKEN`.
+
+Manual sync and scheduled sync both retry unresolved matches. The detail fallback order is OpenDota -> Steam Web API -> STRATZ API -> cached Steam league list/manual review.
