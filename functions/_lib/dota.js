@@ -1896,6 +1896,16 @@ function stratzToken(env) {
   return env.STRATZ_API_TOKEN || env.STRATZ_TOKEN || env.STRATZ_API_KEY || "";
 }
 
+export function getRuntimeCapabilities(env) {
+  return {
+    d1: Boolean(env.DB),
+    openDotaApiKey: Boolean(env.OPENDOTA_API_KEY),
+    steamApiKey: Boolean(env.STEAM_API_KEY),
+    stratzApiToken: Boolean(stratzToken(env)),
+    cronSecret: Boolean(env.CRON_SECRET || env.ADMIN_TOKEN),
+  };
+}
+
 function normalizeStratzUnixTime(value) {
   if (value === undefined || value === null || value === "") return undefined;
   if (typeof value === "number") {

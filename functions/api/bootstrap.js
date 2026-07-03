@@ -1,4 +1,4 @@
-import { DEFAULT_LEAGUE_SLUG, ensureDatabase, getAuditLogs, getLeagueSlugFromRequest, getLeagueSpace, getMatches, getPlayers, getPlayoffState, getSettings, getSyncRuns, json, listLeagueSpaces, withLeague } from "../_lib/dota.js";
+import { DEFAULT_LEAGUE_SLUG, ensureDatabase, getAuditLogs, getLeagueSlugFromRequest, getLeagueSpace, getMatches, getPlayers, getPlayoffState, getRuntimeCapabilities, getSettings, getSyncRuns, json, listLeagueSpaces, withLeague } from "../_lib/dota.js";
 
 export async function onRequestGet({ request, env }) {
   try {
@@ -25,6 +25,7 @@ export async function onRequestGet({ request, env }) {
         loadedAt: new Date().toISOString(),
         leagueSlug,
         dataMode: leagueSlug === DEFAULT_LEAGUE_SLUG ? "default-space" : "isolated-space",
+        capabilities: getRuntimeCapabilities(env),
       },
     });
   } catch (error) {

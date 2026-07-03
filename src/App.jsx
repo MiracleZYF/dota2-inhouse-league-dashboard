@@ -1978,6 +1978,7 @@ function actionLabel(action) {
     manual_add_match: "手动添加",
     manual_reidentify_match: "手动重识别",
     manual_roster: "手动补全阵容",
+    retry_unresolved: "重试解析",
     save_playoff_teams: "保存分队",
     bind_playoff_match: "收录淘汰赛",
     clear_playoff_game: "清除淘汰赛绑定",
@@ -2012,6 +2013,99 @@ function syncRunIssueList(run) {
   const retryFailed = retryResults.filter((item) => item && !item.ok).length;
   if (retryFailed) issues.push(`${retryFailed} 场重试解析仍未成功`);
   return issues;
+}
+
+function sourceName(source) {
+  if (source === "opendota") return "OpenDota";
+  if (source === "steam") return "Steam MatchDetails";
+  if (source === "stratz") return "STRATZ";
+  if (source === "steam-history") return "Steam 联赛列表";
+  return source || "数据源";
+}
+
+function attemptStatusMeta(attempt) {
+  if (!attempt) return { label: "未尝试", tone: "muted" };
+  if (attempt.ok) return { label: attempt.status ? `成功 HTTP ${attempt.status}` : "成功", tone: "success" };
+  if (attempt.skipped) return { label: "未配置", tone: "muted" };
+  if (attempt.status) return { label: `失败 HTTP ${attempt.status}`, tone: "warning" };
+  return { label: "失败", tone: "warning" };
+}
+
+function formatLookupAttemptSummary(attempts = []) {
+  if (!Array.isArray(attempts) || !attempts.length) return "";
+  return attempts
+    .map((attempt) => `${sourceName(attempt.source)} ${attemptStatusMeta(attempt).label}`)
+    .join("；");
+}
+
+function SourceAttemptList({ attempts = [] }) {
+  if (!Array.isArray(attempts) || !attempts.length) return null;
+  return (
+    <div className="source-attempt-list">
+      {attempts.map((attempt, index) => {
+        const meta = attemptStatusMeta(attempt);
+        return (
+          <div className={`source-attempt status-${meta.tone}`} key={`${attempt.source || "source"}-${index}`}>
+            <span>{sourceName(attempt.source)}</span>
+            <strong>{meta.label}</strong>
+            {attempt.error && !attempt.skipped && <small>{attempt.error}</small>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function runtimeSourceRows(runtimeMeta = {}, settings = DEFAULT_SETTINGS) {
+  const caps = runtimeMeta.capabilities || {};
+  return [
+    {
+      id: "league",
+      name: "Steam 联赛房扫描",
+      enabled: Boolean(settings.useLeagueScan && settings.leagueId && caps.steamApiKey),
+      configured: Boolean(caps.steamApiKey),
+      hint: settings.leagueId ? `League ID ${settings.leagueId}` : "未填写 League ID",
+    },
+    {
+      id: "steam",
+      name: "Steam MatchDetails",
+      enabled: Boolean(caps.steamApiKey),
+      configured: Boolean(caps.steamApiKey),
+      hint: "单场详情兜底",
+    },
+    {
+      id: "opendota",
+      name: "OpenDota",
+      enabled: true,
+      configured: Boolean(caps.openDotaApiKey),
+      hint: caps.openDotaApiKey ? "已配置 Key，额度更稳" : "可无 Key 使用，可能限流",
+    },
+    {
+      id: "stratz",
+      name: "STRATZ API",
+      enabled: Boolean(caps.stratzApiToken),
+      configured: Boolean(caps.stratzApiToken),
+      hint: caps.stratzApiToken ? "详情后备源已启用" : "未配置 STRATZ_API_TOKEN",
+    },
+  ];
+}
+
+function RuntimeDataSources({ runtimeMeta = {}, settings = DEFAULT_SETTINGS }) {
+  return (
+    <div className="source-status-list">
+      {runtimeSourceRows(runtimeMeta, settings).map((source) => (
+        <div className="source-status-row" key={source.id}>
+          <span className={`status-pill ${source.enabled ? "status-success" : source.configured ? "status-info" : "status-muted"}`}>
+            {source.enabled ? "启用" : source.configured ? "待启用" : "未配置"}
+          </span>
+          <div>
+            <strong>{source.name}</strong>
+            <small>{source.hint}</small>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function SyncStatusPanel({ syncRuns = [], onNavigate, onSyncNow, syncing = false, dateRangeLabel, dateRangeValid = true, isAdmin = false }) {
@@ -2874,6 +2968,7 @@ function MatchDetailModal({
   onBindPlayoffMatch,
   settings = DEFAULT_SETTINGS,
   isAdmin = false,
+  attempts = [],
 }) {
   const detailBodyRef = useRef(null);
 
@@ -3058,6 +3153,8 @@ function MatchDetailModal({
             <span>识别备注</span>
             <p>{match.notes}</p>
           </div>
+
+          <SourceAttemptList attempts={attempts} />
 
           <div className="recognition-checklist">
             {recognition.checks.map((check) => (
@@ -3598,6 +3695,9 @@ function MatchesView({
   settings,
   onOpenSettings,
   isAdmin = false,
+  runtimeMeta = {},
+  onRetryUnresolved,
+  retryingUnresolved = false,
 }) {
   const [matchId, setMatchId] = useState("");
   const threshold = settings.minRegisteredPlayers;
@@ -3686,12 +3786,7 @@ function MatchesView({
             </div>
             <div className="rail-section">
               <span className="rail-label">识别来源</span>
-              <span className={`status-pill ${settings.useLeagueScan && settings.leagueId ? "status-success" : "status-muted"}`}>
-                联赛房 {settings.leagueId || "未设置"}
-              </span>
-              <span className="status-pill status-success">OpenDota recentMatches</span>
-              <span className="status-pill status-success">Steam MatchDetails 兜底</span>
-              <span className="status-pill status-info">STRATZ API 可选兜底</span>
+              <RuntimeDataSources runtimeMeta={runtimeMeta} settings={settings} />
             </div>
           </>
         ) : (
@@ -3729,6 +3824,10 @@ function MatchesView({
                 <button className="ghost-button" type="button" onClick={onOpenSettings}>
                   <SlidersHorizontal size={16} />
                   同步设置
+                </button>
+                <button className="ghost-button" type="button" onClick={onRetryUnresolved} disabled={retryingUnresolved || !onRetryUnresolved}>
+                  <RefreshCw size={16} className={retryingUnresolved ? "spin-icon" : ""} />
+                  {retryingUnresolved ? "重试中" : "重试等待解析"}
                 </button>
               </div>
               {manualMessage && <p className="inline-message">{manualMessage}</p>}
@@ -5732,6 +5831,7 @@ export function App() {
   const [leagueCreateError, setLeagueCreateError] = useState("");
   const [lastSync, setLastSync] = useState("刚刚更新");
   const [syncing, setSyncing] = useState(false);
+  const [retryingUnresolved, setRetryingUnresolved] = useState(false);
   const [playoffSaving, setPlayoffSaving] = useState(false);
   const [refreshingMatchIds, setRefreshingMatchIds] = useState([]);
   const [backendReady, setBackendReady] = useState(false);
@@ -5740,10 +5840,12 @@ export function App() {
   const [profileSyncing, setProfileSyncing] = useState(false);
   const [profileSyncMessage, setProfileSyncMessage] = useState("");
   const [matchDetails, setMatchDetails] = useState({});
+  const [matchLookupAttempts, setMatchLookupAttempts] = useState({});
   const [matchDetailLoading, setMatchDetailLoading] = useState(false);
   const [matchDetailError, setMatchDetailError] = useState("");
   const [heroNames, setHeroNames] = useState({});
   const [heroMeta, setHeroMeta] = useState({});
+  const [runtimeMeta, setRuntimeMeta] = useState({});
 
   const seasons = useMemo(() => getSettingsSeasons(settings), [settings]);
   const currentSeasonId = useMemo(() => getCurrentSeasonId(settings), [settings]);
@@ -5797,6 +5899,7 @@ export function App() {
         if (data.playoff) setPlayoff(data.playoff);
         if (data.leagueSpace) setLeagueSpace(data.leagueSpace);
         if (Array.isArray(data.leagues)) setLeagues(data.leagues);
+        if (data.meta) setRuntimeMeta(data.meta);
         setBackendReady(true);
         setLastSync("已连接 D1");
       } catch (error) {
@@ -5837,6 +5940,7 @@ export function App() {
         if (data.playoff) setPlayoff(data.playoff);
         if (data.leagueSpace) setLeagueSpace(data.leagueSpace);
         if (Array.isArray(data.leagues)) setLeagues(data.leagues);
+        if (data.meta) setRuntimeMeta(data.meta);
         setLastSync("状态已自动刷新");
       } catch {
         // 后台轮询失败不打扰正在操作的人，下一轮会继续尝试。
@@ -5899,6 +6003,7 @@ export function App() {
     if (data?.playoff) setPlayoff(data.playoff);
     if (data?.leagueSpace) setLeagueSpace(data.leagueSpace);
     if (Array.isArray(data?.leagues)) setLeagues(data.leagues);
+    if (data?.meta) setRuntimeMeta(data.meta);
   }
 
   async function refreshBackendData() {
@@ -5912,6 +6017,7 @@ export function App() {
       if (data.playoff) setPlayoff(data.playoff);
       if (data.leagueSpace) setLeagueSpace(data.leagueSpace);
       if (Array.isArray(data.leagues)) setLeagues(data.leagues);
+      if (data.meta) setRuntimeMeta(data.meta);
       setBackendReady(true);
       setLastSync("状态已刷新");
     } catch (error) {
@@ -6556,6 +6662,54 @@ export function App() {
     }
   }
 
+  async function retryUnresolvedNow() {
+    if (retryingUnresolved) return;
+    setRetryingUnresolved(true);
+    setLastSync("正在重试等待解析的比赛");
+    try {
+      const data = await apiRequest("/api/retry-unresolved", {
+        method: "POST",
+        admin: true,
+        body: { retryLimit: 20 },
+      });
+      applyServerState(data);
+      const retry = data.retry || {};
+      const attemptSummary = (retry.results || [])
+        .slice(0, 3)
+        .map((item) => `${item.id}：${item.ok ? sourceName(item.source) : item.error || "未成功"}`)
+        .join("；");
+      const message = data.message || `已重试 ${retry.attempted || 0} 场，成功 ${retry.succeeded || 0} 场`;
+      setLastSync(message);
+      setNotifications((current) => [
+        {
+          id: `retry-unresolved-${Date.now()}`,
+          title: "等待解析已重试",
+          body: attemptSummary ? `${message}。${attemptSummary}` : message,
+          time: "刚刚",
+          read: false,
+          action: "matches",
+        },
+        ...current.slice(0, 5),
+      ]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "重试等待解析失败，请稍后再试。";
+      setLastSync("重试解析失败");
+      setNotifications((current) => [
+        {
+          id: `retry-unresolved-error-${Date.now()}`,
+          title: "重试解析失败",
+          body: message,
+          time: "刚刚",
+          read: false,
+          action: "matches",
+        },
+        ...current.slice(0, 5),
+      ]);
+    } finally {
+      setRetryingUnresolved(false);
+    }
+  }
+
   async function openMatch(match) {
     setSelectedMatchId(match.id);
     setMatchDetailError("");
@@ -6566,6 +6720,7 @@ export function App() {
     try {
       const data = await apiRequest(`/api/matches/${match.id}`);
       if (Array.isArray(data.matches)) setMatches(data.matches);
+      if (Array.isArray(data.attempts)) setMatchLookupAttempts((current) => ({ ...current, [match.id]: data.attempts }));
       if (!data.detail) throw new Error(data.error || "OpenDota/Steam/STRATZ 暂未返回对局详情");
       const detail = data.detail;
       setMatchDetails((current) => ({ ...current, [match.id]: detail }));
@@ -6653,18 +6808,20 @@ export function App() {
     try {
       const data = await apiRequest(`/api/matches/${matchId}`, { method: "POST", admin: true, body: { action: "refresh" } });
       applyServerState(data);
+      if (Array.isArray(data.attempts)) setMatchLookupAttempts((current) => ({ ...current, [matchId]: data.attempts }));
       if (data.detail) {
         setMatchDetails((current) => ({ ...current, [matchId]: data.detail }));
       } else if (String(selectedMatchId) === key) {
         setMatchDetailError(data.error || "OpenDota/Steam/STRATZ 暂未返回对局详情");
       }
       const message = data.message || `Match ID ${matchId} 已重新识别`;
+      const attemptSummary = formatLookupAttemptSummary(data.attempts || []);
       setLastSync(message);
       setNotifications((current) => [
         {
           id: `refresh-match-${Date.now()}`,
           title: "比赛状态已刷新",
-          body: data.warning ? `${message}；${data.warning}` : message,
+          body: [message, attemptSummary, data.warning].filter(Boolean).join("；"),
           time: "刚刚",
           read: false,
           action: "matches",
@@ -7062,6 +7219,9 @@ export function App() {
             settings={seasonSettings}
             onOpenSettings={() => setShowSettings(true)}
             isAdmin={isAdmin}
+            runtimeMeta={runtimeMeta}
+            onRetryUnresolved={retryUnresolvedNow}
+            retryingUnresolved={retryingUnresolved}
           />
         )}
         {!isSetupLeagueSpace && activeView === "leaderboard" && <LeaderboardView players={rankedPlayers} matches={seasonMatches} scoreEntries={scoreEntries} settings={seasonSettings} />}
@@ -7107,6 +7267,7 @@ export function App() {
           onBindPlayoffMatch={bindMatchToPlayoff}
           settings={seasonSettings}
           isAdmin={isAdmin}
+          attempts={matchLookupAttempts[selectedMatch.id] || []}
         />
       )}
     </div>

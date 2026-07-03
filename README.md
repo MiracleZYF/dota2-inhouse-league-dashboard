@@ -50,3 +50,10 @@ Authorization: Bearer <ADMIN_TOKEN or CRON_SECRET>
 The included GitHub Actions workflow runs it every day at 19:00 UTC, which is 03:00 in Asia/Shanghai, and at 04:05 UTC, which is 12:05 in Asia/Shanghai for the rate-limited player profile queue. To enable it, add a GitHub repository secret named `ADMIN_TOKEN` with the same value as the Cloudflare Pages `ADMIN_TOKEN`.
 
 Manual sync and scheduled sync both retry unresolved matches. The detail fallback order is OpenDota -> Steam Web API -> STRATZ API -> cached Steam league list/manual review.
+
+Admins can retry only the unresolved queue without scanning a new date range:
+
+```text
+POST /api/retry-unresolved
+Authorization: Bearer <ADMIN_TOKEN>
+```
