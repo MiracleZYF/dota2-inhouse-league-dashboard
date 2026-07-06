@@ -1892,6 +1892,66 @@ export async function getSteamMatchDetail(env, matchId) {
   return { ok: true, status: response.status, detail, payload };
 }
 
+export async function getSteamMatchDetailBySequence(env, matchId, matchSeqNum) {
+  if (!env.STEAM_API_KEY) {
+    return { ok: false, status: 0, error: "STEAM_API_KEY is not configured" };
+  }
+  const cleanSequence = String(matchSeqNum || "").trim();
+  if (!/^\d+$/.test(cleanSequence)) {
+    return { ok: false, skipped: true, status: 0, error: "Steam league history is missing match_seq_num" };
+  }
+
+  let response;
+  let payload = null;
+  let rawText = "";
+  try {
+    response = await steamDotaFetch(env, "GetMatchHistoryBySequenceNum", {
+      start_at_match_seq_num: cleanSequence,
+      matches_requested: 3,
+    });
+    rawText = await response.text().catch(() => "");
+    payload = parseJsonPayload(rawText);
+  } catch (error) {
+    return { ok: false, status: 0, error: error instanceof Error ? error.message : "Steam sequence request failed" };
+  }
+
+  if (!response.ok) {
+    const message = extractSteamApiMessage(payload, rawText);
+    return {
+      ok: false,
+      status: response.status,
+      error: message ? `Steam Sequence API HTTP ${response.status}: ${message}` : `Steam Sequence API HTTP ${response.status}`,
+      payload,
+    };
+  }
+
+  const matches = Array.isArray(payload?.result?.matches) ? payload.result.matches : [];
+  const rawMatch = matches.find((match) => String(match?.match_id || "") === String(matchId)) || (matches.length === 1 ? matches[0] : null);
+  if (!rawMatch) {
+    const status = payload?.result?.status;
+    const message = extractSteamApiMessage(payload, rawText);
+    return {
+      ok: false,
+      status: response.status,
+      error: message || (status ? `Steam Sequence API status=${status}; match ${matchId} not found` : `Steam Sequence API did not include match ${matchId}`),
+      payload,
+    };
+  }
+
+  const detail = normalizeSteamMatchDetail(rawMatch, matchId);
+  if (!detail) {
+    const message = extractSteamApiMessage(payload, rawText);
+    return {
+      ok: false,
+      status: response.status,
+      error: message ? `Steam Sequence API returned unusable detail: ${message}` : "Steam Sequence API returned unusable detail",
+      payload,
+    };
+  }
+
+  return { ok: true, status: response.status, detail: { ...detail, data_source: "steam-sequence" }, payload };
+}
+
 function stratzToken(env) {
   return env.STRATZ_API_TOKEN || env.STRATZ_TOKEN || env.STRATZ_API_KEY || "";
 }
@@ -2373,6 +2433,7 @@ export function buildSteamHistoryDetail(match, leagueId) {
   const matchPlayers = Array.isArray(match?.players) ? match.players : [];
   return {
     match_id: Number(match?.match_id || 0),
+    match_seq_num: match?.match_seq_num,
     leagueid: Number(match?.leagueid || leagueId || 0),
     lobby_type: match?.lobby_type,
     game_mode: match?.game_mode,
@@ -2741,6 +2802,7 @@ function buildManualInterventionReasons({ recognition, threshold, rankedLadder, 
 
 function describeDetailSource(detail) {
   if (detail?.data_source === "steam") return "Steam Web API";
+  if (detail?.data_source === "steam-sequence") return "Steam Sequence API";
   if (detail?.data_source === "steam-history") return "Steam 联赛列表";
   if (detail?.data_source === "stratz") return "STRATZ API";
   if (detail?.data_source === "cached") return "缓存详情";
@@ -2933,9 +2995,19 @@ export function buildMatchFromDetail(currentMatch, detail, players, settings = D
   };
 }
 
+async function findLeagueHistoryMatchForSequence(env, matchId, settings) {
+  const leagueId = String(settings?.leagueId || "").trim();
+  if (!leagueId || !settings?.useLeagueScan) return { match: null, leagueResult: null, error: "" };
+  const leagueResult = await getSteamLeagueMatches(env, leagueId);
+  if (!leagueResult.ok) return { match: null, leagueResult, error: leagueResult.error || "Steam league history is unavailable" };
+  const leagueMatch = (leagueResult.matches || []).find((match) => String(match.match_id) === String(matchId));
+  if (!leagueMatch) return { match: null, leagueResult, error: `Steam league ${leagueId} history did not include Match ID ${matchId}` };
+  return { match: leagueMatch, leagueResult, error: "" };
+}
+
 async function getLeagueHistoryFallback(env, matchId, settings) {
   const leagueId = String(settings?.leagueId || "").trim();
-  if (!leagueId || !settings?.useLeagueScan) return { detail: null, error: "" };
+  if (!leagueId || !settings?.useLeagueScan) return { detail: null, match: null, leagueResult: null, error: "" };
   const leagueResult = await getSteamLeagueMatches(env, leagueId);
   if (!leagueResult.ok) return { detail: null, error: leagueResult.error || "Steam 联赛列表暂不可用" };
   const leagueMatch = (leagueResult.matches || []).find((match) => String(match.match_id) === String(matchId));
@@ -2972,7 +3044,50 @@ export async function refreshStoredMatch(env, matchId, { resetReviewStatus = fal
     };
   }
 
-  const leagueFallback = await getLeagueHistoryFallback(env, matchId, settings);
+  const leagueHistory = await findLeagueHistoryMatchForSequence(env, matchId, settings);
+  const leagueFallback = leagueHistory.match
+    ? {
+        detail: buildSteamHistoryDetail(leagueHistory.match, settings?.leagueId),
+        match: leagueHistory.match,
+        leagueResult: leagueHistory.leagueResult,
+        error: "",
+      }
+    : { detail: null, match: null, leagueResult: leagueHistory.leagueResult, error: leagueHistory.error };
+  let sequenceResult = null;
+  if (useSteam) {
+    const leagueSequenceMatch = leagueFallback.match;
+    if (leagueSequenceMatch?.match_seq_num) {
+      sequenceResult = await getSteamMatchDetailBySequence(env, matchId, leagueSequenceMatch.match_seq_num);
+      lookup.attempts = [
+        ...(lookup.attempts || []),
+        {
+          source: "steam-sequence",
+          ok: sequenceResult.ok,
+          status: sequenceResult.status,
+          skipped: sequenceResult.skipped,
+          error: sequenceResult.error,
+        },
+      ];
+      if (sequenceResult.ok) {
+        const baseMatch = resetReviewStatus && currentMatch.status !== "已入库" ? { ...currentMatch, status: "待确认", hidden: false, isRankedLadder: false } : currentMatch;
+        const updatedMatch = buildMatchFromDetail(baseMatch, sequenceResult.detail, players, settings);
+        const match = existingMatch ? await upsertMatch(env, updatedMatch, { preserveStatus: false }) : updatedMatch;
+        return {
+          ok: true,
+          match,
+          detail: sequenceResult.detail,
+          source: "steam-sequence",
+          openDotaStatus: lookup.openDotaStatus,
+          steamStatus: sequenceResult.status,
+          stratzStatus: lookup.stratzStatus,
+          parseRequested: lookup.parseRequested,
+          attempts: lookup.attempts,
+          warning: lookup.error,
+          message: `已通过 ${describeDetailSource(sequenceResult.detail)} 刷新比赛详情`,
+        };
+      }
+    }
+  }
   const cachedDetail = await getMatchDetail(env, matchId);
   const fallbackDetail = leagueFallback.detail || cachedDetail;
   if (fallbackDetail?.players?.length) {
