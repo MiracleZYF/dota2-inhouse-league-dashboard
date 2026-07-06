@@ -1904,7 +1904,7 @@ export async function getSteamMatchDetailBySequence(env, matchId, matchSeqNum) {
   const sequenceCandidates = [cleanSequence];
   try {
     const sequence = BigInt(cleanSequence);
-    for (const offset of [1n, 10n, 100n]) {
+    for (const offset of [1n, 100n, 500n, 1000n, 2500n, 5000n, 10000n, 25000n, 50000n, 100000n]) {
       const candidate = sequence - offset;
       if (candidate > 0n) sequenceCandidates.push(String(candidate));
     }
@@ -1924,7 +1924,7 @@ export async function getSteamMatchDetailBySequence(env, matchId, matchSeqNum) {
     try {
       response = await steamDotaFetch(env, "GetMatchHistoryBySequenceNum", {
         start_at_match_seq_num: sequence,
-        matches_requested: 25,
+        matches_requested: 500,
       });
       rawText = await response.text().catch(() => "");
       payload = parseJsonPayload(rawText);
