@@ -1901,55 +1901,76 @@ export async function getSteamMatchDetailBySequence(env, matchId, matchSeqNum) {
     return { ok: false, skipped: true, status: 0, error: "Steam league history is missing match_seq_num" };
   }
 
-  let response;
-  let payload = null;
-  let rawText = "";
+  const sequenceCandidates = [cleanSequence];
   try {
-    response = await steamDotaFetch(env, "GetMatchHistoryBySequenceNum", {
-      start_at_match_seq_num: cleanSequence,
-      matches_requested: 3,
-    });
-    rawText = await response.text().catch(() => "");
-    payload = parseJsonPayload(rawText);
-  } catch (error) {
-    return { ok: false, status: 0, error: error instanceof Error ? error.message : "Steam sequence request failed" };
+    const sequence = BigInt(cleanSequence);
+    for (const offset of [1n, 10n, 100n]) {
+      const candidate = sequence - offset;
+      if (candidate > 0n) sequenceCandidates.push(String(candidate));
+    }
+  } catch {
+    // Keep the original sequence if BigInt parsing is unavailable for any reason.
   }
 
-  if (!response.ok) {
-    const message = extractSteamApiMessage(payload, rawText);
-    return {
-      ok: false,
-      status: response.status,
-      error: message ? `Steam Sequence API HTTP ${response.status}: ${message}` : `Steam Sequence API HTTP ${response.status}`,
-      payload,
-    };
+  let lastStatus = 0;
+  let lastPayload = null;
+  let lastError = "";
+  const seenSequences = Array.from(new Set(sequenceCandidates));
+
+  for (const sequence of seenSequences) {
+    let response;
+    let payload = null;
+    let rawText = "";
+    try {
+      response = await steamDotaFetch(env, "GetMatchHistoryBySequenceNum", {
+        start_at_match_seq_num: sequence,
+        matches_requested: 25,
+      });
+      rawText = await response.text().catch(() => "");
+      payload = parseJsonPayload(rawText);
+    } catch (error) {
+      return { ok: false, status: 0, error: error instanceof Error ? error.message : "Steam sequence request failed" };
+    }
+
+    lastStatus = response.status;
+    lastPayload = payload;
+
+    if (!response.ok) {
+      const message = extractSteamApiMessage(payload, rawText);
+      lastError = message ? `Steam Sequence API HTTP ${response.status}: ${message}` : `Steam Sequence API HTTP ${response.status}`;
+      break;
+    }
+
+    const matches = Array.isArray(payload?.result?.matches) ? payload.result.matches : [];
+    const rawMatch = matches.find((match) => String(match?.match_id || "") === String(matchId));
+    if (!rawMatch) {
+      const returnedIds = matches
+        .slice(0, 5)
+        .map((match) => match?.match_id)
+        .filter(Boolean)
+        .join(", ");
+      lastError = returnedIds
+        ? `Steam Sequence API did not include match ${matchId} from seq ${sequence}; returned ${returnedIds}`
+        : `Steam Sequence API did not include match ${matchId} from seq ${sequence}`;
+      continue;
+    }
+
+    const detail = normalizeSteamMatchDetail(rawMatch, matchId);
+    if (!detail) {
+      const message = extractSteamApiMessage(payload, rawText);
+      lastError = message ? `Steam Sequence API returned unusable detail: ${message}` : "Steam Sequence API returned unusable detail";
+      continue;
+    }
+
+    return { ok: true, status: response.status, detail: { ...detail, data_source: "steam-sequence" }, payload };
   }
 
-  const matches = Array.isArray(payload?.result?.matches) ? payload.result.matches : [];
-  const rawMatch = matches.find((match) => String(match?.match_id || "") === String(matchId)) || (matches.length === 1 ? matches[0] : null);
-  if (!rawMatch) {
-    const status = payload?.result?.status;
-    const message = extractSteamApiMessage(payload, rawText);
-    return {
-      ok: false,
-      status: response.status,
-      error: message || (status ? `Steam Sequence API status=${status}; match ${matchId} not found` : `Steam Sequence API did not include match ${matchId}`),
-      payload,
-    };
-  }
-
-  const detail = normalizeSteamMatchDetail(rawMatch, matchId);
-  if (!detail) {
-    const message = extractSteamApiMessage(payload, rawText);
-    return {
-      ok: false,
-      status: response.status,
-      error: message ? `Steam Sequence API returned unusable detail: ${message}` : "Steam Sequence API returned unusable detail",
-      payload,
-    };
-  }
-
-  return { ok: true, status: response.status, detail: { ...detail, data_source: "steam-sequence" }, payload };
+  return {
+    ok: false,
+    status: lastStatus,
+    error: lastError || `Steam Sequence API did not include match ${matchId}`,
+    payload: lastPayload,
+  };
 }
 
 function stratzToken(env) {
