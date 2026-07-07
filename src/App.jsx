@@ -1458,6 +1458,310 @@ function buildHeroInsights(scoreEntries, matches, players, heroNames = {}, heroM
   };
 }
 
+function normalizeAssistantText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[，。！？、,.!?]/g, "");
+}
+
+function playerSearchTokens(player = {}) {
+  return [player.name, player.gameName, player.dotaId]
+    .map((item) => String(item || "").trim())
+    .filter(Boolean);
+}
+
+function findAssistantPlayers(query, players = []) {
+  const haystack = normalizeAssistantText(query);
+  if (!haystack) return [];
+  return players
+    .map((player) => {
+      const tokens = playerSearchTokens(player);
+      const matchedToken = tokens
+        .map((token) => normalizeAssistantText(token))
+        .filter(Boolean)
+        .sort((a, b) => b.length - a.length)
+        .find((token) => haystack.includes(token));
+      return matchedToken ? { player, weight: matchedToken.length } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.weight - a.weight || String(a.player.name).localeCompare(String(b.player.name), "zh-CN"))
+    .map((item) => item.player);
+}
+
+function addAssistantAggregate(map, key, payload) {
+  if (!key) return;
+  const current = map.get(key) || {
+    accountId: key,
+    name: payload.name || key,
+    games: 0,
+    wins: 0,
+    losses: 0,
+  };
+  current.games += 1;
+  current.wins += payload.won ? 1 : 0;
+  current.losses += payload.won ? 0 : 1;
+  map.set(key, current);
+}
+
+function buildLeagueAssistantModel(players = [], scoreEntries = [], heroNames = {}, heroMeta = {}) {
+  const playerByAccount = new Map(players.map((player) => [String(player.dotaId), player]));
+  const playerRows = new Map();
+  const entriesByMatch = new Map();
+
+  scoreEntries.forEach((entry) => {
+    const accountId = String(entry.accountId || "");
+    const rosterPlayer = playerByAccount.get(accountId) || {};
+    if (!playerRows.has(accountId)) {
+      playerRows.set(accountId, {
+        accountId,
+        player: rosterPlayer,
+        name: rosterPlayer.name || entry.playerName || accountId,
+        gameName: rosterPlayer.gameName || "",
+        role: rosterPlayer.role || "待补",
+        games: 0,
+        wins: 0,
+        losses: 0,
+        kills: 0,
+        deaths: 0,
+        assists: 0,
+        heroes: new Map(),
+        teammates: new Map(),
+        opponents: new Map(),
+      });
+    }
+
+    const row = playerRows.get(accountId);
+    row.games += 1;
+    row.wins += entry.won ? 1 : 0;
+    row.losses += entry.won ? 0 : 1;
+    row.kills += Number(entry.kills || 0);
+    row.deaths += Number(entry.deaths || 0);
+    row.assists += Number(entry.assists || 0);
+
+    if (entry.heroId) {
+      const heroId = String(entry.heroId);
+      const hero = heroDisplayData(heroId, heroNames, heroMeta);
+      const heroRow = row.heroes.get(heroId) || {
+        heroId,
+        hero,
+        games: 0,
+        wins: 0,
+        kills: 0,
+        deaths: 0,
+        assists: 0,
+      };
+      heroRow.games += 1;
+      heroRow.wins += entry.won ? 1 : 0;
+      heroRow.kills += Number(entry.kills || 0);
+      heroRow.deaths += Number(entry.deaths || 0);
+      heroRow.assists += Number(entry.assists || 0);
+      row.heroes.set(heroId, heroRow);
+    }
+
+    const matchId = String(entry.matchId || "");
+    if (matchId) {
+      const entries = entriesByMatch.get(matchId) || [];
+      entries.push(entry);
+      entriesByMatch.set(matchId, entries);
+    }
+  });
+
+  entriesByMatch.forEach((entries) => {
+    entries.forEach((entry) => {
+      const row = playerRows.get(String(entry.accountId || ""));
+      if (!row) return;
+      entries.forEach((other) => {
+        if (String(other.accountId) === String(entry.accountId)) return;
+        const otherPlayer = playerByAccount.get(String(other.accountId)) || {};
+        const payload = { name: otherPlayer.name || other.playerName || other.accountId, won: entry.won };
+        if (other.side === entry.side) {
+          addAssistantAggregate(row.teammates, String(other.accountId), payload);
+        } else {
+          addAssistantAggregate(row.opponents, String(other.accountId), payload);
+        }
+      });
+    });
+  });
+
+  return {
+    players,
+    scoreEntries,
+    playerByAccount,
+    playerRows,
+    entriesByMatch,
+  };
+}
+
+function assistantRate(row) {
+  return row?.games ? row.wins / row.games : 0;
+}
+
+function assistantTableRows(rows = [], mode = "winrate") {
+  return rows
+    .map((row) => ({
+      ...row,
+      winRate: assistantRate(row),
+      avgKda: calcKda(row.kills, row.deaths, row.assists),
+    }))
+    .sort((a, b) => {
+      if (mode === "games") return b.games - a.games || b.winRate - a.winRate || a.name.localeCompare(b.name, "zh-CN");
+      if (mode === "lossrate") return b.losses / Math.max(b.games, 1) - a.losses / Math.max(a.games, 1) || b.games - a.games || a.name.localeCompare(b.name, "zh-CN");
+      return b.winRate - a.winRate || b.games - a.games || a.name.localeCompare(b.name, "zh-CN");
+    })
+    .slice(0, 6);
+}
+
+function pairRelationSummary(firstRow, secondAccountId) {
+  const teammate = firstRow?.teammates?.get(String(secondAccountId));
+  const opponent = firstRow?.opponents?.get(String(secondAccountId));
+  return { teammate, opponent };
+}
+
+function buildProfileAnswer(player, row) {
+  if (!row || !row.games) {
+    return {
+      title: `${player.name} 暂无已入库样本`,
+      summary: "当前赛季还没有这个玩家的可计分比赛，无法判断偏好。",
+      bullets: ["先完成比赛入库后，这里会自动生成英雄和胜率画像。"],
+      table: [],
+      heroes: [],
+    };
+  }
+
+  const heroes = assistantTableRows(Array.from(row.heroes.values()).map((heroRow) => ({ ...heroRow, name: heroRow.hero.name })), "games");
+  const topHeroText = heroes.length ? heroes.slice(0, 3).map((item) => `${item.hero.name} ${item.games} 场`).join("、") : "暂无英雄记录";
+
+  return {
+    title: `${row.name} 的赛季画像`,
+    summary: `登记位置是 ${row.role || "待补"}；已入库 ${row.games} 场，${row.wins} 胜 ${row.losses} 负，胜率 ${formatPercent(row.wins / row.games, 0)}。`,
+    bullets: [
+      `常用英雄：${topHeroText}`,
+      `场均 KDA：${calcKda(row.kills, row.deaths, row.assists).toFixed(1)}`,
+      "位置偏好目前来自玩家库登记位置和英雄池倾向，暂未接入真实分路 lane_role。",
+    ],
+    table: heroes.map((item) => ({
+      name: item.hero.name,
+      meta: `${item.games} 场 · ${item.wins} 胜`,
+      value: formatPercent(item.winRate, 0),
+    })),
+    heroes: heroes.slice(0, 4).map((item) => ({ hero: item.hero, subText: `${item.games} 场 · ${formatPercent(item.winRate, 0)}` })),
+  };
+}
+
+function buildTeammateAnswer(player, row, otherPlayer) {
+  if (!row || !row.games) return buildProfileAnswer(player, row);
+  if (otherPlayer) {
+    const relation = pairRelationSummary(row, otherPlayer.dotaId);
+    if (!relation.teammate) {
+      return {
+        title: `${player.name} 与 ${otherPlayer.name} 暂无同队样本`,
+        summary: "当前赛季已入库比赛里没有找到两人同队记录。",
+        bullets: relation.opponent ? [`两人作为对手交手 ${relation.opponent.games} 次，${player.name} 胜率 ${formatPercent(assistantRate(relation.opponent), 0)}。`] : ["样本不足，暂不建议得出组合结论。"],
+        table: [],
+        heroes: [],
+      };
+    }
+    return {
+      title: `${player.name} × ${otherPlayer.name} 同队表现`,
+      summary: `同队 ${relation.teammate.games} 场，${relation.teammate.wins} 胜 ${relation.teammate.losses} 负，胜率 ${formatPercent(assistantRate(relation.teammate), 0)}。`,
+      bullets: ["样本越少波动越大，建议至少 3 场后再作为选人依据。"],
+      table: [],
+      heroes: [],
+    };
+  }
+
+  const rows = assistantTableRows(Array.from(row.teammates.values()), "winrate");
+  return {
+    title: `${row.name} 的同队胜率`,
+    summary: rows.length ? `当前最高同队样本是 ${rows[0].name}：${rows[0].games} 场，胜率 ${formatPercent(rows[0].winRate, 0)}。` : "当前没有可用同队样本。",
+    bullets: ["默认按胜率优先、场次其次排序；小样本只作为观察。"],
+    table: rows.map((item) => ({
+      name: item.name,
+      meta: `${item.games} 场 · ${item.wins} 胜 ${item.losses} 负`,
+      value: formatPercent(item.winRate, 0),
+    })),
+    heroes: [],
+  };
+}
+
+function buildMatchupAnswer(player, row, otherPlayer, reverse = false) {
+  if (!row || !row.games) return buildProfileAnswer(player, row);
+  if (otherPlayer) {
+    const relation = pairRelationSummary(row, otherPlayer.dotaId);
+    if (!relation.opponent) {
+      return {
+        title: `${player.name} 与 ${otherPlayer.name} 暂无对阵样本`,
+        summary: "当前赛季已入库比赛里没有找到两人站在对面的记录。",
+        bullets: relation.teammate ? [`两人同队 ${relation.teammate.games} 场，胜率 ${formatPercent(assistantRate(relation.teammate), 0)}。`] : ["样本不足，暂不建议得出克制结论。"],
+        table: [],
+        heroes: [],
+      };
+    }
+    return {
+      title: `${player.name} 对阵 ${otherPlayer.name}`,
+      summary: `对阵 ${relation.opponent.games} 场，${player.name} ${relation.opponent.wins} 胜 ${relation.opponent.losses} 负，胜率 ${formatPercent(assistantRate(relation.opponent), 0)}。`,
+      bullets: ["这里的克制只按胜负关系统计，不代表真实对线克制。"],
+      table: [],
+      heroes: [],
+    };
+  }
+
+  const rows = assistantTableRows(Array.from(row.opponents.values()), reverse ? "lossrate" : "winrate");
+  const top = rows[0];
+  return {
+    title: reverse ? `${row.name} 的苦手对手` : `${row.name} 更克制的对手`,
+    summary: top
+      ? reverse
+        ? `目前最需要警惕的是 ${top.name}：交手 ${top.games} 场，${row.name} 胜率 ${formatPercent(top.winRate, 0)}。`
+        : `目前对阵表现最好的是 ${top.name}：交手 ${top.games} 场，${row.name} 胜率 ${formatPercent(top.winRate, 0)}。`
+      : "当前没有可用对阵样本。",
+    bullets: ["克制关系按双方是否站在对面和最终胜负统计；样本少时请谨慎使用。"],
+    table: rows.map((item) => ({
+      name: item.name,
+      meta: `${item.games} 场 · ${item.wins} 胜 ${item.losses} 负`,
+      value: formatPercent(item.winRate, 0),
+    })),
+    heroes: [],
+  };
+}
+
+function answerLeagueAssistantQuestion(question, model) {
+  const cleanQuestion = String(question || "").trim();
+  const matchedPlayers = findAssistantPlayers(cleanQuestion, model.players);
+  const target = matchedPlayers[0];
+  const other = matchedPlayers.find((player) => String(player.dotaId) !== String(target?.dotaId));
+  const text = normalizeAssistantText(cleanQuestion);
+  const wantsTeammate = /同队|一边|队友|搭档|一起|组合|胜率/.test(text) && !/对阵|克制|苦手|怕|打/.test(text);
+  const wantsMatchup = /克制|对阵|对手|打得过|打不过|苦手|怕/.test(text);
+  const reverse = /被|苦手|怕|打不过/.test(text);
+
+  if (!model.scoreEntries.length) {
+    return {
+      title: "暂无可分析样本",
+      summary: "当前赛季还没有已入库计分比赛，数据助手暂时无法回答。",
+      bullets: ["完成入库后，可以查询位置偏好、同队胜率和对阵关系。"],
+      table: [],
+      heroes: [],
+    };
+  }
+
+  if (!target) {
+    return {
+      title: "我还没识别到要查的玩家",
+      summary: "请在问题里写玩家库昵称、游戏昵称或 DOTA2 ID。",
+      bullets: ["示例：全自动立功更偏好哪些位置？", "示例：茶酒和谁同队胜率最高？", "示例：太2真人更克制哪些选手？"],
+      table: [],
+      heroes: [],
+    };
+  }
+
+  const targetRow = model.playerRows.get(String(target.dotaId));
+  if (wantsMatchup) return buildMatchupAnswer(target, targetRow, other, reverse);
+  if (wantsTeammate || other) return buildTeammateAnswer(target, targetRow, other);
+  return buildProfileAnswer(target, targetRow);
+}
+
 function buildMatchScorePreview(displayedPlayers, settings = DEFAULT_SETTINGS) {
   const entries = displayedPlayers
     .filter((player) => player.isRegistered)
@@ -4072,6 +4376,67 @@ function HeroIdentity({ hero, subText, size = "sm" }) {
   );
 }
 
+function LeagueDataAssistant({ players, scoreEntries, heroNames, heroMeta }) {
+  const [question, setQuestion] = useState("全自动立功更偏好哪些位置？");
+  const model = useMemo(() => buildLeagueAssistantModel(players, scoreEntries, heroNames, heroMeta), [players, scoreEntries, heroNames, heroMeta]);
+  const answer = useMemo(() => answerLeagueAssistantQuestion(question, model), [question, model]);
+  const examples = ["全自动立功更偏好哪些位置？", "茶酒和谁同队胜率最高？", "太2真人更克制哪些选手？", "茶酒和全自动立功同队胜率怎么样？"];
+
+  return (
+    <Panel title="内战数据助手" action={<span className="status-pill status-info">规则解析版</span>}>
+      <div className="assistant-query-box">
+        <label className="search-field">
+          <Search size={16} />
+          <input value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="问问当前赛季：某人偏好、同队胜率、对阵克制..." />
+        </label>
+        <div className="assistant-examples">
+          {examples.map((example) => (
+            <button className="ghost-button compact-button" type="button" key={example} onClick={() => setQuestion(example)}>
+              {example}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <article className="assistant-answer-card">
+        <div className="assistant-answer-head">
+          <div>
+            <span>回答</span>
+            <strong>{answer.title}</strong>
+          </div>
+          <small>{scoreEntries.length} 条计分样本</small>
+        </div>
+        <p>{answer.summary}</p>
+        {answer.bullets?.length > 0 && (
+          <ul>
+            {answer.bullets.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        )}
+        {answer.heroes?.length > 0 && (
+          <div className="assistant-hero-row">
+            {answer.heroes.map((item) => (
+              <HeroIdentity hero={item.hero} subText={item.subText} size="sm" key={`${item.hero?.id || item.hero?.name}-${item.subText}`} />
+            ))}
+          </div>
+        )}
+        {answer.table?.length > 0 && (
+          <div className="assistant-result-table">
+            {answer.table.map((row) => (
+              <div key={`${row.name}-${row.meta}`}>
+                <strong>{row.name}</strong>
+                <span>{row.meta}</span>
+                <em>{row.value}</em>
+              </div>
+            ))}
+          </div>
+        )}
+      </article>
+    </Panel>
+  );
+}
+
 function HeroInsightsView({ players, matches, scoreEntries, heroNames, heroMeta }) {
   const insights = useMemo(() => buildHeroInsights(scoreEntries, matches, players, heroNames, heroMeta), [scoreEntries, matches, players, heroNames, heroMeta]);
   const maxHeroPicks = Math.max(...insights.heroRows.map((row) => row.picks), 1);
@@ -4079,6 +4444,7 @@ function HeroInsightsView({ players, matches, scoreEntries, heroNames, heroMeta 
   if (!insights.totalHeroSlots) {
     return (
       <div className="hero-insights-page">
+        <LeagueDataAssistant players={players} scoreEntries={scoreEntries} heroNames={heroNames} heroMeta={heroMeta} />
         <EmptyState title="暂无英雄洞察" body="当前赛季还没有带英雄信息的已入库比赛。完成比赛入库后，这里会自动生成热门英雄和招牌英雄统计。" />
       </div>
     );
@@ -4113,6 +4479,8 @@ function HeroInsightsView({ players, matches, scoreEntries, heroNames, heroMeta 
           <small>玩家英雄组合</small>
         </section>
       </div>
+
+      <LeagueDataAssistant players={players} scoreEntries={scoreEntries} heroNames={heroNames} heroMeta={heroMeta} />
 
       <div className="hero-insight-layout">
         <Panel title="热门英雄池" action={<span className="status-pill status-info">按出场/BP 热度排序</span>}>

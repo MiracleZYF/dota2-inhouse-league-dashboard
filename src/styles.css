@@ -2483,6 +2483,120 @@ input[type="range"] {
   gap: 14px;
 }
 
+.assistant-query-box {
+  display: grid;
+  gap: 10px;
+  padding: 0 18px 14px;
+}
+
+.assistant-query-box .search-field {
+  margin: 0;
+}
+
+.assistant-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.assistant-answer-card {
+  display: grid;
+  gap: 12px;
+  margin: 0 18px 18px;
+  padding: 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: rgba(13, 25, 37, 0.72);
+}
+
+.assistant-answer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.assistant-answer-head span,
+.assistant-answer-head small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.assistant-answer-head strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--text);
+  font-size: 18px;
+}
+
+.assistant-answer-card p,
+.assistant-answer-card ul {
+  margin: 0;
+  color: #d4dfeb;
+  line-height: 1.6;
+}
+
+.assistant-answer-card ul {
+  padding-left: 18px;
+}
+
+.assistant-hero-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.assistant-hero-row .hero-identity {
+  min-width: 180px;
+  padding: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 5px;
+  background: rgba(7, 16, 24, 0.42);
+}
+
+.assistant-result-table {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.assistant-result-table div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 5px;
+  background: rgba(7, 16, 24, 0.42);
+}
+
+.assistant-result-table strong,
+.assistant-result-table span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-result-table strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.assistant-result-table span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.assistant-result-table em {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  color: var(--teal);
+  font-style: normal;
+  font-weight: 900;
+}
+
 .hero-insight-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
@@ -4704,7 +4818,8 @@ input[type="range"] {
   .match-summary-banner,
   .team-detail-layout,
   .review-workbench,
-  .source-attempt-list {
+  .source-attempt-list,
+  .assistant-result-table {
     grid-template-columns: 1fr;
   }
 
