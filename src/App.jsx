@@ -5706,9 +5706,10 @@ function NotificationPanel({ notifications, onClose, onMarkAllRead, onOpenNotifi
   );
 }
 
-function SettingsModal({ settings, onChange, onClose, onReset }) {
+function SettingsModal({ settings, onChange, onClose, onReset, runtimeMeta = {} }) {
   const seasons = getSettingsSeasons(settings);
   const currentSeason = getSeasonById(settings, getCurrentSeasonId(settings));
+  const capabilities = runtimeMeta.capabilities || {};
 
   function updateSetting(key, value) {
     if (key === "currentSeasonId") {
@@ -5784,6 +5785,20 @@ function SettingsModal({ settings, onChange, onClose, onReset }) {
               placeholder="19220"
             />
           </label>
+
+          <div className="settings-help-card full">
+            <div>
+              <span>第三方详情源</span>
+              <strong>{capabilities.stratzApiToken ? "STRATZ 已启用" : "建议配置 STRATZ_API_TOKEN"}</strong>
+              <p>
+                STRATZ 用来补 OpenDota 404、Steam 500 时缺失的胜负、KDA 和完整战绩。它需要在 Cloudflare Pages 的 Variables and secrets
+                中新增环境变量 <code>STRATZ_API_TOKEN</code>，保存后重新部署，再回到比赛识别页点击“重试等待解析”。
+              </p>
+            </div>
+            <span className={`status-pill ${capabilities.stratzApiToken ? "status-success" : "status-warning"}`}>
+              {capabilities.stratzApiToken ? "启用" : "未配置"}
+            </span>
+          </div>
 
           <label className="setting-field">
             <span>有效内战最低登记人数</span>
@@ -7336,7 +7351,7 @@ export function App() {
 
       {isAdmin && showImport && <ImportModal onClose={() => setShowImport(false)} onImport={importPlayers} />}
       {isAdmin && editingPlayer && <PlayerEditModal player={editingPlayer} onClose={() => setEditingPlayer(null)} onSave={savePlayerEdit} />}
-      {isAdmin && showSettings && <SettingsModal settings={settings} onChange={setSettings} onClose={saveSettingsAndClose} onReset={resetSettings} />}
+      {isAdmin && showSettings && <SettingsModal settings={settings} onChange={setSettings} onClose={saveSettingsAndClose} onReset={resetSettings} runtimeMeta={runtimeMeta} />}
       {selectedMatch && (
         <MatchDetailModal
           match={selectedMatch}
