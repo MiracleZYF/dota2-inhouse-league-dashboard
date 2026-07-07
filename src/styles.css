@@ -3669,6 +3669,32 @@ input[type="range"] {
   line-height: 1.35;
 }
 
+.source-advice-list {
+  display: grid;
+  gap: 10px;
+  margin: -8px 18px 18px;
+}
+
+.source-advice {
+  padding: 12px 14px;
+  border: 1px solid rgba(247, 182, 75, 0.34);
+  border-radius: var(--radius);
+  background: rgba(247, 182, 75, 0.08);
+}
+
+.source-advice strong {
+  display: block;
+  color: #ffe2ac;
+  font-size: 13px;
+}
+
+.source-advice p {
+  margin: 6px 0 0;
+  color: #d4dfeb;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
 .detail-alert {
   margin: 0 18px 14px;
   padding: 12px 14px;

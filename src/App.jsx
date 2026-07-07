@@ -2018,6 +2018,7 @@ function syncRunIssueList(run) {
 function sourceName(source) {
   if (source === "opendota") return "OpenDota";
   if (source === "steam") return "Steam MatchDetails";
+  if (source === "steam-sequence") return "Steam Sequence";
   if (source === "stratz") return "STRATZ";
   if (source === "steam-history") return "Steam 联赛列表";
   return source || "数据源";
@@ -2038,21 +2039,73 @@ function formatLookupAttemptSummary(attempts = []) {
     .join("；");
 }
 
+function buildLookupRecommendations(attempts = []) {
+  if (!Array.isArray(attempts) || !attempts.length) return [];
+  const recommendations = [];
+  const has = (source, test = () => true) => attempts.some((attempt) => attempt?.source === source && test(attempt));
+
+  if (has("stratz", (attempt) => attempt.skipped)) {
+    recommendations.push({
+      title: "优先补 STRATZ_API_TOKEN",
+      body: "这类 OpenDota 404、Steam 500 的场次，STRATZ 是最有价值的后备详情源。配置后点击“重试等待解析”即可再次补全。",
+    });
+  }
+  if (has("opendota", (attempt) => attempt.status === 404)) {
+    recommendations.push({
+      title: "OpenDota 还没收录",
+      body: "系统已经会提交解析请求；通常只能等待对局被公开解析，稍后再重试。",
+    });
+  }
+  if (has("steam", (attempt) => Number(attempt.status) >= 500)) {
+    recommendations.push({
+      title: "Steam 单场详情异常",
+      body: "已经启用 Steam Sequence 兜底。若仍失败，说明 Steam 当前只给到联赛列表阵容，胜负和 KDA 需要其它源补齐。",
+    });
+  }
+  if (has("steam-sequence", (attempt) => Number(attempt.status) === 429)) {
+    recommendations.push({
+      title: "Steam 正在限流",
+      body: "先等一段时间再重试，避免连续刷新影响后续自动同步。",
+    });
+  }
+  if (!recommendations.length && attempts.some((attempt) => !attempt.ok)) {
+    recommendations.push({
+      title: "建议稍后重试",
+      body: "至少一个数据源还没有返回完整详情；可以等待下一轮自动同步，或手动指定胜方先完成入库。",
+    });
+  }
+
+  return recommendations.slice(0, 3);
+}
+
 function SourceAttemptList({ attempts = [] }) {
   if (!Array.isArray(attempts) || !attempts.length) return null;
+  const recommendations = buildLookupRecommendations(attempts);
   return (
-    <div className="source-attempt-list">
-      {attempts.map((attempt, index) => {
-        const meta = attemptStatusMeta(attempt);
-        return (
-          <div className={`source-attempt status-${meta.tone}`} key={`${attempt.source || "source"}-${index}`}>
-            <span>{sourceName(attempt.source)}</span>
-            <strong>{meta.label}</strong>
-            {attempt.error && !attempt.skipped && <small>{attempt.error}</small>}
-          </div>
-        );
-      })}
-    </div>
+    <>
+      <div className="source-attempt-list">
+        {attempts.map((attempt, index) => {
+          const meta = attemptStatusMeta(attempt);
+          return (
+            <div className={`source-attempt status-${meta.tone}`} key={`${attempt.source || "source"}-${index}`}>
+              <span>{sourceName(attempt.source)}</span>
+              <strong>{meta.label}</strong>
+              {attempt.error && !attempt.skipped && <small>{attempt.error}</small>}
+            </div>
+          );
+        })}
+      </div>
+      {recommendations.length > 0 && (
+        <div className="source-advice-list">
+          {recommendations.map((item) => (
+            <article className="source-advice" key={item.title}>
+              <strong>{item.title}</strong>
+              <p>{item.body}</p>
+            </article>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -2085,7 +2138,7 @@ function runtimeSourceRows(runtimeMeta = {}, settings = DEFAULT_SETTINGS) {
       name: "STRATZ API",
       enabled: Boolean(caps.stratzApiToken),
       configured: Boolean(caps.stratzApiToken),
-      hint: caps.stratzApiToken ? "详情后备源已启用" : "未配置 STRATZ_API_TOKEN",
+      hint: caps.stratzApiToken ? "详情后备源已启用" : "建议配置 STRATZ_API_TOKEN，补 OpenDota/Steam 盲区",
     },
   ];
 }
