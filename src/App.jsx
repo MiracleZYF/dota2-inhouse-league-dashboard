@@ -1460,9 +1460,12 @@ function buildHeroInsights(scoreEntries, matches, players, heroNames = {}, heroM
 
 function normalizeAssistantText(value) {
   return String(value || "")
+    .normalize("NFKC")
     .toLowerCase()
+    .replace(/[針针真]/g, "zhen")
+    .replace(/[臺台]/g, "tai")
     .replace(/\s+/g, "")
-    .replace(/[，。！？、,.!?]/g, "");
+    .replace(/[^\p{Letter}\p{Number}]/gu, "");
 }
 
 function playerSearchTokens(player = {}) {
@@ -1747,10 +1750,11 @@ function answerLeagueAssistantQuestion(question, model) {
   }
 
   if (!target) {
+    const examples = buildAssistantExamples(model);
     return {
       title: "我还没识别到要查的玩家",
       summary: "请在问题里写玩家库昵称、游戏昵称或 DOTA2 ID。",
-      bullets: ["示例：全自动立功更偏好哪些位置？", "示例：茶酒和谁同队胜率最高？", "示例：太2真人更克制哪些选手？"],
+      bullets: examples.length ? examples.map((example) => `示例：${example}`) : ["示例：全自动立功更偏好哪些位置？", "示例：茶酒和谁同队胜率最高？"],
       table: [],
       heroes: [],
     };
@@ -1760,6 +1764,34 @@ function answerLeagueAssistantQuestion(question, model) {
   if (wantsMatchup) return buildMatchupAnswer(target, targetRow, other, reverse);
   if (wantsTeammate || other) return buildTeammateAnswer(target, targetRow, other);
   return buildProfileAnswer(target, targetRow);
+}
+
+function buildAssistantExamples(model) {
+  const rows = Array.from(model?.playerRows?.values?.() || [])
+    .filter((row) => row.games > 0)
+    .sort((a, b) => b.games - a.games || a.name.localeCompare(b.name, "zh-CN"));
+  if (!rows.length) return ["全自动立功更偏好哪些位置？", "茶酒和谁同队胜率最高？"];
+
+  const findByText = (text) => {
+    const needle = normalizeAssistantText(text);
+    return rows.find((row) => [row.name, row.gameName, row.accountId].some((item) => normalizeAssistantText(item).includes(needle)));
+  };
+  const displayName = (row) => row?.name || row?.gameName || row?.accountId || "这名玩家";
+  const profile = findByText("全自动立功") || rows[0];
+  const teammate = findByText("茶酒") || rows.find((row) => row.accountId !== profile?.accountId) || rows[0];
+  const matchup = findByText("太2针人") || rows.find((row) => row.accountId !== teammate?.accountId && row.accountId !== profile?.accountId) || rows[0];
+  const pairOther = rows.find((row) => row.accountId !== teammate?.accountId) || profile;
+
+  return Array.from(
+    new Set(
+      [
+        profile && `${displayName(profile)}更偏好哪些位置？`,
+        teammate && `${displayName(teammate)}和谁同队胜率最高？`,
+        matchup && `${displayName(matchup)}更克制哪些选手？`,
+        teammate && pairOther && `${displayName(teammate)}和${displayName(pairOther)}同队胜率怎么样？`,
+      ].filter(Boolean),
+    ),
+  ).slice(0, 4);
 }
 
 function buildMatchScorePreview(displayedPlayers, settings = DEFAULT_SETTINGS) {
@@ -4377,17 +4409,18 @@ function HeroIdentity({ hero, subText, size = "sm" }) {
 }
 
 function LeagueDataAssistant({ players, scoreEntries, heroNames, heroMeta }) {
-  const [question, setQuestion] = useState("全自动立功更偏好哪些位置？");
+  const [question, setQuestion] = useState(null);
   const model = useMemo(() => buildLeagueAssistantModel(players, scoreEntries, heroNames, heroMeta), [players, scoreEntries, heroNames, heroMeta]);
-  const answer = useMemo(() => answerLeagueAssistantQuestion(question, model), [question, model]);
-  const examples = ["全自动立功更偏好哪些位置？", "茶酒和谁同队胜率最高？", "太2真人更克制哪些选手？", "茶酒和全自动立功同队胜率怎么样？"];
+  const examples = useMemo(() => buildAssistantExamples(model), [model]);
+  const activeQuestion = question ?? examples[0] ?? "";
+  const answer = useMemo(() => answerLeagueAssistantQuestion(activeQuestion, model), [activeQuestion, model]);
 
   return (
     <Panel title="内战数据助手" action={<span className="status-pill status-info">规则解析版</span>}>
       <div className="assistant-query-box">
         <label className="search-field">
           <Search size={16} />
-          <input value={question} onChange={(event) => setQuestion(event.target.value)} placeholder="问问当前赛季：某人偏好、同队胜率、对阵克制..." />
+          <input value={activeQuestion} onChange={(event) => setQuestion(event.target.value)} placeholder="问问当前赛季：某人偏好、同队胜率、对阵克制..." />
         </label>
         <div className="assistant-examples">
           {examples.map((example) => (
