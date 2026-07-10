@@ -1474,6 +1474,38 @@ function playerSearchTokens(player = {}) {
     .filter(Boolean);
 }
 
+function assistantPlayerLabel(player = {}) {
+  return player.name || player.gameName || player.dotaId || "未知玩家";
+}
+
+function assistantTokenSimilarity(query, token) {
+  const normalizedQuery = normalizeAssistantText(query);
+  const normalizedToken = normalizeAssistantText(token);
+  if (!normalizedQuery || !normalizedToken) return 0;
+  if (normalizedQuery.includes(normalizedToken)) return 100 + normalizedToken.length;
+  if (normalizedToken.includes(normalizedQuery)) return 80 + normalizedQuery.length;
+
+  const queryCharacters = new Set(Array.from(normalizedQuery));
+  const tokenCharacters = new Set(Array.from(normalizedToken));
+  let overlap = 0;
+  tokenCharacters.forEach((character) => {
+    if (queryCharacters.has(character)) overlap += 1;
+  });
+  return overlap / Math.max(tokenCharacters.size, 1);
+}
+
+function getAssistantPlayerSuggestions(query, players = [], limit = 4) {
+  return players
+    .map((player) => {
+      const score = Math.max(...playerSearchTokens(player).map((token) => assistantTokenSimilarity(query, token)), 0);
+      return { player, score };
+    })
+    .filter((item) => item.score >= 0.55)
+    .sort((a, b) => b.score - a.score || assistantPlayerLabel(a.player).localeCompare(assistantPlayerLabel(b.player), "zh-CN"))
+    .slice(0, limit)
+    .map((item) => item.player);
+}
+
 function findAssistantPlayers(query, players = []) {
   const haystack = normalizeAssistantText(query);
   if (!haystack) return [];
@@ -1729,6 +1761,70 @@ function buildMatchupAnswer(player, row, otherPlayer, reverse = false) {
   };
 }
 
+function buildPlayerComparisonAnswer(firstPlayer, firstRow, secondPlayer, secondRow) {
+  const buildStats = (player, row) => ({
+    player,
+    name: assistantPlayerLabel(player),
+    games: Number(row?.games || 0),
+    wins: Number(row?.wins || 0),
+    losses: Number(row?.losses || 0),
+    winRate: assistantRate(row),
+    kda: calcKda(row?.kills || 0, row?.deaths || 0, row?.assists || 0),
+    heroCount: row?.heroes?.size || 0,
+  });
+  const first = buildStats(firstPlayer, firstRow);
+  const second = buildStats(secondPlayer, secondRow);
+
+  if (!first.games && !second.games) {
+    return {
+      title: `${first.name} 与 ${second.name} 暂无已入库样本`,
+      summary: "当前赛季还没有两人的可计分记录，暂时无法比较。",
+      bullets: ["比赛确认入库后，会按场次、胜率、KDA 和英雄使用数自动生成对比。"],
+      table: [],
+      heroes: [],
+    };
+  }
+
+  const leader = first.winRate === second.winRate ? null : first.winRate > second.winRate ? first : second;
+  const smallerSample = Math.min(first.games || Infinity, second.games || Infinity);
+  return {
+    title: `${first.name} 与 ${second.name} 的赛季对比`,
+    summary: leader
+      ? `当前已入库样本中，${leader.name} 的胜率暂时更高：${formatPercent(leader.winRate, 0)}。`
+      : "两人的当前赛季胜率相同，可以结合场次和 KDA 一起判断。",
+    bullets: [
+      "比较只统计当前赛季已入库且已经计分的比赛。",
+      smallerSample < 3 ? "至少有一名玩家的样本少于 3 场，结论仅适合作为观察。" : "样本已达到基础参考量，但仍不等同于真实实力排名。",
+    ],
+    table: [first, second].map((item) => ({
+      name: item.name,
+      meta: `${item.games} 场 · ${item.wins} 胜 ${item.losses} 负 · KDA ${item.kda.toFixed(1)} · ${item.heroCount} 个英雄`,
+      value: item.games ? formatPercent(item.winRate, 0) : "暂无样本",
+    })),
+    heroes: [],
+  };
+}
+
+function buildAssistantHelpAnswer(model) {
+  const examples = buildAssistantExamples(model);
+  return {
+    title: "我目前可以这样回答",
+    summary: "这是基于当前赛季已入库比赛的规则解析助手。它会把每个结论和实际样本数一起展示。",
+    bullets: [
+      "查个人：问“某某更偏好哪些位置？”、“某某常用什么英雄？”或“某某赛季表现”。",
+      "查搭档：问“某某和谁同队胜率最高？”或“甲和乙同队胜率怎么样？”。",
+      "查对阵：问“某某更克制哪些选手？”或“谁更克制某某？”。",
+      "查对比：问“甲和乙谁的赛季表现更好？”；所有结论都只作为小样本参考。",
+    ],
+    table: examples.map((example, index) => ({
+      name: `示例 ${index + 1}`,
+      meta: example,
+      value: "可直接点选",
+    })),
+    heroes: [],
+  };
+}
+
 function answerLeagueAssistantQuestion(question, model) {
   const cleanQuestion = String(question || "").trim();
   const matchedPlayers = findAssistantPlayers(cleanQuestion, model.players);
@@ -1737,7 +1833,11 @@ function answerLeagueAssistantQuestion(question, model) {
   const text = normalizeAssistantText(cleanQuestion);
   const wantsTeammate = /同队|一边|队友|搭档|一起|组合|胜率/.test(text) && !/对阵|克制|苦手|怕|打/.test(text);
   const wantsMatchup = /克制|对阵|对手|打得过|打不过|苦手|怕/.test(text);
+  const wantsComparison = Boolean(other) && /比较|对比|谁更强|更强|表现|厉害/.test(text) && !wantsTeammate && !wantsMatchup;
+  const wantsHelp = /帮助|怎么问|能查什么|支持什么|规则|说明|教程/.test(cleanQuestion);
   const reverse = /被|苦手|怕|打不过/.test(text);
+
+  if (wantsHelp) return buildAssistantHelpAnswer(model);
 
   if (!model.scoreEntries.length) {
     return {
@@ -1751,17 +1851,23 @@ function answerLeagueAssistantQuestion(question, model) {
 
   if (!target) {
     const examples = buildAssistantExamples(model);
+    const suggestions = getAssistantPlayerSuggestions(cleanQuestion, model.players);
     return {
-      title: "我还没识别到要查的玩家",
-      summary: "请在问题里写玩家库昵称、游戏昵称或 DOTA2 ID。",
-      bullets: examples.length ? examples.map((example) => `示例：${example}`) : ["示例：全自动立功更偏好哪些位置？", "示例：茶酒和谁同队胜率最高？"],
-      table: [],
+      title: suggestions.length ? "我没有完全识别到玩家，可能是昵称写法不同" : "我还没识别到要查的玩家",
+      summary: suggestions.length ? "可以试试下方提示的玩家库名称、游戏昵称或 DOTA2 ID。" : "请在问题里写玩家库昵称、游戏昵称或 DOTA2 ID。",
+      bullets: suggestions.length ? suggestions.map((player) => `可能想查：${assistantPlayerLabel(player)}`) : examples.length ? examples.map((example) => `示例：${example}`) : ["示例：全自动立功更偏好哪些位置？", "示例：茶酒和谁同队胜率最高？"],
+      table: suggestions.map((player) => ({
+        name: assistantPlayerLabel(player),
+        meta: `${player.gameName ? `游戏昵称 ${player.gameName} · ` : ""}DOTA2 ID ${player.dotaId || "未登记"}`,
+        value: "可查询",
+      })),
       heroes: [],
     };
   }
 
   const targetRow = model.playerRows.get(String(target.dotaId));
   if (wantsMatchup) return buildMatchupAnswer(target, targetRow, other, reverse);
+  if (wantsComparison) return buildPlayerComparisonAnswer(target, targetRow, other, model.playerRows.get(String(other.dotaId)));
   if (wantsTeammate || other) return buildTeammateAnswer(target, targetRow, other);
   return buildProfileAnswer(target, targetRow);
 }
@@ -4412,6 +4518,7 @@ function LeagueDataAssistant({ players, scoreEntries, heroNames, heroMeta }) {
   const [question, setQuestion] = useState(null);
   const model = useMemo(() => buildLeagueAssistantModel(players, scoreEntries, heroNames, heroMeta), [players, scoreEntries, heroNames, heroMeta]);
   const examples = useMemo(() => buildAssistantExamples(model), [model]);
+  const quickQuestions = useMemo(() => Array.from(new Set([...examples, "我可以问什么？"])), [examples]);
   const activeQuestion = question ?? examples[0] ?? "";
   const answer = useMemo(() => answerLeagueAssistantQuestion(activeQuestion, model), [activeQuestion, model]);
 
@@ -4423,7 +4530,7 @@ function LeagueDataAssistant({ players, scoreEntries, heroNames, heroMeta }) {
           <input value={activeQuestion} onChange={(event) => setQuestion(event.target.value)} placeholder="问问当前赛季：某人偏好、同队胜率、对阵克制..." />
         </label>
         <div className="assistant-examples">
-          {examples.map((example) => (
+          {quickQuestions.map((example) => (
             <button className="ghost-button compact-button" type="button" key={example} onClick={() => setQuestion(example)}>
               {example}
             </button>
