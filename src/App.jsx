@@ -1805,21 +1805,70 @@ function buildPlayerComparisonAnswer(firstPlayer, firstRow, secondPlayer, second
   };
 }
 
-function buildAssistantHelpAnswer(model) {
-  const examples = buildAssistantExamples(model);
+const ASSISTANT_QUERY_TYPES = [
+  {
+    id: "profile",
+    label: "个人赛季画像",
+    requiresSecondPlayer: false,
+    buildQuestion: (first) => `${first}赛季表现怎么样？`,
+  },
+  {
+    id: "heroes",
+    label: "常用英雄与英雄池",
+    requiresSecondPlayer: false,
+    buildQuestion: (first) => `${first}常用什么英雄？`,
+  },
+  {
+    id: "teammates",
+    label: "最佳同队搭档",
+    requiresSecondPlayer: false,
+    buildQuestion: (first) => `${first}和谁同队胜率最高？`,
+  },
+  {
+    id: "pair",
+    label: "两人同队表现",
+    requiresSecondPlayer: true,
+    buildQuestion: (first, second) => `${first}和${second}同队胜率怎么样？`,
+  },
+  {
+    id: "matchup",
+    label: "两人对阵记录",
+    requiresSecondPlayer: true,
+    buildQuestion: (first, second) => `${first}对阵${second}表现如何？`,
+  },
+  {
+    id: "countered-by",
+    label: "谁更克制这名玩家",
+    requiresSecondPlayer: false,
+    buildQuestion: (first) => `谁更克制${first}？`,
+  },
+  {
+    id: "comparison",
+    label: "两人赛季对比",
+    requiresSecondPlayer: true,
+    buildQuestion: (first, second) => `${first}和${second}谁的赛季表现更好？`,
+  },
+];
+
+function buildAssistantQuery(modeId, firstPlayer, secondPlayer) {
+  const mode = ASSISTANT_QUERY_TYPES.find((item) => item.id === modeId) || ASSISTANT_QUERY_TYPES[0];
+  if (!firstPlayer || (mode.requiresSecondPlayer && !secondPlayer)) return "";
+  return mode.buildQuestion(assistantPlayerLabel(firstPlayer), assistantPlayerLabel(secondPlayer));
+}
+
+function buildAssistantHelpAnswer() {
   return {
-    title: "我目前可以这样回答",
-    summary: "这是基于当前赛季已入库比赛的规则解析助手。它会把每个结论和实际样本数一起展示。",
+    title: "从上方选择查询条件",
+    summary: "选择查询类型和玩家后点击“查询”，或在输入框中写下自己的问题后按回车。所有结果仅使用当前赛季已入库、已计分的比赛。",
     bullets: [
-      "查个人：问“某某更偏好哪些位置？”、“某某常用什么英雄？”或“某某赛季表现”。",
-      "查搭档：问“某某和谁同队胜率最高？”或“甲和乙同队胜率怎么样？”。",
-      "查对阵：问“某某更克制哪些选手？”或“谁更克制某某？”。",
-      "查对比：问“甲和乙谁的赛季表现更好？”；所有结论都只作为小样本参考。",
+      "单人查询适合查看赛季画像、英雄池和同队胜率排行。",
+      "双人查询适合查看同队表现、对阵记录和赛季数据对比。",
+      "样本少于 3 场时，页面会自动提示结论仅供观察。",
     ],
-    table: examples.map((example, index) => ({
-      name: `示例 ${index + 1}`,
-      meta: example,
-      value: "可直接点选",
+    table: ASSISTANT_QUERY_TYPES.map((item) => ({
+      name: item.label,
+      meta: item.requiresSecondPlayer ? "选择两名玩家" : "选择一名玩家",
+      value: item.requiresSecondPlayer ? "双人" : "单人",
     })),
     heroes: [],
   };
@@ -1834,10 +1883,10 @@ function answerLeagueAssistantQuestion(question, model) {
   const wantsTeammate = /同队|一边|队友|搭档|一起|组合|胜率/.test(text) && !/对阵|克制|苦手|怕|打/.test(text);
   const wantsMatchup = /克制|对阵|对手|打得过|打不过|苦手|怕/.test(text);
   const wantsComparison = Boolean(other) && /比较|对比|谁更强|更强|表现|厉害/.test(text) && !wantsTeammate && !wantsMatchup;
-  const wantsHelp = /帮助|怎么问|能查什么|支持什么|规则|说明|教程/.test(cleanQuestion);
-  const reverse = /被|苦手|怕|打不过/.test(text);
+  const wantsHelp = !cleanQuestion || /帮助|怎么问|能查什么|支持什么|规则|说明|教程/.test(cleanQuestion);
+  const reverse = /被|苦手|怕|打不过|谁更克制/.test(text);
 
-  if (wantsHelp) return buildAssistantHelpAnswer(model);
+  if (wantsHelp) return buildAssistantHelpAnswer();
 
   if (!model.scoreEntries.length) {
     return {
@@ -1850,12 +1899,11 @@ function answerLeagueAssistantQuestion(question, model) {
   }
 
   if (!target) {
-    const examples = buildAssistantExamples(model);
     const suggestions = getAssistantPlayerSuggestions(cleanQuestion, model.players);
     return {
       title: suggestions.length ? "我没有完全识别到玩家，可能是昵称写法不同" : "我还没识别到要查的玩家",
       summary: suggestions.length ? "可以试试下方提示的玩家库名称、游戏昵称或 DOTA2 ID。" : "请在问题里写玩家库昵称、游戏昵称或 DOTA2 ID。",
-      bullets: suggestions.length ? suggestions.map((player) => `可能想查：${assistantPlayerLabel(player)}`) : examples.length ? examples.map((example) => `示例：${example}`) : ["示例：全自动立功更偏好哪些位置？", "示例：茶酒和谁同队胜率最高？"],
+      bullets: suggestions.length ? suggestions.map((player) => `可能想查：${assistantPlayerLabel(player)}`) : ["也可以直接从上方选择查询类型和玩家，无需自己组织问题。"],
       table: suggestions.map((player) => ({
         name: assistantPlayerLabel(player),
         meta: `${player.gameName ? `游戏昵称 ${player.gameName} · ` : ""}DOTA2 ID ${player.dotaId || "未登记"}`,
@@ -1870,34 +1918,6 @@ function answerLeagueAssistantQuestion(question, model) {
   if (wantsComparison) return buildPlayerComparisonAnswer(target, targetRow, other, model.playerRows.get(String(other.dotaId)));
   if (wantsTeammate || other) return buildTeammateAnswer(target, targetRow, other);
   return buildProfileAnswer(target, targetRow);
-}
-
-function buildAssistantExamples(model) {
-  const rows = Array.from(model?.playerRows?.values?.() || [])
-    .filter((row) => row.games > 0)
-    .sort((a, b) => b.games - a.games || a.name.localeCompare(b.name, "zh-CN"));
-  if (!rows.length) return ["全自动立功更偏好哪些位置？", "茶酒和谁同队胜率最高？"];
-
-  const findByText = (text) => {
-    const needle = normalizeAssistantText(text);
-    return rows.find((row) => [row.name, row.gameName, row.accountId].some((item) => normalizeAssistantText(item).includes(needle)));
-  };
-  const displayName = (row) => row?.name || row?.gameName || row?.accountId || "这名玩家";
-  const profile = findByText("全自动立功") || rows[0];
-  const teammate = findByText("茶酒") || rows.find((row) => row.accountId !== profile?.accountId) || rows[0];
-  const matchup = findByText("太2针人") || rows.find((row) => row.accountId !== teammate?.accountId && row.accountId !== profile?.accountId) || rows[0];
-  const pairOther = rows.find((row) => row.accountId !== teammate?.accountId) || profile;
-
-  return Array.from(
-    new Set(
-      [
-        profile && `${displayName(profile)}更偏好哪些位置？`,
-        teammate && `${displayName(teammate)}和谁同队胜率最高？`,
-        matchup && `${displayName(matchup)}更克制哪些选手？`,
-        teammate && pairOther && `${displayName(teammate)}和${displayName(pairOther)}同队胜率怎么样？`,
-      ].filter(Boolean),
-    ),
-  ).slice(0, 4);
 }
 
 function buildMatchScorePreview(displayedPlayers, settings = DEFAULT_SETTINGS) {
@@ -4515,28 +4535,85 @@ function HeroIdentity({ hero, subText, size = "sm" }) {
 }
 
 function LeagueDataAssistant({ players, scoreEntries, heroNames, heroMeta }) {
-  const [question, setQuestion] = useState(null);
+  const [question, setQuestion] = useState("");
+  const [draftQuestion, setDraftQuestion] = useState("");
+  const [queryType, setQueryType] = useState("profile");
+  const [firstPlayerId, setFirstPlayerId] = useState("");
+  const [secondPlayerId, setSecondPlayerId] = useState("");
   const model = useMemo(() => buildLeagueAssistantModel(players, scoreEntries, heroNames, heroMeta), [players, scoreEntries, heroNames, heroMeta]);
-  const examples = useMemo(() => buildAssistantExamples(model), [model]);
-  const quickQuestions = useMemo(() => Array.from(new Set([...examples, "我可以问什么？"])), [examples]);
-  const activeQuestion = question ?? examples[0] ?? "";
-  const answer = useMemo(() => answerLeagueAssistantQuestion(activeQuestion, model), [activeQuestion, model]);
+  const selectablePlayers = useMemo(
+    () => players
+      .filter((player) => String(player.dotaId || "").trim())
+      .slice()
+      .sort((a, b) => assistantPlayerLabel(a).localeCompare(assistantPlayerLabel(b), "zh-CN")),
+    [players],
+  );
+  const activeQueryType = ASSISTANT_QUERY_TYPES.find((item) => item.id === queryType) || ASSISTANT_QUERY_TYPES[0];
+  const firstPlayer = selectablePlayers.find((player) => String(player.dotaId) === firstPlayerId);
+  const secondPlayer = selectablePlayers.find((player) => String(player.dotaId) === secondPlayerId);
+  const builderQuestion = useMemo(
+    () => buildAssistantQuery(activeQueryType.id, firstPlayer, secondPlayer),
+    [activeQueryType.id, firstPlayer, secondPlayer],
+  );
+  const effectiveQuestion = draftQuestion.trim() || builderQuestion;
+  const submittedQuestion = question || "";
+  const answer = useMemo(() => answerLeagueAssistantQuestion(submittedQuestion, model), [submittedQuestion, model]);
+
+  const playerOptionLabel = (player) => {
+    const label = assistantPlayerLabel(player);
+    return player.gameName && player.gameName !== label ? `${label} · ${player.gameName}` : label;
+  };
+
+  const resetManualQuestion = () => setDraftQuestion("");
+  const submitQuestion = (event) => {
+    event.preventDefault();
+    if (effectiveQuestion) setQuestion(effectiveQuestion);
+  };
 
   return (
-    <Panel title="内战数据助手" action={<span className="status-pill status-info">规则解析版</span>}>
-      <div className="assistant-query-box">
-        <label className="search-field">
-          <Search size={16} />
-          <input value={activeQuestion} onChange={(event) => setQuestion(event.target.value)} placeholder="问问当前赛季：某人偏好、同队胜率、对阵克制..." />
-        </label>
-        <div className="assistant-examples">
-          {quickQuestions.map((example) => (
-            <button className="ghost-button compact-button" type="button" key={example} onClick={() => setQuestion(example)}>
-              {example}
-            </button>
-          ))}
+    <Panel title="内战数据助手" action={<span className="status-pill status-info">当前赛季</span>}>
+      <form className="assistant-query-box" onSubmit={submitQuestion}>
+        <div className="assistant-query-builder">
+          <label>
+            <span>查询类型</span>
+            <select value={queryType} onChange={(event) => { setQueryType(event.target.value); resetManualQuestion(); }}>
+              {ASSISTANT_QUERY_TYPES.map((item) => <option value={item.id} key={item.id}>{item.label}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>玩家</span>
+            <select value={firstPlayerId} onChange={(event) => {
+              const nextPlayerId = event.target.value;
+              setFirstPlayerId(nextPlayerId);
+              if (nextPlayerId === secondPlayerId) setSecondPlayerId("");
+              resetManualQuestion();
+            }}>
+              <option value="">请选择玩家</option>
+              {selectablePlayers.map((player) => <option value={player.dotaId} key={player.dotaId}>{playerOptionLabel(player)}</option>)}
+            </select>
+          </label>
+          {activeQueryType.requiresSecondPlayer && (
+            <label>
+              <span>另一名玩家</span>
+              <select value={secondPlayerId} onChange={(event) => { setSecondPlayerId(event.target.value); resetManualQuestion(); }}>
+                <option value="">请选择另一名玩家</option>
+                {selectablePlayers.filter((player) => String(player.dotaId) !== firstPlayerId).map((player) => <option value={player.dotaId} key={player.dotaId}>{playerOptionLabel(player)}</option>)}
+              </select>
+            </label>
+          )}
+          <button className="primary-button compact-button assistant-submit-button" type="submit" disabled={!effectiveQuestion}>
+            <Search size={15} />
+            查询
+          </button>
         </div>
-      </div>
+        <p className="assistant-query-preview">{effectiveQuestion ? `将查询：${effectiveQuestion}` : "先选择查询类型和玩家；也可以在下方直接输入问题。"}</p>
+        <div className="assistant-free-query">
+          <label className="search-field">
+            <Search size={16} />
+            <input value={draftQuestion} onChange={(event) => setDraftQuestion(event.target.value)} placeholder="也可直接输入问题，按 Enter 或点击查询" />
+          </label>
+        </div>
+      </form>
 
       <article className="assistant-answer-card">
         <div className="assistant-answer-head">
