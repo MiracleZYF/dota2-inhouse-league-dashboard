@@ -1563,6 +1563,7 @@ function buildLeagueAssistantModel(players = [], scoreEntries = [], heroNames = 
         heroes: new Map(),
         teammates: new Map(),
         opponents: new Map(),
+        recentEntries: [],
       });
     }
 
@@ -1573,6 +1574,10 @@ function buildLeagueAssistantModel(players = [], scoreEntries = [], heroNames = 
     row.kills += Number(entry.kills || 0);
     row.deaths += Number(entry.deaths || 0);
     row.assists += Number(entry.assists || 0);
+    row.recentEntries.push({
+      ...entry,
+      hero: entry.heroId ? heroDisplayData(String(entry.heroId), heroNames, heroMeta) : null,
+    });
 
     if (entry.heroId) {
       const heroId = String(entry.heroId);
@@ -1617,6 +1622,10 @@ function buildLeagueAssistantModel(players = [], scoreEntries = [], heroNames = 
         }
       });
     });
+  });
+
+  playerRows.forEach((row) => {
+    row.recentEntries.sort((a, b) => Number(b.startTime || 0) - Number(a.startTime || 0) || Number(b.matchId || 0) - Number(a.matchId || 0));
   });
 
   return {
@@ -1684,7 +1693,61 @@ function buildProfileAnswer(player, row) {
   };
 }
 
-function buildTeammateAnswer(player, row, otherPlayer) {
+function buildRecentFormAnswer(player, row) {
+  if (!row || !row.games) return buildProfileAnswer(player, row);
+  const recentEntries = (row.recentEntries || []).slice(0, 5);
+  const wins = recentEntries.filter((entry) => entry.won).length;
+  const form = recentEntries.map((entry) => (entry.won ? "胜" : "负")).join(" · ");
+
+  return {
+    title: `${row.name} 的近期状态`,
+    summary: `最近 ${recentEntries.length} 场 ${wins} 胜 ${recentEntries.length - wins} 负，近期战绩：${form}。`,
+    bullets: [
+      "按比赛开始时间倒序排列，只统计当前赛季已经入库并计分的比赛。",
+      recentEntries.length < 5 ? "当前赛季不足 5 场，因此展示全部可用样本。" : "近期状态只反映最近 5 场，不替代完整赛季胜率。",
+    ],
+    table: recentEntries.map((entry) => ({
+      name: `${entry.won ? "胜" : "负"} · ${entry.hero?.name || "英雄未知"}`,
+      meta: `${formatMatchTime(entry.startTime)} · Match ID ${entry.matchId}`,
+      value: `KDA ${calcKda(entry.kills, entry.deaths, entry.assists).toFixed(1)}`,
+    })),
+    heroes: recentEntries
+      .filter((entry) => entry.hero)
+      .slice(0, 4)
+      .map((entry) => ({ hero: entry.hero, subText: `${entry.won ? "胜" : "负"} · KDA ${calcKda(entry.kills, entry.deaths, entry.assists).toFixed(1)}` })),
+  };
+}
+
+function buildHeroStrengthAnswer(player, row) {
+  if (!row || !row.games) return buildProfileAnswer(player, row);
+  const allHeroes = Array.from(row.heroes.values()).map((heroRow) => ({
+    ...heroRow,
+    name: heroRow.hero.name,
+    winRate: assistantRate(heroRow),
+  }));
+  const multiGameHeroes = allHeroes.filter((heroRow) => heroRow.games >= 2);
+  const heroes = (multiGameHeroes.length ? multiGameHeroes : allHeroes)
+    .sort((a, b) => b.winRate - a.winRate || b.games - a.games || a.name.localeCompare(b.name, "zh-CN"))
+    .slice(0, 6);
+  const top = heroes[0];
+
+  return {
+    title: `${row.name} 的高胜率英雄`,
+    summary: top ? `当前表现最好的是 ${top.hero.name}：${top.games} 场，胜率 ${formatPercent(top.winRate, 0)}。` : "当前还没有带英雄信息的计分样本。",
+    bullets: [
+      multiGameHeroes.length ? "优先按至少 2 场的英雄样本排序，避免单场胜利被误判为招牌。" : "当前没有英雄达到 2 场，暂按全部英雄样本展示。",
+      "英雄胜率反映当前赛季的内战结果，不代表英雄本身的强度。",
+    ],
+    table: heroes.map((item) => ({
+      name: item.hero.name,
+      meta: `${item.games} 场 · ${item.wins} 胜 · KDA ${calcKda(item.kills, item.deaths, item.assists).toFixed(1)}`,
+      value: formatPercent(item.winRate, 0),
+    })),
+    heroes: heroes.slice(0, 4).map((item) => ({ hero: item.hero, subText: `${item.games} 场 · ${formatPercent(item.winRate, 0)}` })),
+  };
+}
+
+function buildTeammateAnswer(player, row, otherPlayer, reverse = false) {
   if (!row || !row.games) return buildProfileAnswer(player, row);
   if (otherPlayer) {
     const relation = pairRelationSummary(row, otherPlayer.dotaId);
@@ -1706,11 +1769,15 @@ function buildTeammateAnswer(player, row, otherPlayer) {
     };
   }
 
-  const rows = assistantTableRows(Array.from(row.teammates.values()), "winrate");
+  const rows = assistantTableRows(Array.from(row.teammates.values()), reverse ? "lossrate" : "winrate");
   return {
-    title: `${row.name} 的同队胜率`,
-    summary: rows.length ? `当前最高同队样本是 ${rows[0].name}：${rows[0].games} 场，胜率 ${formatPercent(rows[0].winRate, 0)}。` : "当前没有可用同队样本。",
-    bullets: ["默认按胜率优先、场次其次排序；小样本只作为观察。"],
+    title: reverse ? `${row.name} 的同队磨合风险` : `${row.name} 的同队胜率`,
+    summary: rows.length
+      ? reverse
+        ? `当前同队胜率较低的是 ${rows[0].name}：${rows[0].games} 场，${row.name} 胜率 ${formatPercent(rows[0].winRate, 0)}。`
+        : `当前最高同队样本是 ${rows[0].name}：${rows[0].games} 场，胜率 ${formatPercent(rows[0].winRate, 0)}。`
+      : "当前没有可用同队样本。",
+    bullets: [reverse ? "这不是给玩家贴标签，只是提示当前赛季的组合样本值得复盘。" : "默认按胜率优先、场次其次排序；小样本只作为观察。"],
     table: rows.map((item) => ({
       name: item.name,
       meta: `${item.games} 场 · ${item.wins} 胜 ${item.losses} 负`,
@@ -1813,16 +1880,34 @@ const ASSISTANT_QUERY_TYPES = [
     buildQuestion: (first) => `${first}赛季表现怎么样？`,
   },
   {
+    id: "recent-form",
+    label: "近期状态（近 5 场）",
+    requiresSecondPlayer: false,
+    buildQuestion: (first) => `${first}最近 5 场状态如何？`,
+  },
+  {
     id: "heroes",
     label: "常用英雄与英雄池",
     requiresSecondPlayer: false,
     buildQuestion: (first) => `${first}常用什么英雄？`,
   },
   {
+    id: "hero-strength",
+    label: "高胜率英雄",
+    requiresSecondPlayer: false,
+    buildQuestion: (first) => `${first}的高胜率英雄有哪些？`,
+  },
+  {
     id: "teammates",
     label: "最佳同队搭档",
     requiresSecondPlayer: false,
     buildQuestion: (first) => `${first}和谁同队胜率最高？`,
+  },
+  {
+    id: "teammate-risk",
+    label: "同队磨合风险",
+    requiresSecondPlayer: false,
+    buildQuestion: (first) => `${first}和谁同队最难赢？`,
   },
   {
     id: "pair",
@@ -1883,6 +1968,9 @@ function answerLeagueAssistantQuestion(question, model) {
   const wantsTeammate = /同队|一边|队友|搭档|一起|组合|胜率/.test(text) && !/对阵|克制|苦手|怕|打/.test(text);
   const wantsMatchup = /克制|对阵|对手|打得过|打不过|苦手|怕/.test(text);
   const wantsComparison = Boolean(other) && /比较|对比|谁更强|更强|表现|厉害/.test(text) && !wantsTeammate && !wantsMatchup;
+  const wantsRecentForm = /近期|最近|状态|连胜|连败/.test(text);
+  const wantsHeroStrength = /高胜率英雄|强势英雄|厉害英雄|招牌英雄/.test(text);
+  const teammateReverse = /最难赢|最差|不适合|磨合|低胜率/.test(text);
   const wantsHelp = !cleanQuestion || /帮助|怎么问|能查什么|支持什么|规则|说明|教程/.test(cleanQuestion);
   const reverse = /被|苦手|怕|打不过|谁更克制/.test(text);
 
@@ -1914,9 +2002,11 @@ function answerLeagueAssistantQuestion(question, model) {
   }
 
   const targetRow = model.playerRows.get(String(target.dotaId));
+  if (wantsRecentForm) return buildRecentFormAnswer(target, targetRow);
+  if (wantsHeroStrength) return buildHeroStrengthAnswer(target, targetRow);
   if (wantsMatchup) return buildMatchupAnswer(target, targetRow, other, reverse);
   if (wantsComparison) return buildPlayerComparisonAnswer(target, targetRow, other, model.playerRows.get(String(other.dotaId)));
-  if (wantsTeammate || other) return buildTeammateAnswer(target, targetRow, other);
+  if (wantsTeammate || other) return buildTeammateAnswer(target, targetRow, other, teammateReverse);
   return buildProfileAnswer(target, targetRow);
 }
 
