@@ -1959,6 +1959,18 @@ function buildAssistantHelpAnswer() {
   };
 }
 
+function buildAssistantEvidence(sampleSize = 0, scope = "对应样本") {
+  const games = Math.max(0, Number(sampleSize) || 0);
+  if (!games) return { className: "status-muted", label: "暂无样本", detail: `没有可用于本次结论的${scope}` };
+  if (games < 3) return { className: "status-warning", label: "小样本", detail: `${scope} ${games} 场` };
+  if (games < 5) return { className: "status-info", label: "有限样本", detail: `${scope} ${games} 场` };
+  return { className: "status-success", label: "样本充足", detail: `${scope} ${games} 场` };
+}
+
+function withAssistantEvidence(answer, sampleSize, scope) {
+  return { ...answer, evidence: buildAssistantEvidence(sampleSize, scope) };
+}
+
 function answerLeagueAssistantQuestion(question, model) {
   const cleanQuestion = String(question || "").trim();
   const matchedPlayers = findAssistantPlayers(cleanQuestion, model.players);
@@ -1974,21 +1986,21 @@ function answerLeagueAssistantQuestion(question, model) {
   const wantsHelp = !cleanQuestion || /帮助|怎么问|能查什么|支持什么|规则|说明|教程/.test(cleanQuestion);
   const reverse = /被|苦手|怕|打不过|谁更克制/.test(text);
 
-  if (wantsHelp) return buildAssistantHelpAnswer();
+  if (wantsHelp) return withAssistantEvidence(buildAssistantHelpAnswer(), model.entriesByMatch?.size || 0, "当前赛季已入库比赛");
 
   if (!model.scoreEntries.length) {
-    return {
+    return withAssistantEvidence({
       title: "暂无可分析样本",
       summary: "当前赛季还没有已入库计分比赛，数据助手暂时无法回答。",
       bullets: ["完成入库后，可以查询位置偏好、同队胜率和对阵关系。"],
       table: [],
       heroes: [],
-    };
+    }, 0);
   }
 
   if (!target) {
     const suggestions = getAssistantPlayerSuggestions(cleanQuestion, model.players);
-    return {
+    return withAssistantEvidence({
       title: suggestions.length ? "我没有完全识别到玩家，可能是昵称写法不同" : "我还没识别到要查的玩家",
       summary: suggestions.length ? "可以试试下方提示的玩家库名称、游戏昵称或 DOTA2 ID。" : "请在问题里写玩家库昵称、游戏昵称或 DOTA2 ID。",
       bullets: suggestions.length ? suggestions.map((player) => `可能想查：${assistantPlayerLabel(player)}`) : ["也可以直接从上方选择查询类型和玩家，无需自己组织问题。"],
@@ -1998,16 +2010,29 @@ function answerLeagueAssistantQuestion(question, model) {
         value: "可查询",
       })),
       heroes: [],
-    };
+    }, 0);
   }
 
   const targetRow = model.playerRows.get(String(target.dotaId));
-  if (wantsRecentForm) return buildRecentFormAnswer(target, targetRow);
-  if (wantsHeroStrength) return buildHeroStrengthAnswer(target, targetRow);
-  if (wantsMatchup) return buildMatchupAnswer(target, targetRow, other, reverse);
-  if (wantsComparison) return buildPlayerComparisonAnswer(target, targetRow, other, model.playerRows.get(String(other.dotaId)));
-  if (wantsTeammate || other) return buildTeammateAnswer(target, targetRow, other, teammateReverse);
-  return buildProfileAnswer(target, targetRow);
+  const targetGames = targetRow?.games || 0;
+  if (wantsRecentForm) return withAssistantEvidence(buildRecentFormAnswer(target, targetRow), Math.min(targetRow?.recentEntries?.length || 0, 5), "近期比赛");
+  if (wantsHeroStrength) {
+    const heroGames = Array.from(targetRow?.heroes?.values?.() || []).reduce((total, hero) => total + Number(hero.games || 0), 0);
+    return withAssistantEvidence(buildHeroStrengthAnswer(target, targetRow), heroGames, "含英雄记录的比赛");
+  }
+  if (wantsMatchup) {
+    const pairGames = other ? pairRelationSummary(targetRow, other.dotaId).opponent?.games || 0 : targetGames;
+    return withAssistantEvidence(buildMatchupAnswer(target, targetRow, other, reverse), pairGames, other ? "双方对阵比赛" : "个人对阵比赛");
+  }
+  if (wantsComparison) {
+    const otherGames = model.playerRows.get(String(other.dotaId))?.games || 0;
+    return withAssistantEvidence(buildPlayerComparisonAnswer(target, targetRow, other, model.playerRows.get(String(other.dotaId))), Math.min(targetGames, otherGames), "双方较少一方的可用比赛");
+  }
+  if (wantsTeammate || other) {
+    const pairGames = other ? pairRelationSummary(targetRow, other.dotaId).teammate?.games || 0 : targetGames;
+    return withAssistantEvidence(buildTeammateAnswer(target, targetRow, other, teammateReverse), pairGames, other ? "双方同队比赛" : "个人同队比赛");
+  }
+  return withAssistantEvidence(buildProfileAnswer(target, targetRow), targetGames, "个人比赛");
 }
 
 function buildMatchScorePreview(displayedPlayers, settings = DEFAULT_SETTINGS) {
@@ -4641,6 +4666,16 @@ function LeagueDataAssistant({ players, scoreEntries, heroNames, heroMeta }) {
   const activeQueryType = ASSISTANT_QUERY_TYPES.find((item) => item.id === queryType) || ASSISTANT_QUERY_TYPES[0];
   const firstPlayer = selectablePlayers.find((player) => String(player.dotaId) === firstPlayerId);
   const secondPlayer = selectablePlayers.find((player) => String(player.dotaId) === secondPlayerId);
+  const playersWithSeasonSamples = useMemo(
+    () => selectablePlayers
+      .filter((player) => (model.playerRows.get(String(player.dotaId))?.games || 0) > 0)
+      .sort((a, b) => (model.playerRows.get(String(b.dotaId))?.games || 0) - (model.playerRows.get(String(a.dotaId))?.games || 0) || assistantPlayerLabel(a).localeCompare(assistantPlayerLabel(b), "zh-CN")),
+    [selectablePlayers, model.playerRows],
+  );
+  const playersWithoutSeasonSamples = useMemo(
+    () => selectablePlayers.filter((player) => (model.playerRows.get(String(player.dotaId))?.games || 0) === 0),
+    [selectablePlayers, model.playerRows],
+  );
   const builderQuestion = useMemo(
     () => buildAssistantQuery(activeQueryType.id, firstPlayer, secondPlayer),
     [activeQueryType.id, firstPlayer, secondPlayer],
@@ -4651,7 +4686,28 @@ function LeagueDataAssistant({ players, scoreEntries, heroNames, heroMeta }) {
 
   const playerOptionLabel = (player) => {
     const label = assistantPlayerLabel(player);
-    return player.gameName && player.gameName !== label ? `${label} · ${player.gameName}` : label;
+    const games = model.playerRows.get(String(player.dotaId))?.games || 0;
+    const identity = player.gameName && player.gameName !== label ? `${label} · ${player.gameName}` : label;
+    return games ? `${identity} · ${games} 场` : identity;
+  };
+
+  const playerOptionGroups = (excludedId = "") => {
+    const withSamples = playersWithSeasonSamples.filter((player) => String(player.dotaId) !== String(excludedId));
+    const withoutSamples = playersWithoutSeasonSamples.filter((player) => String(player.dotaId) !== String(excludedId));
+    return (
+      <>
+        {withSamples.length > 0 && (
+          <optgroup label={`本赛季已有计分样本（${withSamples.length} 人）`}>
+            {withSamples.map((player) => <option value={player.dotaId} key={player.dotaId}>{playerOptionLabel(player)}</option>)}
+          </optgroup>
+        )}
+        {withoutSamples.length > 0 && (
+          <optgroup label={`暂无当前赛季样本（${withoutSamples.length} 人）`}>
+            {withoutSamples.map((player) => <option value={player.dotaId} key={player.dotaId}>{playerOptionLabel(player)}</option>)}
+          </optgroup>
+        )}
+      </>
+    );
   };
 
   const resetManualQuestion = () => setDraftQuestion("");
@@ -4679,7 +4735,7 @@ function LeagueDataAssistant({ players, scoreEntries, heroNames, heroMeta }) {
               resetManualQuestion();
             }}>
               <option value="">请选择玩家</option>
-              {selectablePlayers.map((player) => <option value={player.dotaId} key={player.dotaId}>{playerOptionLabel(player)}</option>)}
+              {playerOptionGroups()}
             </select>
           </label>
           {activeQueryType.requiresSecondPlayer && (
@@ -4687,7 +4743,7 @@ function LeagueDataAssistant({ players, scoreEntries, heroNames, heroMeta }) {
               <span>另一名玩家</span>
               <select value={secondPlayerId} onChange={(event) => { setSecondPlayerId(event.target.value); resetManualQuestion(); }}>
                 <option value="">请选择另一名玩家</option>
-                {selectablePlayers.filter((player) => String(player.dotaId) !== firstPlayerId).map((player) => <option value={player.dotaId} key={player.dotaId}>{playerOptionLabel(player)}</option>)}
+                {playerOptionGroups(firstPlayerId)}
               </select>
             </label>
           )}
@@ -4711,7 +4767,10 @@ function LeagueDataAssistant({ players, scoreEntries, heroNames, heroMeta }) {
             <span>回答</span>
             <strong>{answer.title}</strong>
           </div>
-          <small>{scoreEntries.length} 条计分样本</small>
+          <div className="assistant-answer-evidence">
+            <span className={`status-pill ${answer.evidence?.className || "status-muted"}`}>{answer.evidence?.label || "样本状态未知"}</span>
+            <small>{answer.evidence?.detail || `${scoreEntries.length} 条计分样本`}</small>
+          </div>
         </div>
         <p>{answer.summary}</p>
         {answer.bullets?.length > 0 && (

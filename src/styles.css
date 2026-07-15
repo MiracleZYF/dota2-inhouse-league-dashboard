@@ -2578,6 +2578,17 @@ input[type="range"] {
   font-size: 18px;
 }
 
+.assistant-answer-evidence {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+  text-align: right;
+}
+
+.assistant-answer-evidence .status-pill {
+  white-space: nowrap;
+}
+
 .assistant-answer-card p,
 .assistant-answer-card ul {
   margin: 0;
@@ -5053,5 +5064,15 @@ input[type="range"] {
 
   .assistant-submit-button {
     width: 100%;
+  }
+
+  .assistant-answer-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .assistant-answer-evidence {
+    justify-items: start;
+    text-align: left;
   }
 }
