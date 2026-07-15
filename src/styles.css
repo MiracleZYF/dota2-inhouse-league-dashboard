@@ -3969,6 +3969,65 @@ input[type="range"] {
   line-height: 1.55;
 }
 
+.manual-roster-review {
+  display: grid;
+  gap: 9px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  background: rgba(25, 55, 72, 0.22);
+}
+
+.manual-roster-review-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.manual-roster-review-head strong {
+  color: var(--text);
+}
+
+.manual-roster-review-head span {
+  color: var(--teal);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.manual-roster-review ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 18px;
+  color: #c9d6e2;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.manual-roster-review li strong {
+  margin-right: 6px;
+  color: var(--gold);
+}
+
+.manual-roster-validation {
+  display: grid;
+  gap: 5px;
+}
+
+.manual-roster-validation span {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.manual-roster-validation.errors span {
+  color: #ff9f9a;
+}
+
+.manual-roster-validation.warnings span {
+  color: #f7cc7f;
+}
+
 .manual-roster-grid {
   display: grid;
   gap: 8px;
@@ -4208,6 +4267,84 @@ input[type="range"] {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.45;
+}
+
+.review-completion {
+  margin: 0 18px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: rgba(10, 22, 32, 0.74);
+}
+
+.review-completion-head {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.review-completion-head span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.review-completion-head strong {
+  color: var(--teal);
+}
+
+.review-completion-items {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.review-completion-items > div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 7px;
+  padding: 10px;
+  border-right: 1px solid var(--line-soft);
+}
+
+.review-completion-items > div:last-child {
+  border-right: 0;
+}
+
+.review-completion-items > div > span {
+  grid-row: 1 / span 2;
+  display: inline-grid;
+  place-items: center;
+}
+
+.review-completion-items .complete > span,
+.review-completion-items .complete strong {
+  color: var(--green);
+}
+
+.review-completion-items .missing > span,
+.review-completion-items .missing strong {
+  color: var(--gold);
+}
+
+.review-completion-items strong,
+.review-completion-items small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-completion-items strong {
+  font-size: 13px;
+}
+
+.review-completion-items small {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .review-workbench {
@@ -4771,6 +4908,10 @@ input[type="range"] {
     grid-template-columns: 1fr;
   }
 
+  .review-completion-items {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .manual-roster-row {
     grid-template-columns: 58px repeat(2, minmax(0, 1fr));
   }
@@ -5074,5 +5215,9 @@ input[type="range"] {
   .assistant-answer-evidence {
     justify-items: start;
     text-align: left;
+  }
+
+  .review-completion-items {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

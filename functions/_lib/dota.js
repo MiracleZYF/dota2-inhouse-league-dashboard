@@ -1558,11 +1558,48 @@ function normalizeManualRosterRows(rows) {
     .filter((row) => row.accountId || row.name || row.heroId);
 }
 
+function validateManualRosterInput(rows) {
+  const entries = Array.isArray(rows) ? rows : [];
+  const errors = [];
+  const seenAccounts = new Set();
+  const seenSlots = new Set();
+  let filledRows = 0;
+
+  entries.forEach((row, index) => {
+    const side = row?.side === "夜魇" ? "夜魇" : "天辉";
+    const sideIndex = Number.isFinite(Number(row?.sideIndex)) ? Number(row.sideIndex) : index % 5;
+    const slot = `${side}${sideIndex + 1}`;
+    const accountId = String(row?.accountId || "").trim();
+    const hasData = accountId || String(row?.name || "").trim() || [row?.heroId, row?.kills, row?.deaths, row?.assists].some((value) => value !== "" && value !== null && value !== undefined);
+    if (hasData) filledRows += 1;
+    if (hasData) {
+      if (seenSlots.has(slot)) errors.push(`${slot} 被重复填写。`);
+      seenSlots.add(slot);
+    }
+    if (accountId && !/^\d+$/.test(accountId)) errors.push(`${slot} 的 DOTA2 ID 必须是数字。`);
+    if (accountId) {
+      if (seenAccounts.has(accountId)) errors.push(`DOTA2 ID ${accountId} 重复出现。`);
+      seenAccounts.add(accountId);
+    }
+    [["英雄 ID", row?.heroId, true], ["击杀", row?.kills, false], ["死亡", row?.deaths, false], ["助攻", row?.assists, false]].forEach(([label, value, integerOnly]) => {
+      if (value === "" || value === null || value === undefined) return;
+      const number = Number(value);
+      if (!Number.isFinite(number) || number < 0 || (integerOnly && !Number.isInteger(number))) errors.push(`${slot} 的${label}必须是非负${integerOnly ? "整数" : "数字"}。`);
+    });
+  });
+
+  if (entries.length > 10) errors.push("手动阵容最多只能保存 10 个位置。");
+  if (!filledRows) errors.push("至少需要保留一名玩家记录。");
+  return Array.from(new Set(errors));
+}
+
 export async function updateMatchManualRoster(env, matchId, manualRoster = []) {
   const leagueSlug = currentLeagueSlug(env);
   const row = await env.DB.prepare("SELECT * FROM league_matches WHERE league_slug = ? AND id = ?").bind(leagueSlug, String(matchId)).first();
   if (!row) return null;
 
+  const validationErrors = validateManualRosterInput(manualRoster);
+  if (validationErrors.length) throw new Error(validationErrors[0]);
   const rosterRows = normalizeManualRosterRows(manualRoster);
   const playerLibrary = await getPlayers(env);
   const playerByAccount = new Map(playerLibrary.map((player) => [String(player.dotaId), player]));
@@ -3036,9 +3073,32 @@ async function getLeagueHistoryFallback(env, matchId, settings) {
   return { detail: buildSteamHistoryDetail(leagueMatch, leagueId), error: "" };
 }
 
+function applyManualMatchOverrides(currentDetail, incomingDetail) {
+  if (!currentDetail || !incomingDetail) return incomingDetail;
+  const nextDetail = { ...incomingDetail };
+
+  if (currentDetail.manual_roster_override) {
+    const manualPlayers = (Array.isArray(currentDetail.players) ? currentDetail.players : []).filter((player) => player?.manual_player);
+    if (manualPlayers.length) {
+      const mergedBySlot = new Map((Array.isArray(incomingDetail.players) ? incomingDetail.players : []).map((player, index) => [String(player?.player_slot ?? index), player]));
+      manualPlayers.forEach((player, index) => mergedBySlot.set(String(player?.player_slot ?? index), { ...player, manual_player: true }));
+      nextDetail.players = Array.from(mergedBySlot.values()).sort((a, b) => Number(a?.player_slot || 0) - Number(b?.player_slot || 0));
+      nextDetail.manual_roster_override = true;
+    }
+  }
+
+  if (currentDetail.manual_winner_override && typeof currentDetail.radiant_win === "boolean") {
+    nextDetail.radiant_win = currentDetail.radiant_win;
+    nextDetail.manual_winner_override = true;
+  }
+
+  return nextDetail;
+}
+
 export async function refreshStoredMatch(env, matchId, { resetReviewStatus = false, requestOpenDotaParse = true, useSteam = true, useStratz = true } = {}) {
   const existingMatch = await getMatch(env, matchId);
   const currentMatch = existingMatch || createPendingMatch(matchId);
+  const currentDetail = existingMatch ? await getMatchDetail(env, matchId) : null;
   const players = await getPlayers(env);
   const settings = await getSettings(env);
   const lookup = await fetchMatchDetailWithFallback(env, matchId, {
@@ -3049,12 +3109,13 @@ export async function refreshStoredMatch(env, matchId, { resetReviewStatus = fal
 
   if (lookup.ok) {
     const baseMatch = resetReviewStatus && currentMatch.status !== "已入库" ? { ...currentMatch, status: "待确认", hidden: false, isRankedLadder: false } : currentMatch;
-    const updatedMatch = buildMatchFromDetail(baseMatch, lookup.detail, players, settings);
+    const effectiveDetail = applyManualMatchOverrides(currentDetail, lookup.detail);
+    const updatedMatch = buildMatchFromDetail(baseMatch, effectiveDetail, players, settings);
     const match = existingMatch ? await upsertMatch(env, updatedMatch, { preserveStatus: false }) : updatedMatch;
     return {
       ok: true,
       match,
-      detail: lookup.detail,
+      detail: effectiveDetail,
       source: lookup.source,
       openDotaStatus: lookup.openDotaStatus,
       steamStatus: lookup.steamStatus,
@@ -3091,12 +3152,13 @@ export async function refreshStoredMatch(env, matchId, { resetReviewStatus = fal
       ];
       if (sequenceResult.ok) {
         const baseMatch = resetReviewStatus && currentMatch.status !== "已入库" ? { ...currentMatch, status: "待确认", hidden: false, isRankedLadder: false } : currentMatch;
-        const updatedMatch = buildMatchFromDetail(baseMatch, sequenceResult.detail, players, settings);
+        const effectiveDetail = applyManualMatchOverrides(currentDetail, sequenceResult.detail);
+        const updatedMatch = buildMatchFromDetail(baseMatch, effectiveDetail, players, settings);
         const match = existingMatch ? await upsertMatch(env, updatedMatch, { preserveStatus: false }) : updatedMatch;
         return {
           ok: true,
           match,
-          detail: sequenceResult.detail,
+          detail: effectiveDetail,
           source: "steam-sequence",
           openDotaStatus: lookup.openDotaStatus,
           steamStatus: sequenceResult.status,
@@ -3113,13 +3175,14 @@ export async function refreshStoredMatch(env, matchId, { resetReviewStatus = fal
   const fallbackDetail = leagueFallback.detail || cachedDetail;
   if (fallbackDetail?.players?.length) {
     const baseMatch = resetReviewStatus && currentMatch.status !== "已入库" ? { ...currentMatch, status: "待确认", hidden: false, isRankedLadder: false } : currentMatch;
-    const updatedMatch = buildMatchFromDetail(baseMatch, fallbackDetail, players, settings);
+    const effectiveDetail = applyManualMatchOverrides(currentDetail, fallbackDetail);
+    const updatedMatch = buildMatchFromDetail(baseMatch, effectiveDetail, players, settings);
     const match = existingMatch ? await upsertMatch(env, updatedMatch, { preserveStatus: false }) : updatedMatch;
     const source = leagueFallback.detail ? "steam-history" : fallbackDetail.data_source || "cached";
     return {
       ok: true,
       match,
-      detail: fallbackDetail,
+      detail: effectiveDetail,
       source,
       openDotaStatus: lookup.openDotaStatus,
       steamStatus: lookup.steamStatus,

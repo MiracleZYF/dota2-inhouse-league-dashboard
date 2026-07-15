@@ -2112,6 +2112,70 @@ function normalizeManualRosterForSave(rows) {
   }));
 }
 
+function manualRosterIdentity(row = {}) {
+  return String(row.name || row.accountId || "空位").trim() || "空位";
+}
+
+function validateManualRosterRows(rows = []) {
+  const errors = [];
+  const warnings = [];
+  const accountSlots = new Map();
+  const filledBySide = new Map([["天辉", 0], ["夜魇", 0]]);
+
+  rows.forEach((row, index) => {
+    const slot = `${row.side || "天辉"}${Number(row.sideIndex || 0) + 1}`;
+    const accountId = String(row.accountId || "").trim();
+    const hasIdentity = Boolean(accountId || String(row.name || "").trim());
+    const hasStats = [row.heroId, row.kills, row.deaths, row.assists].some((value) => value !== "" && value !== null && value !== undefined);
+    if (hasIdentity || hasStats) filledBySide.set(row.side, (filledBySide.get(row.side) || 0) + 1);
+
+    if (accountId && !/^\d+$/.test(accountId)) errors.push(`${slot} 的 DOTA2 ID 必须是数字。`);
+    if (accountId) {
+      const existingSlot = accountSlots.get(accountId);
+      if (existingSlot) errors.push(`DOTA2 ID ${accountId} 同时出现在 ${existingSlot} 和 ${slot}。`);
+      else accountSlots.set(accountId, slot);
+    }
+
+    [
+      ["英雄 ID", row.heroId, true],
+      ["击杀", row.kills, false],
+      ["死亡", row.deaths, false],
+      ["助攻", row.assists, false],
+    ].forEach(([label, value, integerOnly]) => {
+      if (value === "" || value === null || value === undefined) return;
+      const number = Number(value);
+      if (!Number.isFinite(number) || number < 0 || (integerOnly && !Number.isInteger(number))) errors.push(`${slot} 的${label}需要填写非负${integerOnly ? "整数" : "数字"}。`);
+    });
+
+    if (hasStats && !hasIdentity) warnings.push(`${slot} 已填写英雄或 KDA，但还没有玩家身份，只会作为展示记录。`);
+    if (hasIdentity && (row.heroId === "" || row.heroId === null || row.heroId === undefined)) warnings.push(`${slot} 尚未填写英雄 ID。`);
+  });
+
+  const filledCount = Array.from(filledBySide.values()).reduce((total, count) => total + count, 0);
+  if (!filledCount) errors.push("至少需要保留一名玩家记录。");
+  if (filledCount < 10) warnings.push(`当前只填写 ${filledCount}/10 名玩家，未填写的位置不会作为完整十人阵容展示。`);
+  return { errors: Array.from(new Set(errors)), warnings: Array.from(new Set(warnings)), filledCount };
+}
+
+function buildManualRosterChanges(beforeRows = [], nextRows = []) {
+  return nextRows
+    .map((row, index) => {
+      const before = beforeRows[index] || {};
+      const changes = [];
+      const beforeIdentity = manualRosterIdentity(before);
+      const nextIdentity = manualRosterIdentity(row);
+      if (String(before.accountId || "") !== String(row.accountId || "") || String(before.name || "") !== String(row.name || "")) {
+        changes.push(`玩家 ${beforeIdentity} -> ${nextIdentity}`);
+      }
+      if (String(before.heroId ?? "") !== String(row.heroId ?? "")) changes.push(`英雄 ID ${before.heroId || "-"} -> ${row.heroId || "-"}`);
+      const beforeKda = [before.kills, before.deaths, before.assists].map((value) => value ?? "-").join("/");
+      const nextKda = [row.kills, row.deaths, row.assists].map((value) => value ?? "-").join("/");
+      if (beforeKda !== nextKda) changes.push(`KDA ${beforeKda} -> ${nextKda}`);
+      return changes.length ? { slot: `${row.side}${Number(row.sideIndex || 0) + 1}`, changes } : null;
+    })
+    .filter(Boolean);
+}
+
 function buildReviewSteps(recognition, status) {
   const confirmed = status === "已确认" || status === "已入库";
   const stored = status === "已入库";
@@ -2146,6 +2210,17 @@ function buildReviewWarnings(recognition, scorePreview, status) {
   if (scorePreview.missingPlayers.length) warnings.push({ tone: "info", title: "存在未匹配玩家", body: `${scorePreview.missingPlayers.length} 名玩家没有匹配到玩家库，入库后不会给他们计分。` });
   if (status === "已入库") warnings.push({ tone: "success", title: "已入库", body: "这场比赛已经计入积分榜，后续重复确认不会新增计分流水。" });
   return warnings;
+}
+
+function buildReviewCompletion(recognition, scorePreview, detailPlayerCount) {
+  const items = [
+    { label: "对局详情", complete: recognition.parsed, text: recognition.parsed ? "已获取" : "待解析" },
+    { label: "完整阵容", complete: detailPlayerCount >= 10, text: detailPlayerCount >= 10 ? "10 人" : `${detailPlayerCount}/10 人` },
+    { label: "命中阈值", complete: recognition.meetsThreshold, text: `${recognition.registered}/${recognition.threshold} 人` },
+    { label: "双方平衡", complete: recognition.balancedSides, text: `天辉 ${recognition.radiant} / 夜魇 ${recognition.dire}` },
+    { label: "胜负结果", complete: scorePreview.entries.length > 0 && scorePreview.unknownCount === 0, text: scorePreview.unknownCount ? `${scorePreview.unknownCount} 人待定` : "已明确" },
+  ];
+  return { items, completed: items.filter((item) => item.complete).length };
 }
 
 function buildReviewActionHint(match, recognition) {
@@ -3337,6 +3412,9 @@ function ManualRosterEditor({ matchId, displayedPlayers, players, onSave, disabl
     () => displayedPlayers.map((player) => `${player.side}-${player.accountId}-${player.heroId}-${player.kills}-${player.deaths}-${player.assists}`).join("|"),
     [displayedPlayers],
   );
+  const sourceRows = useMemo(() => manualRosterRowsFromPlayers(displayedPlayers), [sourceSignature]);
+  const validation = useMemo(() => validateManualRosterRows(rows), [rows]);
+  const changes = useMemo(() => buildManualRosterChanges(sourceRows, rows), [sourceRows, rows]);
 
   useEffect(() => {
     if (!dirty) setRows(manualRosterRowsFromPlayers(displayedPlayers));
@@ -3357,12 +3435,16 @@ function ManualRosterEditor({ matchId, displayedPlayers, players, onSave, disabl
   }
 
   function resetRows() {
-    setRows(manualRosterRowsFromPlayers(displayedPlayers));
+    setRows(sourceRows);
     setDirty(false);
     setMessage("");
   }
 
   async function submit() {
+    if (validation.errors.length) {
+      setMessage(validation.errors[0]);
+      return;
+    }
     setSaving(true);
     setMessage("");
     try {
@@ -3388,6 +3470,29 @@ function ManualRosterEditor({ matchId, displayedPlayers, players, onSave, disabl
       <div className="manual-roster-note">
         规则已锁定：只有选择或填写玩家库中的 DOTA2 ID 才进入积分统计；非名单玩家只用于补全 10 人展示。
       </div>
+      {dirty && (
+        <div className="manual-roster-review">
+          <div className="manual-roster-review-head">
+            <strong>本次修改预览</strong>
+            <span>{changes.length ? `${changes.length} 个位置有变化` : "仅有格式变化"}</span>
+          </div>
+          {changes.length > 0 && (
+            <ul>
+              {changes.map((change) => <li key={change.slot}><strong>{change.slot}</strong>{change.changes.join("；")}</li>)}
+            </ul>
+          )}
+          {validation.errors.length > 0 && (
+            <div className="manual-roster-validation errors">
+              {validation.errors.map((item) => <span key={item}>{item}</span>)}
+            </div>
+          )}
+          {validation.warnings.length > 0 && (
+            <div className="manual-roster-validation warnings">
+              {validation.warnings.map((item) => <span key={item}>{item}</span>)}
+            </div>
+          )}
+        </div>
+      )}
       <div className="manual-roster-grid">
         {rows.map((row, index) => {
           const registered = playerById.has(String(row.accountId));
@@ -3441,7 +3546,7 @@ function ManualRosterEditor({ matchId, displayedPlayers, players, onSave, disabl
         <button className="ghost-button compact-button" type="button" onClick={resetRows} disabled={disabled || saving}>
           重置
         </button>
-        <button className="primary-button compact-button" type="button" onClick={submit} disabled={disabled || saving}>
+        <button className="primary-button compact-button" type="button" onClick={submit} disabled={disabled || saving || validation.errors.length > 0}>
           <Check size={15} />
           {saving ? "保存中" : "保存阵容"}
         </button>
@@ -3648,6 +3753,8 @@ function MatchDetailModal({
   const storeBlockedByUnknownResult = canStore && scorePreview.unknownCount > 0;
   const reviewSteps = buildReviewSteps(recognition, match.status);
   const reviewWarnings = buildReviewWarnings(recognition, scorePreview, match.status);
+  const reviewCompletion = buildReviewCompletion(recognition, scorePreview, totalPlayers);
+  const manualOverrideActive = Boolean(detail?.manual_roster_override || detail?.manual_winner_override);
 
   function handleModalWheel(event) {
     const body = detailBodyRef.current;
@@ -3724,7 +3831,7 @@ function MatchDetailModal({
             </p>
           </div>
 
-          <div className="match-detail-grid compact-summary-grid">
+            <div className="match-detail-grid compact-summary-grid">
             <div className="detail-card">
               <span>当前状态</span>
               <strong>
@@ -3775,11 +3882,15 @@ function MatchDetailModal({
               <span>时长</span>
               <strong>{detail ? formatDuration(detail.duration) : "-"}</strong>
             </div>
-            <div className="detail-card">
-              <span>胜方</span>
-              <strong>{winner}</strong>
+              <div className="detail-card">
+                <span>胜方</span>
+                <strong>{winner}</strong>
+              </div>
+              <div className="detail-card">
+                <span>人工修正</span>
+                <strong>{manualOverrideActive ? "保护中" : "未启用"}</strong>
+              </div>
             </div>
-          </div>
 
           <div className="detail-note">
             <span>识别备注</span>
@@ -3799,6 +3910,22 @@ function MatchDetailModal({
               </div>
             ))}
           </div>
+
+          <section className="review-completion" aria-label="复核完成度">
+            <div className="review-completion-head">
+              <span>复核完成度</span>
+              <strong>{reviewCompletion.completed} / {reviewCompletion.items.length}</strong>
+            </div>
+            <div className="review-completion-items">
+              {reviewCompletion.items.map((item) => (
+                <div className={item.complete ? "complete" : "missing"} key={item.label}>
+                  <span>{item.complete ? <Check size={14} /> : <X size={14} />}</span>
+                  <strong>{item.label}</strong>
+                  <small>{item.text}</small>
+                </div>
+              ))}
+            </div>
+          </section>
 
           <div className="review-workbench">
             <section className="review-flow-card">
