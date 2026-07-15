@@ -1165,6 +1165,26 @@ const MATCH_WORK_QUEUE_DEFS = [
   { id: "all", label: "全部", empty: "暂无比赛记录。" },
 ];
 
+const MATCH_REVIEW_FILTER_DEFS = [
+  { id: "all", label: "全部问题" },
+  { id: "missingWinner", label: "缺胜负" },
+  { id: "partialRoster", label: "阵容不完整" },
+  { id: "belowThreshold", label: "命中不足" },
+  { id: "ready", label: "可确认/入库" },
+  { id: "manual", label: "需要人工" },
+];
+
+function matchesReviewFilter(match, filterId, settings = DEFAULT_SETTINGS) {
+  if (filterId === "all") return true;
+  const diagnostic = buildMatchDiagnostic(match, settings);
+  if (filterId === "missingWinner") return !diagnostic.result.known;
+  if (filterId === "partialRoster") return !diagnostic.detail.hasFullRoster;
+  if (filterId === "belowThreshold") return !diagnostic.recognition.meetsThreshold;
+  if (filterId === "ready") return diagnostic.queue.id === "actionable";
+  if (filterId === "manual") return diagnostic.needsManualIntervention || diagnostic.queue.id === "needsReview";
+  return true;
+}
+
 function buildMatchWorkQueues(matches, settings = DEFAULT_SETTINGS) {
   const queues = Object.fromEntries(MATCH_WORK_QUEUE_DEFS.map((queue) => [queue.id, []]));
   matches.forEach((match) => {
@@ -3039,6 +3059,8 @@ function MatchQueue({
   onView,
   onRefresh,
   refreshingMatchIds = [],
+  selectedMatchIds = [],
+  onSelectedMatchIdsChange,
   compact = false,
   isAdmin = false,
   settings = DEFAULT_SETTINGS,
@@ -3061,6 +3083,16 @@ function MatchQueue({
       <table className={`data-table match-table ${compact ? "compact" : ""}`}>
         <thead>
           <tr>
+            {isAdmin && !compact && (
+              <th className="match-select-cell">
+                <input
+                  type="checkbox"
+                  aria-label="选择当前列表全部比赛"
+                  checked={matches.length > 0 && matches.every((match) => selectedMatchIds.includes(String(match.id)))}
+                  onChange={(event) => onSelectedMatchIdsChange?.(event.target.checked ? matches.map((match) => String(match.id)) : [])}
+                />
+              </th>
+            )}
             <th>状态</th>
             <th>Match ID</th>
             <th>识别结论</th>
@@ -3079,6 +3111,22 @@ function MatchQueue({
             const isRefreshing = refreshingMatchIds.includes(String(match.id));
             return (
               <tr key={match.id}>
+                {isAdmin && !compact && (
+                  <td className="match-select-cell">
+                    <input
+                      type="checkbox"
+                      aria-label={`选择比赛 ${match.id}`}
+                      checked={selectedMatchIds.includes(String(match.id))}
+                      onChange={(event) => {
+                        const matchKey = String(match.id);
+                        const next = event.target.checked
+                          ? [...new Set([...selectedMatchIds, matchKey])]
+                          : selectedMatchIds.filter((id) => id !== matchKey);
+                        onSelectedMatchIdsChange?.(next);
+                      }}
+                    />
+                  </td>
+                )}
                 <td>
                   <span className={`status-pill ${statusClass(match.status)}`}>{match.status}</span>
                 </td>
@@ -4448,6 +4496,8 @@ function MatchesView({
   onView,
   onRefresh,
   refreshingMatchIds = [],
+  onBatchRefresh,
+  onBatchReject,
   dateRange,
   dateRangeLabel,
   dateRangeValid,
@@ -4464,6 +4514,10 @@ function MatchesView({
   const [addingMatch, setAddingMatch] = useState(false);
   const [activeQueue, setActiveQueue] = useState("actionable");
   const [queueTouched, setQueueTouched] = useState(false);
+  const [reviewFilter, setReviewFilter] = useState("all");
+  const [matchSearch, setMatchSearch] = useState("");
+  const [selectedMatchIds, setSelectedMatchIds] = useState([]);
+  const [batchAction, setBatchAction] = useState("");
   const reviewableMatches = isAdmin ? matches.filter(isReviewableMatch) : matches;
   const workbenchMatches = isAdmin ? matches : reviewableMatches;
   const workQueues = useMemo(() => buildMatchWorkQueues(workbenchMatches, settings), [workbenchMatches, settings]);
@@ -4473,6 +4527,14 @@ function MatchesView({
   );
   const activeQueueDef = visibleQueueDefs.find((queue) => queue.id === activeQueue) || visibleQueueDefs[0];
   const activeMatches = workQueues[activeQueueDef.id] || [];
+  const filteredActiveMatches = useMemo(() => {
+    const query = matchSearch.trim().toLowerCase();
+    return activeMatches.filter((match) => {
+      if (!matchesReviewFilter(match, reviewFilter, settings)) return false;
+      if (!query) return true;
+      return `${match.id} ${match.notes || ""} ${match.time || ""}`.toLowerCase().includes(query);
+    });
+  }, [activeMatches, matchSearch, reviewFilter, settings]);
   const preferredQueueDef = useMemo(() => {
     const queueOrder = ["actionable", "needsReview", "waiting", "stored", "all", "archived"];
     return queueOrder
@@ -4510,9 +4572,46 @@ function MatchesView({
     setActiveQueue(preferredQueueDef.id);
   }, [activeMatches.length, activeQueueDef.id, preferredQueueDef, queueTouched]);
 
+  useEffect(() => {
+    const visibleIds = new Set(filteredActiveMatches.map((match) => String(match.id)));
+    setSelectedMatchIds((current) => current.filter((id) => visibleIds.has(id)));
+  }, [filteredActiveMatches]);
+
   function chooseQueue(queueId) {
     setQueueTouched(true);
     setActiveQueue(queueId);
+    setReviewFilter("all");
+    setMatchSearch("");
+    setSelectedMatchIds([]);
+  }
+
+  function updateSelectedMatchIds(nextIds) {
+    const uniqueIds = [...new Set(nextIds.map(String))];
+    if (uniqueIds.length > 12) setManualMessage("批量操作每次最多选择 12 场，已保留前 12 场。");
+    setSelectedMatchIds(uniqueIds.slice(0, 12));
+  }
+
+  async function runBatchRefresh() {
+    if (!selectedMatchIds.length || !onBatchRefresh) return;
+    setBatchAction("refresh");
+    try {
+      await onBatchRefresh(selectedMatchIds);
+      setSelectedMatchIds([]);
+    } finally {
+      setBatchAction("");
+    }
+  }
+
+  async function runBatchReject() {
+    const rejectableIds = selectedMatchIds.filter((id) => matches.find((match) => String(match.id) === id)?.status === "待确认");
+    if (!rejectableIds.length || !onBatchReject) return;
+    setBatchAction("reject");
+    try {
+      const completed = await onBatchReject(rejectableIds);
+      if (completed) setSelectedMatchIds([]);
+    } finally {
+      setBatchAction("");
+    }
   }
 
   async function addMatch() {
@@ -4650,8 +4749,48 @@ function MatchesView({
               {activeQueueDef.id === "all" && "全部比赛记录，按时间倒序展示。"}
             </p>
           </div>
+          {isAdmin && (
+            <div className="match-review-toolbar">
+              <div className="match-review-filters" role="group" aria-label="复核筛选">
+                {MATCH_REVIEW_FILTER_DEFS.map((filter) => (
+                  <button
+                    className={filter.id === reviewFilter ? "active" : ""}
+                    type="button"
+                    key={filter.id}
+                    onClick={() => {
+                      setReviewFilter(filter.id);
+                      setSelectedMatchIds([]);
+                    }}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+              <label className="search-field match-review-search">
+                <Search size={15} />
+                <input value={matchSearch} onChange={(event) => setMatchSearch(event.target.value)} placeholder="筛选 Match ID 或备注" />
+              </label>
+            </div>
+          )}
+          {isAdmin && selectedMatchIds.length > 0 && (
+            <div className="batch-action-bar">
+              <span>已选 {selectedMatchIds.length} / 12 场</span>
+              <small>批量重新识别按顺序执行，避免触发数据源限速。</small>
+              <button className="ghost-button compact-button" type="button" onClick={() => setSelectedMatchIds([])} disabled={Boolean(batchAction)}>
+                清除选择
+              </button>
+              <button className="ghost-button compact-button" type="button" onClick={runBatchRefresh} disabled={Boolean(batchAction)}>
+                <RefreshCw size={15} className={batchAction === "refresh" ? "spin-icon" : ""} />
+                {batchAction === "refresh" ? "重新识别中" : "批量重新识别"}
+              </button>
+              <button className="danger-button compact-button" type="button" onClick={runBatchReject} disabled={Boolean(batchAction) || !selectedMatchIds.some((id) => matches.find((match) => String(match.id) === id)?.status === "待确认")}>
+                <X size={15} />
+                批量驳回待确认
+              </button>
+            </div>
+          )}
           <MatchQueue
-            matches={activeMatches}
+            matches={filteredActiveMatches}
             onConfirm={onConfirm}
             onReject={onReject}
             onRestore={onRestore}
@@ -4659,6 +4798,8 @@ function MatchesView({
             onView={onView}
             onRefresh={onRefresh}
             refreshingMatchIds={refreshingMatchIds}
+            selectedMatchIds={selectedMatchIds}
+            onSelectedMatchIdsChange={updateSelectedMatchIds}
             isAdmin={isAdmin}
             settings={settings}
             emptyTitle={activeQueueDef.empty}
@@ -4667,9 +4808,9 @@ function MatchesView({
           />
         </Panel>
 
-        {activeMatches.length > 0 && (
+        {filteredActiveMatches.length > 0 && (
           <div className="note-grid">
-            {activeMatches.slice(0, 3).map((match) => {
+            {filteredActiveMatches.slice(0, 3).map((match) => {
               const diagnostic = buildMatchDiagnostic(match, settings);
               const recognition = diagnostic.recognition;
               const reviewHint = buildReviewActionHint(match, recognition);
@@ -7102,6 +7243,39 @@ export function App() {
     }
   }
 
+  async function rejectMatchesBatch(matchIds) {
+    const ids = [...new Set(matchIds.map(String))]
+      .filter((matchId) => matches.find((match) => String(match.id) === matchId)?.status === "待确认")
+      .slice(0, 12);
+    if (!ids.length) return false;
+    if (!confirmAdminAction(`确认批量驳回 ${ids.length} 场待确认比赛？\n\n它们会移入“已驳回/隐藏”，不会进入积分榜；之后仍可从隐藏记录恢复。`)) return false;
+
+    const failed = [];
+    for (const matchId of ids) {
+      try {
+        const data = await apiRequest(`/api/matches/${matchId}`, { method: "PATCH", admin: true, body: { status: "已驳回" } });
+        applyServerState(data);
+      } catch (error) {
+        failed.push(`${matchId}${error instanceof Error ? ` (${error.message})` : ""}`);
+      }
+    }
+
+    const successCount = ids.length - failed.length;
+    setLastSync(`批量驳回完成：${successCount}/${ids.length}`);
+    setNotifications((current) => [
+      {
+        id: `batch-reject-${Date.now()}`,
+        title: failed.length ? "批量驳回部分完成" : "批量驳回完成",
+        body: failed.length ? `已驳回 ${successCount} 场；失败：${failed.join("；")}` : `${successCount} 场比赛已移入已驳回/隐藏记录。`,
+        time: "刚刚",
+        read: false,
+        action: "matches",
+      },
+      ...current.slice(0, 5),
+    ]);
+    return true;
+  }
+
   async function restoreMatch(matchId) {
     try {
       const data = await apiRequest(`/api/matches/${matchId}`, { method: "PATCH", admin: true, body: { status: "待确认" } });
@@ -7813,6 +7987,56 @@ export function App() {
     }
   }
 
+  async function refreshMatchesBatch(matchIds) {
+    const ids = [...new Set(matchIds.map(String))]
+      .filter((matchId) => matches.some((match) => String(match.id) === matchId))
+      .slice(0, 12);
+    if (!ids.length) return false;
+    if (!confirmAdminAction(`确认依次重新识别 ${ids.length} 场比赛？\n\n系统会按顺序请求 OpenDota、Steam 和 STRATZ，避免数据源限流。手动补全的阵容和手动指定的胜负会被保留。`)) return false;
+
+    loadHeroNames();
+    const failed = [];
+    let detailCount = 0;
+    for (const matchId of ids) {
+      setRefreshingMatchIds((current) => [...new Set([...current, matchId])]);
+      setMatchDetails((current) => {
+        const next = { ...current };
+        delete next[matchId];
+        return next;
+      });
+      try {
+        const data = await apiRequest(`/api/matches/${matchId}`, { method: "POST", admin: true, body: { action: "refresh" } });
+        applyServerState(data);
+        if (Array.isArray(data.attempts)) setMatchLookupAttempts((current) => ({ ...current, [matchId]: data.attempts }));
+        if (data.detail) {
+          detailCount += 1;
+          setMatchDetails((current) => ({ ...current, [matchId]: data.detail }));
+        }
+      } catch (error) {
+        failed.push(`${matchId}${error instanceof Error ? ` (${error.message})` : ""}`);
+      } finally {
+        setRefreshingMatchIds((current) => current.filter((item) => item !== matchId));
+      }
+    }
+
+    const successCount = ids.length - failed.length;
+    setLastSync(`批量重新识别完成：${successCount}/${ids.length}`);
+    setNotifications((current) => [
+      {
+        id: `batch-refresh-${Date.now()}`,
+        title: failed.length ? "批量重新识别部分完成" : "批量重新识别完成",
+        body: failed.length
+          ? `成功处理 ${successCount} 场，取得 ${detailCount} 份详情；失败：${failed.join("；")}`
+          : `已处理 ${successCount} 场，取得 ${detailCount} 份对局详情。`,
+        time: "刚刚",
+        read: false,
+        action: "matches",
+      },
+      ...current.slice(0, 5),
+    ]);
+    return true;
+  }
+
   function openNotification(item) {
     setNotifications((current) => current.map((notification) => (notification.id === item.id ? { ...notification, read: true } : notification)));
     setActiveView(item.action);
@@ -8178,6 +8402,8 @@ export function App() {
             onRollback={rollbackMatch}
             onView={openMatch}
             onRefresh={refreshMatch}
+            onBatchRefresh={refreshMatchesBatch}
+            onBatchReject={rejectMatchesBatch}
             refreshingMatchIds={refreshingMatchIds}
             dateRange={dateRange}
             dateRangeLabel={dateRangeLabel}
