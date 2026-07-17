@@ -3621,6 +3621,204 @@ input[type="range"] {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 
+.choice-menu {
+  position: relative;
+  min-width: 0;
+}
+
+.choice-menu-trigger {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 6px;
+  color: var(--text);
+  background: rgba(3, 9, 15, 0.78);
+  text-align: left;
+}
+
+.choice-menu-trigger:hover,
+.choice-menu-trigger:focus-visible {
+  border-color: rgba(52, 215, 181, 0.58);
+  outline: 0;
+  background: rgba(12, 50, 56, 0.56);
+}
+
+.choice-menu-trigger > span,
+.choice-menu-popover button > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.choice-menu-trigger strong,
+.choice-menu-popover strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.choice-menu-trigger small,
+.choice-menu-popover small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.choice-menu-popover {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  width: max(100%, 220px);
+  max-height: 260px;
+  display: grid;
+  gap: 3px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid rgba(52, 215, 181, 0.4);
+  border-radius: 7px;
+  background: #0a1723;
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.42);
+}
+
+.choice-menu-popover button {
+  min-width: 0;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+}
+
+.choice-menu-popover button:hover,
+.choice-menu-popover button.selected {
+  border-color: rgba(52, 215, 181, 0.28);
+  background: rgba(52, 215, 181, 0.13);
+}
+
+.choice-menu.compact .choice-menu-trigger {
+  min-height: 30px;
+  padding: 4px 6px;
+}
+
+.choice-menu.compact .choice-menu-trigger small {
+  display: none;
+}
+
+.captain-choice-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.captain-choice-card > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.schedule-card-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.schedule-card-top label,
+.schedule-format,
+.schedule-matchup-row > div {
+  display: grid;
+  gap: 6px;
+}
+
+.schedule-card-top label > span,
+.schedule-format > span,
+.schedule-matchup-row > div > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.schedule-card-top input {
+  min-width: 0;
+  min-height: 38px;
+}
+
+.schedule-format > div {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.schedule-format button {
+  min-width: 42px;
+  min-height: 38px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  color: var(--muted);
+  background: rgba(3, 9, 15, 0.64);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.schedule-format button:last-child { border-right: 0; }
+.schedule-format button.active { color: #07201d; background: var(--teal); }
+
+.schedule-matchup-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 14px;
+  background: rgba(7, 16, 24, 0.24);
+}
+
+.schedule-vs {
+  min-height: 44px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.final-toggle {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  background: rgba(3, 9, 15, 0.66);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.final-toggle.active {
+  border-color: rgba(247, 182, 75, 0.58);
+  color: var(--gold);
+  background: rgba(247, 182, 75, 0.12);
+}
+
 .series-team-scoreboard {
   display: grid;
   gap: 8px;
