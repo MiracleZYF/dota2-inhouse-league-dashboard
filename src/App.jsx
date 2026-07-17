@@ -5027,12 +5027,13 @@ function HeroIdentity({ hero, subText, size = "sm" }) {
   );
 }
 
-function LeagueDataAssistant({ players, scoreEntries, heroNames, heroMeta }) {
+function LeagueDataAssistant({ players, scoreEntries, heroNames, heroMeta, onOpenMatch }) {
   const [question, setQuestion] = useState("");
   const [draftQuestion, setDraftQuestion] = useState("");
   const [queryType, setQueryType] = useState("profile");
   const [firstPlayerId, setFirstPlayerId] = useState("");
   const [secondPlayerId, setSecondPlayerId] = useState("");
+  const [queryHistory, setQueryHistory] = useState([]);
   const model = useMemo(() => buildLeagueAssistantModel(players, scoreEntries, heroNames, heroMeta), [players, scoreEntries, heroNames, heroMeta]);
   const selectablePlayers = useMemo(
     () => players
@@ -5061,6 +5062,23 @@ function LeagueDataAssistant({ players, scoreEntries, heroNames, heroMeta }) {
   const effectiveQuestion = draftQuestion.trim() || builderQuestion;
   const submittedQuestion = question || "";
   const answer = useMemo(() => answerLeagueAssistantQuestion(submittedQuestion, model), [submittedQuestion, model]);
+  const evidenceMatches = useMemo(() => {
+    const matched = findAssistantPlayers(submittedQuestion, model.players);
+    if (!matched.length) return [];
+    const accountIds = new Set(matched.slice(0, 2).map((player) => String(player.dotaId)));
+    const requireBoth = accountIds.size > 1;
+    const matchAccounts = new Map();
+    model.scoreEntries.forEach((entry) => {
+      const id = String(entry.matchId);
+      const accounts = matchAccounts.get(id) || new Set();
+      if (accountIds.has(String(entry.accountId))) accounts.add(String(entry.accountId));
+      matchAccounts.set(id, accounts);
+    });
+    return Array.from(matchAccounts.entries())
+      .filter(([, accounts]) => (requireBoth ? accounts.size === accountIds.size : accounts.size > 0))
+      .map(([matchId]) => matchId)
+      .slice(0, 5);
+  }, [submittedQuestion, model]);
 
   const playerOptionLabel = (player) => {
     const label = assistantPlayerLabel(player);
@@ -5091,7 +5109,10 @@ function LeagueDataAssistant({ players, scoreEntries, heroNames, heroMeta }) {
   const resetManualQuestion = () => setDraftQuestion("");
   const submitQuestion = (event) => {
     event.preventDefault();
-    if (effectiveQuestion) setQuestion(effectiveQuestion);
+    if (effectiveQuestion) {
+      setQuestion(effectiveQuestion);
+      setQueryHistory((current) => [effectiveQuestion, ...current.filter((item) => item !== effectiveQuestion)].slice(0, 5));
+    }
   };
 
   return (
@@ -5176,19 +5197,31 @@ function LeagueDataAssistant({ players, scoreEntries, heroNames, heroMeta }) {
             ))}
           </div>
         )}
+        {evidenceMatches.length > 0 && (
+          <div className="panel-action-group">
+            <span className="status-pill status-muted">样本比赛</span>
+            {evidenceMatches.map((matchId) => <button className="ghost-button compact-button" type="button" key={matchId} onClick={() => onOpenMatch?.(matchId)}>Match {matchId}</button>)}
+          </div>
+        )}
+        {queryHistory.length > 0 && (
+          <div className="assistant-free-query">
+            <span>最近查询</span>
+            <div className="panel-action-group">{queryHistory.map((item) => <button className="ghost-button compact-button" type="button" key={item} onClick={() => { setDraftQuestion(item); setQuestion(item); }}>{item}</button>)}</div>
+          </div>
+        )}
       </article>
     </Panel>
   );
 }
 
-function HeroInsightsView({ players, matches, scoreEntries, heroNames, heroMeta }) {
+function HeroInsightsView({ players, matches, scoreEntries, heroNames, heroMeta, onOpenMatch }) {
   const insights = useMemo(() => buildHeroInsights(scoreEntries, matches, players, heroNames, heroMeta), [scoreEntries, matches, players, heroNames, heroMeta]);
   const maxHeroPicks = Math.max(...insights.heroRows.map((row) => row.picks), 1);
 
   if (!insights.totalHeroSlots) {
     return (
       <div className="hero-insights-page">
-        <LeagueDataAssistant players={players} scoreEntries={scoreEntries} heroNames={heroNames} heroMeta={heroMeta} />
+        <LeagueDataAssistant players={players} scoreEntries={scoreEntries} heroNames={heroNames} heroMeta={heroMeta} onOpenMatch={onOpenMatch} />
         <EmptyState title="暂无英雄洞察" body="当前赛季还没有带英雄信息的已入库比赛。完成比赛入库后，这里会自动生成热门英雄和招牌英雄统计。" />
       </div>
     );
@@ -5224,7 +5257,7 @@ function HeroInsightsView({ players, matches, scoreEntries, heroNames, heroMeta 
         </section>
       </div>
 
-      <LeagueDataAssistant players={players} scoreEntries={scoreEntries} heroNames={heroNames} heroMeta={heroMeta} />
+      <LeagueDataAssistant players={players} scoreEntries={scoreEntries} heroNames={heroNames} heroMeta={heroMeta} onOpenMatch={onOpenMatch} />
 
       <div className="hero-insight-layout">
         <Panel title="热门英雄池" action={<span className="status-pill status-info">按出场/BP 热度排序</span>}>
@@ -8608,7 +8641,7 @@ export function App() {
         )}
         {!isSetupLeagueSpace && activeView === "leaderboard" && <LeaderboardView players={rankedPlayers} matches={seasonMatches} scoreEntries={scoreEntries} settings={seasonSettings} />}
         {!isSetupLeagueSpace && activeView === "insights" && (
-          <HeroInsightsView players={players} matches={seasonMatches} scoreEntries={scoreEntries} heroNames={heroNames} heroMeta={heroMeta} />
+          <HeroInsightsView players={players} matches={seasonMatches} scoreEntries={scoreEntries} heroNames={heroNames} heroMeta={heroMeta} onOpenMatch={openMatch} />
         )}
         {!isSetupLeagueSpace && activeView === "draft" && <DraftView players={rankedPlayers} captains={captains} playoff={playoff} onSaveTeams={savePlayoffTeams} saving={playoffSaving} isAdmin={isAdmin} />}
         {!isSetupLeagueSpace && activeView === "playoff" && (
