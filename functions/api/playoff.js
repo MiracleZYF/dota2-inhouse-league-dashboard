@@ -10,6 +10,7 @@ import {
   readJson,
   requireAdmin,
   resetPlayoffState,
+  updatePlayoffDraftConfig,
   updatePlayoffSchedule,
   updatePlayoffTeams,
   withLeague,
@@ -45,6 +46,11 @@ export async function onRequestPut({ request, env }) {
       auditAction = "save_playoff_teams";
       summary = `保存淘汰赛分队：${playoff.teams.length} 支队伍`;
       details = { teams: playoff.teams.map((team) => ({ id: team.id, seed: team.seed, name: team.name, size: team.players.length })) };
+    } else if (action === "save_draft_config") {
+      playoff = await updatePlayoffDraftConfig(scopedEnv, body.draft || {});
+      auditAction = "save_playoff_draft_config";
+      summary = `保存队长选人规则：${playoff.draft.teamCount} 队，每队 ${playoff.draft.playersPerTeam} 人`;
+      details = { draft: playoff.draft };
     } else if (action === "save_schedule") {
       playoff = await updatePlayoffSchedule(scopedEnv, body.series || []);
       auditAction = "save_playoff_schedule";

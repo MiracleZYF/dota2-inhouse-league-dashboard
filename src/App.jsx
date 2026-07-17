@@ -89,6 +89,7 @@ const DEFAULT_PLAYOFF = {
   version: 1,
   status: "drafting",
   teams: [],
+  draft: { teamCount: 4, playersPerTeam: 5, captainIds: [], pickOrder: [] },
   series: [],
   games: [],
   championTeamId: "",
@@ -5469,10 +5470,17 @@ function playoffTeamBySeed(teams = [], seed) {
 
 function normalizePlayoff(playoff) {
   const source = playoff && typeof playoff === "object" ? playoff : DEFAULT_PLAYOFF;
+  const rawDraft = source.draft && typeof source.draft === "object" ? source.draft : {};
   return {
     ...DEFAULT_PLAYOFF,
     ...source,
     teams: Array.isArray(source.teams) ? source.teams.slice().sort((a, b) => Number(a.seed || 0) - Number(b.seed || 0)) : [],
+    draft: {
+      teamCount: Math.min(Math.max(Number(rawDraft.teamCount) || 4, 2), 16),
+      playersPerTeam: Math.min(Math.max(Number(rawDraft.playersPerTeam) || 5, 1), 10),
+      captainIds: Array.from(new Set((Array.isArray(rawDraft.captainIds) ? rawDraft.captainIds : []).map((id) => String(id || "")).filter(Boolean))),
+      pickOrder: (Array.isArray(rawDraft.pickOrder) ? rawDraft.pickOrder : []).map((id) => String(id || "")).filter(Boolean),
+    },
     series: Array.isArray(source.series) ? source.series.slice().sort((a, b) => Number(a.order || 0) - Number(b.order || 0)) : [],
     games: Array.isArray(source.games) ? source.games.slice().sort((a, b) => String(a.seriesKey).localeCompare(String(b.seriesKey)) || Number(a.gameNumber) - Number(b.gameNumber)) : [],
   };
@@ -5646,19 +5654,29 @@ function serializeDraftTeams(captains = [], players = [], teamsByCaptain = {}) {
   });
 }
 
+function makeSnakeDraftOrder(captains = [], playersPerTeam = 5) {
+  const rounds = Math.max(Number(playersPerTeam) - 1, 0);
+  return Array.from({ length: rounds }, (_, round) => (round % 2 ? captains.slice().reverse() : captains)).flat();
+}
+
 function teamName(playoff, teamId) {
   return normalizePlayoff(playoff).teams.find((team) => team.id === teamId)?.name || "TBD";
 }
 
-function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, saving = false, isAdmin = false }) {
-  const orderedCaptains = [captains[3], captains[2], captains[1], captains[0]].filter(Boolean);
-  const draftOrder = [...orderedCaptains, ...orderedCaptains.slice().reverse(), ...orderedCaptains, ...orderedCaptains.slice().reverse()];
-  const initialTeams = useMemo(() => buildDraftTeamMap(captains, playoff), [captains, playoff]);
+function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, onSaveDraftConfig, saving = false, isAdmin = false }) {
+  const savedDraft = normalizePlayoff(playoff).draft;
+  const [draftConfig, setDraftConfig] = useState(savedDraft);
+  const availableCaptains = players.filter((player) => player.played >= 1);
+  const selectedCaptainIds = useMemo(() => (draftConfig.captainIds.length ? draftConfig.captainIds : players.slice(0, draftConfig.teamCount).map((player) => String(player.id))), [draftConfig.captainIds, draftConfig.teamCount, players]);
+  const configuredCaptains = useMemo(() => selectedCaptainIds.map((id) => players.find((player) => String(player.id) === String(id))).filter(Boolean), [players, selectedCaptainIds]);
+  const orderedCaptains = configuredCaptains;
+  const draftOrder = draftConfig.pickOrder.length ? draftConfig.pickOrder.map((id) => configuredCaptains.find((captain) => String(captain.id) === String(id))).filter(Boolean) : makeSnakeDraftOrder(orderedCaptains, draftConfig.playersPerTeam);
+  const initialTeams = useMemo(() => buildDraftTeamMap(configuredCaptains, playoff), [configuredCaptains, playoff]);
   const [teams, setTeams] = useState(initialTeams);
   const [cursor, setCursor] = useState(0);
   const [selected, setSelected] = useState(null);
-  const serializedTeams = useMemo(() => serializeDraftTeams(captains, players, teams), [captains, players, teams]);
-  const allTeamsReady = serializedTeams.length >= 4 && serializedTeams.every((team) => team.players.length >= 5);
+  const serializedTeams = useMemo(() => serializeDraftTeams(configuredCaptains, players, teams), [configuredCaptains, players, teams]);
+  const allTeamsReady = serializedTeams.length === configuredCaptains.length && serializedTeams.every((team) => team.players.length >= draftConfig.playersPerTeam);
 
   useEffect(() => {
     setTeams(initialTeams);
@@ -5666,12 +5684,15 @@ function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, 
     setSelected(null);
   }, [initialTeams]);
 
+  useEffect(() => setDraftConfig(savedDraft), [playoff]);
+
   const draftedIds = new Set(Object.values(teams).flat());
-  const pool = players.filter((player) => !draftedIds.has(player.id) && player.played >= 4);
-  const activeCaptain = draftOrder[cursor % draftOrder.length] || captains[0];
+  const pool = players.filter((player) => !draftedIds.has(player.id) && player.played >= 1);
+  const activeCaptain = draftOrder[cursor] || null;
 
   function pickPlayer() {
     if (!selected || !activeCaptain) return;
+    if ((teams[activeCaptain.id] || []).length >= draftConfig.playersPerTeam) return;
     setTeams((current) => ({
       ...current,
       [activeCaptain.id]: [...(current[activeCaptain.id] || [activeCaptain.id]), selected],
@@ -5684,7 +5705,11 @@ function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, 
     onSaveTeams?.(serializedTeams, { context: "draft" });
   }
 
-  if (!captains.length) {
+  function saveDraftConfig() {
+    onSaveDraftConfig?.({ ...draftConfig, captainIds: configuredCaptains.map((captain) => String(captain.id)), pickOrder: draftOrder.map((captain) => String(captain.id)) });
+  }
+
+  if (!configuredCaptains.length) {
     return (
       <div className="draft-page">
         <Panel title="队长选人" action={<span className="status-pill status-muted">未开始</span>}>
@@ -5715,6 +5740,25 @@ function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, 
           )
         }
       >
+        {isAdmin && (
+          <section className="playoff-team-manager">
+            <div className="playoff-team-manager-head">
+              <div><h3>选人规则</h3><span>设置队长、队伍数量和每队人数后保存；默认选人顺序为蛇形，可逐格手动调整。</span></div>
+              <button className="primary-button compact-button" type="button" onClick={saveDraftConfig} disabled={saving || configuredCaptains.length !== draftConfig.teamCount}><Database size={14} />保存规则</button>
+            </div>
+            <div className="playoff-team-editor-head">
+              <label><span>队伍数量</span><input type="number" min="2" max="16" value={draftConfig.teamCount} onChange={(event) => setDraftConfig((current) => ({ ...current, teamCount: Math.min(16, Math.max(2, Number(event.target.value) || 2)), captainIds: [], pickOrder: [] }))} /></label>
+              <label><span>每队人数</span><input type="number" min="1" max="10" value={draftConfig.playersPerTeam} onChange={(event) => setDraftConfig((current) => ({ ...current, playersPerTeam: Math.min(10, Math.max(1, Number(event.target.value) || 1)), pickOrder: [] }))} /></label>
+              <span className="status-pill status-info">共需 {draftConfig.teamCount * draftConfig.playersPerTeam} 人</span>
+            </div>
+            <div className="playoff-team-grid editable">
+              {Array.from({ length: draftConfig.teamCount }, (_, index) => <article className="playoff-team-card editable" key={`captain-${index}`}><label><span>第 {index + 1} 位队长</span><select value={selectedCaptainIds[index] || ""} onChange={(event) => setDraftConfig((current) => { const captainIds = [...selectedCaptainIds]; captainIds[index] = event.target.value; return { ...current, captainIds, pickOrder: [] }; })}><option value="">选择队长</option>{availableCaptains.map((player) => <option key={player.id} value={player.id} disabled={selectedCaptainIds.includes(String(player.id)) && selectedCaptainIds[index] !== String(player.id)}>{player.name} · {player.points} 分</option>)}</select></label></article>)}
+            </div>
+            <div className="draft-order-strip">
+              {draftOrder.map((captain, index) => <label key={`${captain.id}-${index}`}><span>第 {index + 1} 选</span><select value={captain.id} onChange={(event) => setDraftConfig((current) => { const pickOrder = current.pickOrder.length ? [...current.pickOrder] : draftOrder.map((item) => String(item.id)); pickOrder[index] = event.target.value; return { ...current, pickOrder }; })}>{configuredCaptains.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}</select></label>)}
+            </div>
+          </section>
+        )}
         <div className="draft-topline">
           <span className="status-pill status-warning">蛇形选人</span>
           <strong>当前轮：{activeCaptain?.name || "TBD"}</strong>
@@ -5752,7 +5796,7 @@ function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, 
             )}
           </div>
           <div className="team-columns">
-            {captains.map((captain, index) => {
+            {configuredCaptains.map((captain, index) => {
               const roster = (teams[captain.id] || [captain.id]).map((id) => players.find((player) => player.id === id)).filter(Boolean);
               return (
                 <article className="team-column" key={captain.id}>
@@ -5760,7 +5804,7 @@ function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, 
                     <span>{index + 1}号队长</span>
                     <strong>{captain.name}队</strong>
                   </div>
-                  {Array.from({ length: 5 }).map((_, slotIndex) => {
+                  {Array.from({ length: draftConfig.playersPerTeam }).map((_, slotIndex) => {
                     const player = roster[slotIndex];
                     return (
                       <div className={`roster-slot ${player ? "filled" : ""}`} key={`${captain.id}-${slotIndex}`}>
@@ -7655,6 +7699,20 @@ export function App() {
     }
   }
 
+  async function savePlayoffDraftConfig(draft) {
+    const ok = confirmAdminAction(`确认保存队长选人规则？\n\n将保存 ${draft.teamCount} 支队伍、每队 ${draft.playersPerTeam} 人，以及当前队长和选人顺序。不会改动已经保存的比赛与积分。`);
+    if (!ok) return null;
+    setPlayoffSaving(true);
+    try {
+      const data = await apiRequest("/api/playoff", { method: "PUT", admin: true, body: { action: "save_draft_config", draft } });
+      applyServerState(data);
+      setLastSync("队长选人规则已保存");
+      return data;
+    } finally {
+      setPlayoffSaving(false);
+    }
+  }
+
   async function resetPlayoff() {
     const ok = confirmAdminAction("确认重置淘汰赛？\n\n这会清空已保存队伍、淘汰赛对局绑定和冠军结算；原比赛记录不会删除。");
     if (!ok) return;
@@ -8643,7 +8701,7 @@ export function App() {
         {!isSetupLeagueSpace && activeView === "insights" && (
           <HeroInsightsView players={players} matches={seasonMatches} scoreEntries={scoreEntries} heroNames={heroNames} heroMeta={heroMeta} onOpenMatch={openMatch} />
         )}
-        {!isSetupLeagueSpace && activeView === "draft" && <DraftView players={rankedPlayers} captains={captains} playoff={playoff} onSaveTeams={savePlayoffTeams} saving={playoffSaving} isAdmin={isAdmin} />}
+        {!isSetupLeagueSpace && activeView === "draft" && <DraftView players={rankedPlayers} captains={captains} playoff={playoff} onSaveTeams={savePlayoffTeams} onSaveDraftConfig={savePlayoffDraftConfig} saving={playoffSaving} isAdmin={isAdmin} />}
         {!isSetupLeagueSpace && activeView === "playoff" && (
           <PlayoffView
             players={rankedPlayers}

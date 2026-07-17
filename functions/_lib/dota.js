@@ -54,12 +54,22 @@ export const DEFAULT_PLAYOFF_STATE = {
   version: 1,
   status: "drafting",
   teams: [],
+  draft: { teamCount: 4, playersPerTeam: 5, captainIds: [], pickOrder: [] },
   series: [],
   games: [],
   championTeamId: "",
   runnerUpTeamId: "",
   updatedAt: "",
 };
+
+function normalizePlayoffDraft(draft) {
+  const source = draft && typeof draft === "object" ? draft : {};
+  const teamCount = Math.min(Math.max(Number(source.teamCount) || 4, 2), 16);
+  const playersPerTeam = Math.min(Math.max(Number(source.playersPerTeam) || 5, 1), 10);
+  const captainIds = Array.from(new Set((Array.isArray(source.captainIds) ? source.captainIds : []).map((id) => String(id || "").trim()).filter(Boolean))).slice(0, teamCount);
+  const pickOrder = (Array.isArray(source.pickOrder) ? source.pickOrder : []).map((id) => String(id || "").trim()).filter(Boolean);
+  return { teamCount, playersPerTeam, captainIds, pickOrder };
+}
 
 const INITIAL_PLAYERS = [
   { id: 1, name: "果粒橙", dotaId: "155292084", role: "1 / 2", gameName: "我要玩旮旯给木", profileUrl: "https://steamcommunity.com/profiles/76561198115557812/", avatarUrl: "https://avatars.steamstatic.com/43b37b323147bfd12f7ef41a8a9f40cfa384f57e_full.jpg" },
@@ -927,6 +937,7 @@ function normalizePlayoffState(rawState) {
     ...source,
     version: 1,
     teams,
+    draft: normalizePlayoffDraft(source.draft),
     series,
     games,
     championTeamId: String(source.championTeamId || ""),
@@ -1011,6 +1022,7 @@ async function savePlayoffState(env, state) {
     version: summarized.version,
     status: summarized.status,
     teams: summarized.teams,
+    draft: summarized.draft,
     series: summarized.series,
     games: summarized.games,
     championTeamId: summarized.championTeamId,
@@ -1023,6 +1035,18 @@ async function savePlayoffState(env, state) {
     .bind(leagueSlug, JSON.stringify(stored))
     .run();
   return getPlayoffState(env);
+}
+
+export async function updatePlayoffDraftConfig(env, draft = {}) {
+  const current = await getPlayoffState(env);
+  const nextDraft = normalizePlayoffDraft(draft);
+  if (nextDraft.captainIds.length && nextDraft.captainIds.length !== nextDraft.teamCount) {
+    throw new Error("队长人数需要与队伍数量一致");
+  }
+  if (nextDraft.pickOrder.some((id) => !nextDraft.captainIds.includes(id))) {
+    throw new Error("选人顺序中存在未被选为队长的玩家");
+  }
+  return savePlayoffState(env, { ...current, draft: nextDraft });
 }
 
 export async function updatePlayoffSchedule(env, series = []) {
