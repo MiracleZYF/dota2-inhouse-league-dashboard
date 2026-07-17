@@ -1,4 +1,4 @@
-import { DEFAULT_LEAGUE_SLUG, ensureDatabase, getAuditLogs, getLeagueSlugFromRequest, getLeagueSpace, getMatches, getPlayers, getPlayoffState, getRuntimeCapabilities, getSettings, getSyncRuns, json, listLeagueSpaces, withLeague } from "../_lib/dota.js";
+import { DEFAULT_LEAGUE_SLUG, ensureDatabase, getAuditLogs, getLeagueSlugFromRequest, getLeagueSpace, getMatches, getPlayers, getPlayoffState, getRuntimeCapabilities, getSettings, getSyncRuns, json, listLeagueSpaces, withLeague, withPlayoffSeason } from "../_lib/dota.js";
 
 export async function onRequestGet({ request, env }) {
   try {
@@ -10,7 +10,10 @@ export async function onRequestGet({ request, env }) {
     const leagueSpace = await getLeagueSpace(env, leagueSlug, { origin });
     const leagues = await listLeagueSpaces(env, { origin });
 
-    const [players, matches, settings, syncRuns, auditLogs, playoff] = await Promise.all([getPlayers(scopedEnv), getMatches(scopedEnv), getSettings(scopedEnv), getSyncRuns(scopedEnv), getAuditLogs(scopedEnv), getPlayoffState(scopedEnv)]);
+    const [players, matches, settings, syncRuns, auditLogs] = await Promise.all([getPlayers(scopedEnv), getMatches(scopedEnv), getSettings(scopedEnv), getSyncRuns(scopedEnv), getAuditLogs(scopedEnv)]);
+    const seasons = Array.isArray(settings?.seasons) ? settings.seasons : [];
+    const playoffs = Object.fromEntries(await Promise.all(seasons.map(async (season) => [season.id, await getPlayoffState(withPlayoffSeason(scopedEnv, season.id))])));
+    const playoff = playoffs[settings?.currentSeasonId] || await getPlayoffState(withPlayoffSeason(scopedEnv, settings?.currentSeasonId));
     return json({
       players,
       matches,
@@ -18,6 +21,7 @@ export async function onRequestGet({ request, env }) {
       syncRuns,
       auditLogs,
       playoff,
+      playoffs,
       leagueSpace: leagueSpace || null,
       leagues,
       meta: {

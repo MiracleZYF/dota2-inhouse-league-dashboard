@@ -192,6 +192,10 @@ export function withLeague(env, leagueSlug) {
   return { ...env, __leagueSlug: normalizeLeagueSlug(leagueSlug, DEFAULT_LEAGUE_SLUG) };
 }
 
+export function withPlayoffSeason(env, seasonId) {
+  return { ...env, __playoffSeasonId: String(seasonId || "").trim() };
+}
+
 function currentLeagueSlug(env) {
   return normalizeLeagueSlug(env?.__leagueSlug, DEFAULT_LEAGUE_SLUG);
 }
@@ -1003,7 +1007,12 @@ export function summarizePlayoffState(state) {
 
 export async function getPlayoffState(env) {
   const leagueSlug = currentLeagueSlug(env);
-  const row = await env.DB.prepare("SELECT value FROM league_playoff_state WHERE league_slug = ? AND key = 'current'").bind(leagueSlug).first();
+  const seasonId = String(env.__playoffSeasonId || "").trim();
+  const key = seasonId ? `season:${seasonId}` : "current";
+  let row = await env.DB.prepare("SELECT value FROM league_playoff_state WHERE league_slug = ? AND key = ?").bind(leagueSlug, key).first();
+  // 旧版本只有 current 一份淘汰赛状态。首次切换到当前赛季时只读回退，
+  // 直到管理员主动保存该赛季的配置才写入新的 season: 键。
+  if (!row?.value && seasonId === CURRENT_SEASON_ID) row = await env.DB.prepare("SELECT value FROM league_playoff_state WHERE league_slug = ? AND key = 'current'").bind(leagueSlug).first();
   if (!row?.value) return summarizePlayoffState(DEFAULT_PLAYOFF_STATE);
   try {
     return summarizePlayoffState(JSON.parse(row.value));
@@ -1014,6 +1023,8 @@ export async function getPlayoffState(env) {
 
 async function savePlayoffState(env, state) {
   const leagueSlug = currentLeagueSlug(env);
+  const seasonId = String(env.__playoffSeasonId || "").trim();
+  const key = seasonId ? `season:${seasonId}` : "current";
   const summarized = summarizePlayoffState({
     ...state,
     updatedAt: new Date().toISOString(),
@@ -1030,9 +1041,9 @@ async function savePlayoffState(env, state) {
     updatedAt: summarized.updatedAt,
   };
   await env.DB.prepare(`INSERT INTO league_playoff_state (league_slug, key, value, updated_at)
-    VALUES (?, 'current', ?, CURRENT_TIMESTAMP)
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(league_slug, key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP`)
-    .bind(leagueSlug, JSON.stringify(stored))
+    .bind(leagueSlug, key, JSON.stringify(stored))
     .run();
   return getPlayoffState(env);
 }

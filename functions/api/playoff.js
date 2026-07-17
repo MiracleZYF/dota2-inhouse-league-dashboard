@@ -14,13 +14,15 @@ import {
   updatePlayoffSchedule,
   updatePlayoffTeams,
   withLeague,
+  withPlayoffSeason,
 } from "../_lib/dota.js";
 
 export async function onRequestGet({ request, env }) {
   try {
     await ensureDatabase(env);
-    const scopedEnv = withLeague(env, getLeagueSlugFromRequest(request));
-    return json({ playoff: await getPlayoffState(scopedEnv) });
+    const url = new URL(request.url);
+    const scopedEnv = withPlayoffSeason(withLeague(env, getLeagueSlugFromRequest(request)), url.searchParams.get("seasonId"));
+    return json({ playoff: await getPlayoffState(scopedEnv), seasonId: url.searchParams.get("seasonId") || "" });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "读取淘汰赛状态失败" }, { status: 500 });
   }
@@ -32,8 +34,8 @@ export async function onRequestPut({ request, env }) {
 
   try {
     await ensureDatabase(env);
-    const scopedEnv = withLeague(env, getLeagueSlugFromRequest(request));
     const body = await readJson(request);
+    const scopedEnv = withPlayoffSeason(withLeague(env, getLeagueSlugFromRequest(request)), body.seasonId);
     const action = String(body.action || "").trim();
     let playoff;
     let auditAction = "update_playoff";
@@ -90,6 +92,7 @@ export async function onRequestPut({ request, env }) {
 
     return json({
       playoff,
+      seasonId: body.seasonId || "",
       auditLogs: await getAuditLogs(scopedEnv),
       message: summary,
     });

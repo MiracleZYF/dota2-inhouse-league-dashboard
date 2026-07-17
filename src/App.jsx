@@ -5663,7 +5663,7 @@ function teamName(playoff, teamId) {
   return normalizePlayoff(playoff).teams.find((team) => team.id === teamId)?.name || "TBD";
 }
 
-function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, onSaveDraftConfig, saving = false, isAdmin = false }) {
+function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, onSaveDraftConfig, onOpenPlayoff, saving = false, isAdmin = false }) {
   const savedDraft = normalizePlayoff(playoff).draft;
   const [draftConfig, setDraftConfig] = useState(savedDraft);
   const availableCaptains = players.filter((player) => player.played >= 1);
@@ -5701,8 +5701,9 @@ function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, 
     setCursor((value) => value + 1);
   }
 
-  function saveTeams() {
-    onSaveTeams?.(serializedTeams, { context: "draft" });
+  async function saveTeams(openPlayoff = false) {
+    const result = await onSaveTeams?.(serializedTeams, { context: "draft" });
+    if (result && openPlayoff) onOpenPlayoff?.();
   }
 
   function saveDraftConfig() {
@@ -5726,9 +5727,13 @@ function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, 
         action={
           isAdmin ? (
             <div className="panel-action-group">
-              <button className="ghost-button" type="button" onClick={saveTeams} disabled={saving || !serializedTeams.length}>
+              <button className="ghost-button" type="button" onClick={() => saveTeams(false)} disabled={saving || !serializedTeams.length}>
                 <Database size={16} />
                 {saving ? "保存中" : allTeamsReady ? "保存分队" : "保存草稿"}
+              </button>
+              <button className="ghost-button" type="button" onClick={() => saveTeams(true)} disabled={saving || !allTeamsReady}>
+                <Trophy size={16} />
+                生成淘汰赛队伍
               </button>
               <button className="primary-button" type="button" onClick={pickPlayer} disabled={!selected}>
                 <ShieldCheck size={16} />
@@ -7135,6 +7140,7 @@ export function App() {
   const [selectedSeasonId, setSelectedSeasonId] = useState(() => getCurrentSeasonId(DEFAULT_SETTINGS));
   const [seasonManuallySelected, setSeasonManuallySelected] = useState(false);
   const [playoff, setPlayoff] = useState(DEFAULT_PLAYOFF);
+  const [playoffsBySeason, setPlayoffsBySeason] = useState({});
   const [leagueSpace, setLeagueSpace] = useState(null);
   const [leagues, setLeagues] = useState([]);
   const [createdLeague, setCreatedLeague] = useState(null);
@@ -7198,6 +7204,21 @@ export function App() {
   );
 
   useEffect(() => {
+    const cached = playoffsBySeason[selectedSeason.id];
+    if (cached) {
+      setPlayoff(cached);
+      return undefined;
+    }
+    let cancelled = false;
+    apiRequest(`/api/playoff?seasonId=${encodeURIComponent(selectedSeason.id)}`).then((data) => {
+      if (cancelled || !data?.playoff) return;
+      setPlayoff(data.playoff);
+      setPlayoffsBySeason((current) => ({ ...current, [selectedSeason.id]: data.playoff }));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectedSeason.id, playoffsBySeason]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadBootstrap() {
@@ -7209,6 +7230,7 @@ export function App() {
         if (Array.isArray(data.syncRuns)) setSyncRuns(data.syncRuns);
         if (Array.isArray(data.auditLogs)) setAuditLogs(data.auditLogs);
         if (data.settings) setSettings((current) => ({ ...current, ...data.settings }));
+        if (data.playoffs) setPlayoffsBySeason(data.playoffs);
         if (data.playoff) setPlayoff(data.playoff);
         if (data.leagueSpace) setLeagueSpace(data.leagueSpace);
         if (Array.isArray(data.leagues)) setLeagues(data.leagues);
@@ -7313,7 +7335,12 @@ export function App() {
     if (Array.isArray(data?.matches)) setMatches(data.matches);
     if (Array.isArray(data?.syncRuns)) setSyncRuns(data.syncRuns);
     if (Array.isArray(data?.auditLogs)) setAuditLogs(data.auditLogs);
-    if (data?.playoff) setPlayoff(data.playoff);
+    if (data?.playoffs) setPlayoffsBySeason(data.playoffs);
+    if (data?.playoff) {
+      setPlayoff(data.playoff);
+      const seasonId = data.seasonId || selectedSeason.id;
+      setPlayoffsBySeason((current) => ({ ...current, [seasonId]: data.playoff }));
+    }
     if (data?.leagueSpace) setLeagueSpace(data.leagueSpace);
     if (Array.isArray(data?.leagues)) setLeagues(data.leagues);
     if (data?.meta) setRuntimeMeta(data.meta);
@@ -7652,7 +7679,7 @@ export function App() {
     if (!ok) return null;
     setPlayoffSaving(true);
     try {
-      const data = await apiRequest("/api/playoff", { method: "PUT", admin: true, body: { action: "save_teams", teams } });
+      const data = await apiRequest("/api/playoff", { method: "PUT", admin: true, body: { action: "save_teams", teams, seasonId: selectedSeason.id } });
       applyServerState(data);
       setLastSync("淘汰赛分队已保存");
       setNotifications((current) => [
@@ -7690,7 +7717,7 @@ export function App() {
     if (!ok) return null;
     setPlayoffSaving(true);
     try {
-      const data = await apiRequest("/api/playoff", { method: "PUT", admin: true, body: { action: "save_schedule", series } });
+      const data = await apiRequest("/api/playoff", { method: "PUT", admin: true, body: { action: "save_schedule", series, seasonId: selectedSeason.id } });
       applyServerState(data);
       setLastSync("淘汰赛赛程已保存");
       return data;
@@ -7704,7 +7731,7 @@ export function App() {
     if (!ok) return null;
     setPlayoffSaving(true);
     try {
-      const data = await apiRequest("/api/playoff", { method: "PUT", admin: true, body: { action: "save_draft_config", draft } });
+      const data = await apiRequest("/api/playoff", { method: "PUT", admin: true, body: { action: "save_draft_config", draft, seasonId: selectedSeason.id } });
       applyServerState(data);
       setLastSync("队长选人规则已保存");
       return data;
@@ -7718,7 +7745,7 @@ export function App() {
     if (!ok) return;
     setPlayoffSaving(true);
     try {
-      const data = await apiRequest("/api/playoff", { method: "PUT", admin: true, body: { action: "reset" } });
+      const data = await apiRequest("/api/playoff", { method: "PUT", admin: true, body: { action: "reset", seasonId: selectedSeason.id } });
       applyServerState(data);
       setLastSync("淘汰赛已重置");
       setNotifications((current) => [
@@ -7753,7 +7780,7 @@ export function App() {
     const seriesLabel = PLAYOFF_SERIES[payload.seriesKey]?.label || "淘汰赛";
     const ok = confirmAdminAction(`确认将 Match ID ${matchId} 收录到 ${seriesLabel} G${payload.gameNumber}？\n\n这不会进入日常积分，只会更新淘汰赛大比分和冠军结算。`);
     if (!ok) throw new Error("已取消收录");
-    const data = await apiRequest("/api/playoff", { method: "PUT", admin: true, body: { action: "bind_match", matchId, ...payload } });
+    const data = await apiRequest("/api/playoff", { method: "PUT", admin: true, body: { action: "bind_match", matchId, ...payload, seasonId: selectedSeason.id } });
     applyServerState(data);
     setLastSync("淘汰赛对局已收录");
     setNotifications((current) => [
@@ -7776,7 +7803,7 @@ export function App() {
     if (!ok) return;
     setPlayoffSaving(true);
     try {
-      const data = await apiRequest("/api/playoff", { method: "PUT", admin: true, body: { action: "clear_game", seriesKey, gameNumber } });
+      const data = await apiRequest("/api/playoff", { method: "PUT", admin: true, body: { action: "clear_game", seriesKey, gameNumber, seasonId: selectedSeason.id } });
       applyServerState(data);
       setLastSync("淘汰赛绑定已清除");
     } catch (error) {
@@ -8701,7 +8728,7 @@ export function App() {
         {!isSetupLeagueSpace && activeView === "insights" && (
           <HeroInsightsView players={players} matches={seasonMatches} scoreEntries={scoreEntries} heroNames={heroNames} heroMeta={heroMeta} onOpenMatch={openMatch} />
         )}
-        {!isSetupLeagueSpace && activeView === "draft" && <DraftView players={rankedPlayers} captains={captains} playoff={playoff} onSaveTeams={savePlayoffTeams} onSaveDraftConfig={savePlayoffDraftConfig} saving={playoffSaving} isAdmin={isAdmin} />}
+        {!isSetupLeagueSpace && activeView === "draft" && <DraftView players={rankedPlayers} captains={captains} playoff={playoff} onSaveTeams={savePlayoffTeams} onSaveDraftConfig={savePlayoffDraftConfig} onOpenPlayoff={() => setActiveView("playoff")} saving={playoffSaving} isAdmin={isAdmin} />}
         {!isSetupLeagueSpace && activeView === "playoff" && (
           <PlayoffView
             players={rankedPlayers}
