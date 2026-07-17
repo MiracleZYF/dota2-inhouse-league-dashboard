@@ -3476,6 +3476,151 @@ input[type="range"] {
   text-align: right;
 }
 
+/* Draft and playoff administration use the same compact operations surface. */
+.draft-page .panel {
+  background: linear-gradient(180deg, rgba(16, 31, 45, 0.84), rgba(8, 17, 27, 0.88));
+}
+
+.draft-config-manager,
+.schedule-manager {
+  border-color: rgba(52, 215, 181, 0.24);
+  background: linear-gradient(180deg, rgba(12, 38, 46, 0.46), rgba(13, 25, 37, 0.7));
+}
+
+.draft-config-manager .playoff-team-manager-head,
+.schedule-manager .playoff-team-manager-head {
+  align-items: center;
+  background: rgba(7, 16, 24, 0.28);
+}
+
+.draft-config-manager .playoff-team-editor-head {
+  grid-template-columns: minmax(150px, 190px) minmax(150px, 190px) auto;
+  justify-content: start;
+  border-bottom: 0;
+}
+
+.draft-captain-grid {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  padding-top: 0;
+}
+
+.draft-captain-grid .playoff-team-card {
+  overflow: visible;
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+.draft-captain-grid .playoff-team-card label {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+}
+
+.draft-captain-grid .playoff-team-card label > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.draft-captain-grid select,
+.draft-order-editor select,
+.schedule-grid select,
+.schedule-grid input {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--text);
+  background: rgba(3, 9, 15, 0.78);
+  padding: 0 9px;
+}
+
+.draft-order-editor {
+  min-height: 0;
+  align-items: stretch;
+  padding: 0 14px 14px;
+}
+
+.draft-order-editor label {
+  min-width: 112px;
+  display: grid;
+  gap: 6px;
+  padding: 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 5px;
+  background: rgba(7, 16, 24, 0.48);
+}
+
+.draft-order-editor label > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.draft-order-editor select {
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 6px;
+  font-size: 12px;
+}
+
+.draft-topline {
+  margin: 0 18px 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: rgba(7, 16, 24, 0.46);
+}
+
+.draft-board {
+  grid-template-columns: minmax(250px, 0.78fr) minmax(0, 2.22fr);
+}
+
+.team-columns {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.team-column {
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+.team-head {
+  min-height: 68px;
+  background: linear-gradient(120deg, rgba(242, 91, 85, 0.16), rgba(247, 182, 75, 0.06));
+}
+
+.schedule-grid {
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+}
+
+.schedule-grid .playoff-team-card {
+  border-color: rgba(52, 215, 181, 0.24);
+}
+
+.schedule-grid .playoff-team-editor-head {
+  grid-template-columns: minmax(0, 1fr) 100px auto;
+}
+
+.schedule-grid .playoff-team-editor-head + .playoff-team-editor-head {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 58px;
+  border-bottom: 0;
+  background: rgba(7, 16, 24, 0.24);
+}
+
+.schedule-grid input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--teal);
+}
+
+.playoff-board {
+  min-height: 0;
+  grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
+}
+
+.playoff-series-panel {
+  border-color: rgba(148, 163, 184, 0.24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
 .series-team-scoreboard {
   display: grid;
   gap: 8px;

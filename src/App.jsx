@@ -5746,7 +5746,7 @@ function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, 
         }
       >
         {isAdmin && (
-          <section className="playoff-team-manager">
+          <section className="playoff-team-manager draft-config-manager">
             <div className="playoff-team-manager-head">
               <div><h3>选人规则</h3><span>设置队长、队伍数量和每队人数后保存；默认选人顺序为蛇形，可逐格手动调整。</span></div>
               <button className="primary-button compact-button" type="button" onClick={saveDraftConfig} disabled={saving || configuredCaptains.length !== draftConfig.teamCount}><Database size={14} />保存规则</button>
@@ -5756,10 +5756,10 @@ function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, 
               <label><span>每队人数</span><input type="number" min="1" max="10" value={draftConfig.playersPerTeam} onChange={(event) => setDraftConfig((current) => ({ ...current, playersPerTeam: Math.min(10, Math.max(1, Number(event.target.value) || 1)), pickOrder: [] }))} /></label>
               <span className="status-pill status-info">共需 {draftConfig.teamCount * draftConfig.playersPerTeam} 人</span>
             </div>
-            <div className="playoff-team-grid editable">
+            <div className="playoff-team-grid editable draft-captain-grid">
               {Array.from({ length: draftConfig.teamCount }, (_, index) => <article className="playoff-team-card editable" key={`captain-${index}`}><label><span>第 {index + 1} 位队长</span><select value={selectedCaptainIds[index] || ""} onChange={(event) => setDraftConfig((current) => { const captainIds = [...selectedCaptainIds]; captainIds[index] = event.target.value; return { ...current, captainIds, pickOrder: [] }; })}><option value="">选择队长</option>{availableCaptains.map((player) => <option key={player.id} value={player.id} disabled={selectedCaptainIds.includes(String(player.id)) && selectedCaptainIds[index] !== String(player.id)}>{player.name} · {player.points} 分</option>)}</select></label></article>)}
             </div>
-            <div className="draft-order-strip">
+            <div className="draft-order-strip draft-order-editor">
               {draftOrder.map((captain, index) => <label key={`${captain.id}-${index}`}><span>第 {index + 1} 选</span><select value={captain.id} onChange={(event) => setDraftConfig((current) => { const pickOrder = current.pickOrder.length ? [...current.pickOrder] : draftOrder.map((item) => String(item.id)); pickOrder[index] = event.target.value; return { ...current, pickOrder }; })}>{configuredCaptains.map((player) => <option key={player.id} value={player.id}>{player.name}</option>)}</select></label>)}
             </div>
           </section>
@@ -6126,7 +6126,7 @@ function PlayoffView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams
           isAdmin={isAdmin}
         />
         {isAdmin && (
-          <section className="playoff-team-manager">
+          <section className="playoff-team-manager schedule-manager">
             <div className="playoff-team-manager-head">
               <div><h3>赛程与对阵</h3><span>队伍数量由上方队伍管理决定；这里可自由安排每一组对阵与 BO1/BO3/BO5。</span></div>
               <div className="panel-action-group">
@@ -6134,7 +6134,7 @@ function PlayoffView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams
                 <button className="primary-button compact-button" type="button" onClick={() => onSaveSchedule?.(scheduleRows)} disabled={clearing || !scheduleRows.length}><Database size={14} />保存赛程</button>
               </div>
             </div>
-            {scheduleRows.length > 0 && <div className="playoff-team-grid editable">{scheduleRows.map((row, index) => <article className="playoff-team-card editable" key={`${row.key}-${index}`}><div className="playoff-team-editor-head"><label><span>轮次名称</span><input value={row.label || ""} onChange={(event) => setScheduleRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, label: event.target.value, shortLabel: event.target.value } : item))} /></label><label><span>赛制</span><select value={row.targetWins || 2} onChange={(event) => setScheduleRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, targetWins: Number(event.target.value) } : item))}><option value={1}>BO1</option><option value={2}>BO3</option><option value={3}>BO5</option></select></label><button className="danger-button compact-button" type="button" onClick={() => setScheduleRows((current) => current.filter((_, itemIndex) => itemIndex !== index))}><X size={14} />删除</button></div><div className="playoff-team-editor-head"><label><span>队伍 A</span><select value={row.teamAId || ""} onChange={(event) => setScheduleRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, teamAId: event.target.value } : item))}><option value="">选择队伍</option>{summary.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label><label><span>队伍 B</span><select value={row.teamBId || ""} onChange={(event) => setScheduleRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, teamBId: event.target.value } : item))}><option value="">选择队伍</option>{summary.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label><label><span>决赛</span><input type="checkbox" checked={Boolean(row.isFinal)} onChange={(event) => setScheduleRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, isFinal: event.target.checked } : item))} /></label></div></article>)}</div>}
+            {scheduleRows.length > 0 && <div className="playoff-team-grid editable schedule-grid">{scheduleRows.map((row, index) => <article className="playoff-team-card editable" key={`${row.key}-${index}`}><div className="playoff-team-editor-head"><label><span>轮次名称</span><input value={row.label || ""} onChange={(event) => setScheduleRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, label: event.target.value, shortLabel: event.target.value } : item))} /></label><label><span>赛制</span><select value={row.targetWins || 2} onChange={(event) => setScheduleRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, targetWins: Number(event.target.value) } : item))}><option value={1}>BO1</option><option value={2}>BO3</option><option value={3}>BO5</option></select></label><button className="danger-button compact-button" type="button" onClick={() => setScheduleRows((current) => current.filter((_, itemIndex) => itemIndex !== index))}><X size={14} />删除</button></div><div className="playoff-team-editor-head"><label><span>队伍 A</span><select value={row.teamAId || ""} onChange={(event) => setScheduleRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, teamAId: event.target.value } : item))}><option value="">选择队伍</option>{summary.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label><label><span>队伍 B</span><select value={row.teamBId || ""} onChange={(event) => setScheduleRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, teamBId: event.target.value } : item))}><option value="">选择队伍</option>{summary.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label><label><span>决赛</span><input type="checkbox" checked={Boolean(row.isFinal)} onChange={(event) => setScheduleRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, isFinal: event.target.checked } : item))} /></label></div></article>)}</div>}
           </section>
         )}
         <div className="playoff-status-strip">
