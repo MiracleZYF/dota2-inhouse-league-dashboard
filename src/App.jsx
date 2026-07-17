@@ -2659,6 +2659,33 @@ function actionLabel(action) {
   return labels[action] || action || "操作";
 }
 
+const AUDIT_LOG_FILTERS = [
+  { id: "all", label: "全部" },
+  { id: "sync", label: "同步" },
+  { id: "review", label: "识别与复核" },
+  { id: "scoring", label: "计分与修正" },
+  { id: "playoff", label: "淘汰赛" },
+];
+
+function auditLogCategory(action = "") {
+  if (["manual_sync", "auto_sync", "retry_unresolved"].includes(action)) return "sync";
+  if (["refresh_match", "manual_add_match", "manual_reidentify_match", "reject_match", "restore_match"].includes(action)) return "review";
+  if (["confirm_match", "store_match", "rollback_match", "set_winner", "manual_roster"].includes(action)) return "scoring";
+  if (["save_playoff_teams", "bind_playoff_match", "clear_playoff_game", "reset_playoff"].includes(action)) return "playoff";
+  return "other";
+}
+
+function auditLogImpact(item) {
+  const action = item?.action || "";
+  if (action === "store_match") return { label: "已影响积分榜", tone: "success" };
+  if (action === "rollback_match") return { label: "已回滚积分", tone: "warning" };
+  if (["set_winner", "manual_roster"].includes(action)) return { label: "已修正比赛数据", tone: "warning" };
+  if (["confirm_match", "reject_match", "restore_match"].includes(action)) return { label: "仅变更比赛状态", tone: "info" };
+  if (action === "refresh_match") return { label: "已刷新识别结果", tone: "info" };
+  if (auditLogCategory(action) === "sync") return { label: "同步记录", tone: "muted" };
+  return { label: "配置或赛程记录", tone: "muted" };
+}
+
 function runKindLabel(kind) {
   if (kind === "auto") return "自动";
   if (kind === "manual") return "手动";
@@ -2934,13 +2961,40 @@ function SyncStatusPanel({ syncRuns = [], onNavigate, onSyncNow, syncing = false
 
 function AuditLogPanel({ auditLogs = [] }) {
   const [expandedLogId, setExpandedLogId] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [query, setQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
+  const filteredLogs = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return auditLogs.filter((item) => {
+      if (filter !== "all" && auditLogCategory(item.action) !== filter) return false;
+      if (!normalizedQuery) return true;
+      return `${item.matchId || ""} ${item.actor || ""} ${item.summary || ""} ${actionLabel(item.action)}`.toLowerCase().includes(normalizedQuery);
+    });
+  }, [auditLogs, filter, query]);
+  const visibleLogs = showAll ? filteredLogs : filteredLogs.slice(0, 8);
   return (
-    <Panel title="最近操作记录" action={<span className="status-pill status-info">{auditLogs.length} 条</span>} className="ops-panel">
+    <Panel title="最近操作记录" action={<span className="status-pill status-info">{filteredLogs.length} / {auditLogs.length} 条</span>} className="ops-panel">
       {auditLogs.length ? (
-        <div className="audit-list">
-          {auditLogs.slice(0, 8).map((item) => {
+        <>
+          <div className="audit-toolbar">
+            <div className="audit-filter-tabs" role="group" aria-label="操作记录分类">
+              {AUDIT_LOG_FILTERS.map((entry) => (
+                <button className={filter === entry.id ? "active" : ""} type="button" key={entry.id} onClick={() => { setFilter(entry.id); setShowAll(false); }}>
+                  {entry.label}
+                </button>
+              ))}
+            </div>
+            <label className="search-field audit-search">
+              <Search size={15} />
+              <input value={query} onChange={(event) => { setQuery(event.target.value); setShowAll(false); }} placeholder="搜 Match ID、操作或摘要" />
+            </label>
+          </div>
+          {visibleLogs.length ? <div className="audit-list">
+          {visibleLogs.map((item) => {
             const isExpanded = String(expandedLogId) === String(item.id);
             const detail = compactJson(item.details);
+            const impact = auditLogImpact(item);
             return (
               <article className="audit-item" key={item.id}>
                 <button className="audit-item-main" type="button" onClick={() => setExpandedLogId(isExpanded ? "" : item.id)}>
@@ -2949,6 +3003,7 @@ function AuditLogPanel({ auditLogs = [] }) {
                     <span>{item.matchId ? `Match ID ${item.matchId}` : item.actor}</span>
                   </div>
                   <p>{item.summary}</p>
+                  <span className={`status-pill status-${impact.tone}`}>{impact.label}</span>
                   <time>{formatBackendTime(item.createdAt)}</time>
                   <ChevronDown size={15} className={isExpanded ? "rotate-icon" : ""} />
                 </button>
@@ -2962,13 +3017,28 @@ function AuditLogPanel({ auditLogs = [] }) {
                       <span>动作</span>
                       <strong>{actionLabel(item.action)}</strong>
                     </div>
+                    <div>
+                      <span>数据影响</span>
+                      <strong>{impact.label}</strong>
+                    </div>
+                    <div>
+                      <span>所属赛季</span>
+                      <strong>{item.details?.seasonName || item.details?.seasonId || "按比赛时间归档"}</strong>
+                    </div>
                     {detail && <pre>{detail}</pre>}
                   </div>
                 )}
               </article>
             );
           })}
-        </div>
+          </div> : <EmptyState title="没有匹配的操作记录" body="可切换分类，或清除搜索关键词后再查看。" />}
+          {filteredLogs.length > 8 && (
+            <button className="full-width-button audit-more-button" type="button" onClick={() => setShowAll((current) => !current)}>
+              {showAll ? "收起记录" : `查看其余 ${filteredLogs.length - 8} 条记录`}
+              <ChevronDown size={16} className={showAll ? "rotate-icon" : ""} />
+            </button>
+          )}
+        </>
       ) : (
         <EmptyState title="暂无操作记录" body="确认、入库、撤销、修正胜方等操作会记录在这里。" />
       )}

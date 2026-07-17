@@ -1033,8 +1033,44 @@ a.primary-button {
   padding: 0 18px 16px;
 }
 
+.audit-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 18px 12px;
+}
+
+.audit-filter-tabs {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.audit-filter-tabs button {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 5px;
+  color: var(--muted);
+  background: rgba(7, 16, 24, 0.42);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.audit-filter-tabs button.active {
+  border-color: rgba(96, 165, 250, 0.42);
+  color: var(--text);
+  background: rgba(96, 165, 250, 0.1);
+}
+
+.audit-search {
+  flex: 0 1 220px;
+  min-width: 180px;
+}
+
 .audit-item-main {
-  grid-template-columns: minmax(126px, 0.9fr) minmax(0, 1.6fr) auto auto;
+  grid-template-columns: minmax(126px, 0.9fr) minmax(0, 1.6fr) auto auto auto;
   padding: 8px 10px;
 }
 
@@ -1055,6 +1091,16 @@ a.primary-button {
 .audit-item time {
   color: var(--muted);
   font-size: 12px;
+}
+
+.audit-item .status-pill {
+  display: inline-flex;
+  width: fit-content;
+  white-space: nowrap;
+}
+
+.audit-more-button {
+  margin-top: 0;
 }
 
 .audit-item p {
@@ -5135,6 +5181,16 @@ input[type="range"] {
   .sync-run-main small,
   .audit-item-main p {
     grid-column: 1 / -1;
+  }
+
+  .audit-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .audit-search {
+    flex-basis: auto;
+    min-width: 0;
   }
 
   .workbench-tabs {
