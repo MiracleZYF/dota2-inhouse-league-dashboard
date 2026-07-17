@@ -54,6 +54,7 @@ export const DEFAULT_PLAYOFF_STATE = {
   version: 1,
   status: "drafting",
   teams: [],
+  series: [],
   games: [],
   championTeamId: "",
   runnerUpTeamId: "",
@@ -869,10 +870,32 @@ function normalizePlayoffTeam(team, index = 0) {
   };
 }
 
-function normalizePlayoffGame(game) {
+function normalizePlayoffSeries(series, index = 0) {
+  const key = String(series?.key || "").trim().replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 48);
+  const targetWins = [1, 2, 3].includes(Number(series?.targetWins)) ? Number(series.targetWins) : 2;
+  if (!key) return null;
+  return {
+    key,
+    label: String(series?.label || `系列赛 ${index + 1}`).trim().slice(0, 60),
+    shortLabel: String(series?.shortLabel || series?.label || key).trim().slice(0, 36),
+    targetWins,
+    teamAId: String(series?.teamAId || "").trim(),
+    teamBId: String(series?.teamBId || "").trim(),
+    isFinal: Boolean(series?.isFinal),
+    order: Number(series?.order) || index + 1,
+  };
+}
+
+function playoffSeriesDefinitions(state) {
+  const custom = (Array.isArray(state?.series) ? state.series : []).map(normalizePlayoffSeries).filter(Boolean);
+  return custom.length ? custom.sort((a, b) => a.order - b.order) : Object.values(PLAYOFF_SERIES);
+}
+
+function normalizePlayoffGame(game, definitions = PLAYOFF_SERIES) {
   const seriesKey = String(game?.seriesKey || game?.series_key || "").trim();
   const gameNumber = Number(game?.gameNumber || game?.game_number);
-  if (!PLAYOFF_SERIES[seriesKey] || ![1, 2, 3].includes(gameNumber)) return null;
+  const series = Array.isArray(definitions) ? definitions.find((item) => item.key === seriesKey) : definitions[seriesKey];
+  if (!series || !Number.isInteger(gameNumber) || gameNumber < 1 || gameNumber > series.targetWins * 2 - 1) return null;
   return {
     id: `${seriesKey}-${gameNumber}`,
     seriesKey,
@@ -892,8 +915,10 @@ function normalizePlayoffState(rawState) {
   const teams = (Array.isArray(source.teams) ? source.teams : [])
     .map(normalizePlayoffTeam)
     .sort((a, b) => a.seed - b.seed);
+  const series = (Array.isArray(source.series) ? source.series : []).map(normalizePlayoffSeries).filter(Boolean);
+  const definitions = playoffSeriesDefinitions({ series });
   const games = (Array.isArray(source.games) ? source.games : [])
-    .map(normalizePlayoffGame)
+    .map((game) => normalizePlayoffGame(game, definitions))
     .filter(Boolean)
     .filter((game) => game.matchId && game.radiantTeamId && game.direTeamId && game.winnerTeamId);
 
@@ -902,6 +927,7 @@ function normalizePlayoffState(rawState) {
     ...source,
     version: 1,
     teams,
+    series,
     games,
     championTeamId: String(source.championTeamId || ""),
     runnerUpTeamId: String(source.runnerUpTeamId || ""),
@@ -914,7 +940,7 @@ function playoffTeamBySeed(teams, seed) {
 }
 
 function summarizeSeries(state, seriesKey) {
-  const series = PLAYOFF_SERIES[seriesKey];
+  const series = playoffSeriesDefinitions(state).find((item) => item.key === seriesKey);
   const games = state.games
     .filter((game) => game.seriesKey === seriesKey)
     .sort((a, b) => a.gameNumber - b.gameNumber);
@@ -925,8 +951,9 @@ function summarizeSeries(state, seriesKey) {
   });
 
   let defaultTeams = [];
-  if (seriesKey === "semiA") defaultTeams = [playoffTeamBySeed(state.teams, 1), playoffTeamBySeed(state.teams, 4)].filter(Boolean);
-  if (seriesKey === "semiB") defaultTeams = [playoffTeamBySeed(state.teams, 2), playoffTeamBySeed(state.teams, 3)].filter(Boolean);
+  if (!state.series?.length && seriesKey === "semiA") defaultTeams = [playoffTeamBySeed(state.teams, 1), playoffTeamBySeed(state.teams, 4)].filter(Boolean);
+  if (!state.series?.length && seriesKey === "semiB") defaultTeams = [playoffTeamBySeed(state.teams, 2), playoffTeamBySeed(state.teams, 3)].filter(Boolean);
+  if (state.series?.length) defaultTeams = [series.teamAId, series.teamBId].map((id) => state.teams.find((team) => team.id === id)).filter(Boolean);
 
   const usedTeamIds = Array.from(new Set(games.flatMap((game) => [game.radiantTeamId, game.direTeamId]).filter(Boolean)));
   const teams = usedTeamIds.length
@@ -945,13 +972,10 @@ function summarizeSeries(state, seriesKey) {
 
 export function summarizePlayoffState(state) {
   const normalized = normalizePlayoffState(state);
-  const series = {
-    semiA: summarizeSeries(normalized, "semiA"),
-    semiB: summarizeSeries(normalized, "semiB"),
-    final: summarizeSeries(normalized, "final"),
-  };
-  const finalScores = series.final.scoreByTeam || {};
-  const championTeamId = series.final.winnerTeamId || "";
+  const series = Object.fromEntries(playoffSeriesDefinitions(normalized).map((definition) => [definition.key, summarizeSeries(normalized, definition.key)]));
+  const finalSeries = Object.values(series).find((item) => item.isFinal) || series.final || Object.values(series).at(-1);
+  const finalScores = finalSeries?.scoreByTeam || {};
+  const championTeamId = finalSeries?.winnerTeamId || "";
   const runnerUpTeamId = championTeamId
     ? Object.keys(finalScores).find((teamId) => teamId !== championTeamId) || ""
     : "";
@@ -987,6 +1011,7 @@ async function savePlayoffState(env, state) {
     version: summarized.version,
     status: summarized.status,
     teams: summarized.teams,
+    series: summarized.series,
     games: summarized.games,
     championTeamId: summarized.championTeamId,
     runnerUpTeamId: summarized.runnerUpTeamId,
@@ -998,6 +1023,25 @@ async function savePlayoffState(env, state) {
     .bind(leagueSlug, JSON.stringify(stored))
     .run();
   return getPlayoffState(env);
+}
+
+export async function updatePlayoffSchedule(env, series = []) {
+  const current = await getPlayoffState(env);
+  const nextSeries = (Array.isArray(series) ? series : []).map(normalizePlayoffSeries).filter(Boolean);
+  const keys = new Set();
+  const teamIds = new Set(current.teams.map((team) => team.id));
+  if (!nextSeries.length) throw new Error("请至少安排一组淘汰赛对阵");
+  nextSeries.forEach((item) => {
+    if (keys.has(item.key)) throw new Error("淘汰赛系列标识不能重复");
+    keys.add(item.key);
+    if (!teamIds.has(item.teamAId) || !teamIds.has(item.teamBId) || item.teamAId === item.teamBId) throw new Error("每组对阵都需要选择两支不同的已保存队伍");
+  });
+  const validKeys = new Set(nextSeries.map((item) => item.key));
+  const incompatibleGames = current.games.filter((game) => !validKeys.has(game.seriesKey));
+  if (incompatibleGames.length) {
+    throw new Error("已有淘汰赛比赛收录在旧赛程中。请先在页面逐局清除旧收录，或保留对应系列标识后再保存新赛程。");
+  }
+  return savePlayoffState(env, { ...current, series: nextSeries, games: current.games.filter((game) => validKeys.has(game.seriesKey)) });
 }
 
 export async function updatePlayoffTeams(env, teams = []) {
@@ -1030,8 +1074,9 @@ export async function bindPlayoffMatch(env, { matchId, seriesKey, gameNumber, ra
   const current = await getPlayoffState(env);
   const cleanSeriesKey = String(seriesKey || "").trim();
   const cleanGameNumber = Number(gameNumber);
-  if (!PLAYOFF_SERIES[cleanSeriesKey]) throw new Error("淘汰赛轮次无效");
-  if (![1, 2, 3].includes(cleanGameNumber)) throw new Error("局数只能是 G1/G2/G3");
+  const definition = playoffSeriesDefinitions(current).find((item) => item.key === cleanSeriesKey);
+  if (!definition) throw new Error("淘汰赛轮次无效");
+  if (!Number.isInteger(cleanGameNumber) || cleanGameNumber < 1 || cleanGameNumber > definition.targetWins * 2 - 1) throw new Error("局数超出该系列赛上限");
 
   const teamIds = new Set(current.teams.map((team) => team.id));
   const cleanRadiantTeamId = String(radiantTeamId || "").trim();
@@ -1070,7 +1115,8 @@ export async function clearPlayoffGame(env, { seriesKey, gameNumber } = {}) {
   const cleanSeriesKey = String(seriesKey || "").trim();
   const cleanGameNumber = Number(gameNumber);
   const id = `${cleanSeriesKey}-${cleanGameNumber}`;
-  if (!PLAYOFF_SERIES[cleanSeriesKey] || ![1, 2, 3].includes(cleanGameNumber)) throw new Error("淘汰赛局数无效");
+  const definition = playoffSeriesDefinitions(current).find((item) => item.key === cleanSeriesKey);
+  if (!definition || !Number.isInteger(cleanGameNumber) || cleanGameNumber < 1 || cleanGameNumber > definition.targetWins * 2 - 1) throw new Error("淘汰赛局数无效");
   return savePlayoffState(env, {
     ...current,
     games: current.games.filter((game) => game.id !== id),
@@ -3224,7 +3270,9 @@ export async function refreshStoredMatch(env, matchId, { resetReviewStatus = fal
 }
 
 function hasRetryHint(match, detail) {
-  if (match.status === "已入库" || match.isRankedLadder) return false;
+  // 已入库的比赛也可能先以 Steam 联赛历史的简略信息进入系统。保留既有
+  // 状态、积分和人工判定，只在后续同步中尝试补齐英雄、KDA 和胜负详情。
+  if (match.isRankedLadder) return false;
   if (!detail) {
     return match.time === "待解析" || /待解析|已请求解析|暂未返回|OpenDota HTTP|Steam API|STRATZ|数据源/i.test(`${match.score || ""} ${match.notes || ""}`);
   }
@@ -3249,6 +3297,7 @@ export async function retryUnresolvedMatches(env, { retryLimit = 12, requestOpen
   const results = [];
   for (const match of candidates) {
     try {
+      const wasStored = match.status === "已入库";
       const result = await refreshStoredMatch(env, match.id, {
         resetReviewStatus: false,
         requestOpenDotaParse,
@@ -3257,6 +3306,7 @@ export async function retryUnresolvedMatches(env, { retryLimit = 12, requestOpen
       });
       results.push({
         id: match.id,
+        wasStored,
         ok: result.ok,
         source: result.source,
         status: result.match?.status,
@@ -3282,7 +3332,10 @@ export async function retryUnresolvedMatches(env, { retryLimit = 12, requestOpen
   return {
     attempted: results.length,
     succeeded: results.filter((item) => item.ok).length,
-    autoStoredCount: results.filter((item) => item.status === "已入库").length,
+    // 这里仅统计本轮从候选/待确认状态变成已入库的比赛；旧比赛的详情补全
+    // 单独计数，避免在同步摘要里被误报为新增计分。
+    autoStoredCount: results.filter((item) => !item.wasStored && item.status === "已入库").length,
+    enrichedStoredCount: results.filter((item) => item.wasStored && item.ok).length,
     manualInterventionCount: results.filter((item) => item.requiresManualIntervention).length,
     results,
   };

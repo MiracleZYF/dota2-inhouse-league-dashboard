@@ -78,6 +78,7 @@ export async function onRequest({ request, env }) {
     });
     const retryResult = retryLimit > 0 ? await retryUnresolvedMatches(scopedEnv, { retryLimit }) : { attempted: 0, succeeded: 0, results: [] };
     retryResult.autoStoredCount = Number(retryResult.autoStoredCount || 0);
+    retryResult.enrichedStoredCount = Number(retryResult.enrichedStoredCount || 0);
     retryResult.manualInterventionCount = Number(retryResult.manualInterventionCount || 0);
     const autoStoredTotal = Number(syncResult.autoStoredCount || 0) + retryResult.autoStoredCount;
     const manualInterventionTotal = Number(syncResult.manualInterventionCount || 0) + retryResult.manualInterventionCount;
@@ -109,6 +110,7 @@ export async function onRequest({ request, env }) {
         profileLimit,
         newCount: syncResult.newCandidates.length,
         autoStoredCount: syncResult.autoStoredCount,
+        enrichedStoredCount: retryResult.enrichedStoredCount,
         manualInterventionCount: syncResult.manualInterventionCount,
         duplicatedCount: syncResult.duplicatedCount,
         failedCount: syncResult.failedCount,

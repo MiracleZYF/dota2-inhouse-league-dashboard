@@ -32,7 +32,7 @@ export async function onRequestPost({ request, env }) {
     const result = await retryUnresolvedMatches(scopedEnv, { retryLimit });
     const failedCount = result.results.filter((item) => item && !item.ok).length;
     const status = failedCount ? "warning" : "success";
-    const summary = `重试等待解析完成：尝试 ${result.attempted} 场，成功 ${result.succeeded} 场，自动入库 ${result.autoStoredCount || 0} 场，仍需人工 ${result.manualInterventionCount || 0} 场`;
+    const summary = `重试等待解析完成：尝试 ${result.attempted} 场，成功 ${result.succeeded} 场，自动入库 ${result.autoStoredCount || 0} 场，补全已入库 ${result.enrichedStoredCount || 0} 场，仍需人工 ${result.manualInterventionCount || 0} 场`;
 
     const syncRun = await recordSyncRun(scopedEnv, {
       kind: "manual",

@@ -37,6 +37,7 @@ export async function onRequestPost({ request, env }) {
     });
     const retryResult = retryLimit > 0 ? await retryUnresolvedMatches(scopedEnv, { retryLimit }) : { attempted: 0, succeeded: 0, results: [] };
     retryResult.autoStoredCount = Number(retryResult.autoStoredCount || 0);
+    retryResult.enrichedStoredCount = Number(retryResult.enrichedStoredCount || 0);
     retryResult.manualInterventionCount = Number(retryResult.manualInterventionCount || 0);
     const autoStoredTotal = Number(result.autoStoredCount || 0) + retryResult.autoStoredCount;
     const manualInterventionTotal = Number(result.manualInterventionCount || 0) + retryResult.manualInterventionCount;
@@ -56,6 +57,7 @@ export async function onRequestPost({ request, env }) {
         autoStoredCount: result.autoStoredCount,
         manualInterventionCount: result.manualInterventionCount,
         autoStoredTotal,
+        enrichedStoredCount: retryResult.enrichedStoredCount,
         manualInterventionTotal,
         duplicatedCount: result.duplicatedCount,
         failedCount: result.failedCount,
@@ -79,6 +81,7 @@ export async function onRequestPost({ request, env }) {
         autoStoredCount: result.autoStoredCount,
         manualInterventionCount: result.manualInterventionCount,
         autoStoredTotal,
+        enrichedStoredCount: retryResult.enrichedStoredCount,
         manualInterventionTotal,
         failedCount: result.failedCount,
         retry: retryResult,

@@ -10,6 +10,7 @@ import {
   readJson,
   requireAdmin,
   resetPlayoffState,
+  updatePlayoffSchedule,
   updatePlayoffTeams,
   withLeague,
 } from "../_lib/dota.js";
@@ -44,6 +45,11 @@ export async function onRequestPut({ request, env }) {
       auditAction = "save_playoff_teams";
       summary = `保存淘汰赛分队：${playoff.teams.length} 支队伍`;
       details = { teams: playoff.teams.map((team) => ({ id: team.id, seed: team.seed, name: team.name, size: team.players.length })) };
+    } else if (action === "save_schedule") {
+      playoff = await updatePlayoffSchedule(scopedEnv, body.series || []);
+      auditAction = "save_playoff_schedule";
+      summary = `保存淘汰赛赛程：${playoff.series.length} 组对阵`;
+      details = { series: playoff.series };
     } else if (action === "bind_match") {
       playoff = await bindPlayoffMatch(scopedEnv, body);
       auditAction = "bind_playoff_match";

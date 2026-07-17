@@ -89,6 +89,7 @@ const DEFAULT_PLAYOFF = {
   version: 1,
   status: "drafting",
   teams: [],
+  series: [],
   games: [],
   championTeamId: "",
   runnerUpTeamId: "",
@@ -886,6 +887,40 @@ function buildPlayersCsv(players) {
     player.publicData ? "已同步" : "待同步",
     player.status,
   ]);
+  return [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+}
+
+function buildStandingsCsv(players) {
+  const headers = ["排名", "玩家", "DOTA2 ID", "积分", "场次", "胜", "负", "胜率", "近期表现"];
+  const rows = players.map((player, index) => [
+    index + 1,
+    player.name,
+    player.dotaId,
+    player.points,
+    player.played,
+    player.wins,
+    player.losses,
+    `${Math.round(Number(player.winRate || 0) * 100)}%`,
+    (player.form || []).join(" "),
+  ]);
+  return [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+}
+
+function buildMatchLedgerCsv(matches) {
+  const headers = ["Match ID", "比赛时间", "状态", "数据源", "房间类型", "模式", "命中玩家", "天辉命中", "夜魇命中", "胜方", "备注"];
+  const rows = matches.map((match) => {
+    const registered = match.registeredPlayers || [];
+    const radiant = registered.filter((player) => player.side === "天辉").length;
+    const dire = registered.filter((player) => player.side === "夜魇").length;
+    const winner = registered.find((player) => player.result === true)?.side || "";
+    return [match.id, match.time, match.status, match.dataSource || match.data_source || "", match.lobbyType || match.lobby_type || "", match.gameMode || match.game_mode || "", registered.length, radiant, dire, winner, match.notes || ""];
+  });
+  return [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+}
+
+function buildScoreLedgerCsv(entries) {
+  const headers = ["Match ID", "比赛时间", "玩家", "DOTA2 ID", "阵营", "英雄 ID", "KDA", "结果", "积分"];
+  const rows = entries.map((entry) => [entry.matchId, entry.time, entry.playerName, entry.accountId, entry.side, entry.heroId || "", `${entry.kills ?? "-"}/${entry.deaths ?? "-"}/${entry.assists ?? "-"}`, entry.result, entry.points]);
   return [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
 }
 
@@ -3682,9 +3717,14 @@ function PlayoffMatchBinder({ match, displayedPlayers, winner, playoff = DEFAULT
   const [message, setMessage] = useState("");
   const summary = useMemo(() => summarizePlayoff(playoff), [playoff]);
   const teams = summary.teams || [];
+  const seriesDefinitions = Object.values(summary.series || {});
   const existingBinding = summary.games.find((game) => String(game.matchId) === String(match?.id));
   const currentSeries = summary.series?.[seriesKey];
   const hasWinner = winner === "天辉" || winner === "夜魇";
+
+  useEffect(() => {
+    if (!summary.series?.[seriesKey] && seriesDefinitions[0]?.key) setSeriesKey(seriesDefinitions[0].key);
+  }, [seriesDefinitions, seriesKey, summary.series]);
 
   useEffect(() => {
     if (existingBinding) {
@@ -3743,13 +3783,13 @@ function PlayoffMatchBinder({ match, displayedPlayers, winner, playoff = DEFAULT
     <section className="playoff-bind-card">
       <div className="review-card-head">
         <span>淘汰赛收录</span>
-        <strong>{existingBinding ? `${PLAYOFF_SERIES[existingBinding.seriesKey]?.shortLabel || "淘汰赛"} G${existingBinding.gameNumber}` : "未收录"}</strong>
+        <strong>{existingBinding ? `${summary.series?.[existingBinding.seriesKey]?.shortLabel || PLAYOFF_SERIES[existingBinding.seriesKey]?.shortLabel || "淘汰赛"} G${existingBinding.gameNumber}` : "未收录"}</strong>
       </div>
       <div className="playoff-bind-grid">
         <label>
           <span>轮次</span>
           <select value={seriesKey} onChange={(event) => setSeriesKey(event.target.value)} disabled={disabled || saving}>
-            {Object.values(PLAYOFF_SERIES).map((series) => (
+            {seriesDefinitions.map((series) => (
               <option key={series.key} value={series.key}>
                 {series.label}
               </option>
@@ -3759,7 +3799,7 @@ function PlayoffMatchBinder({ match, displayedPlayers, winner, playoff = DEFAULT
         <label>
           <span>局数</span>
           <select value={gameNumber} onChange={(event) => setGameNumber(Number(event.target.value))} disabled={disabled || saving}>
-            {[1, 2, 3].map((value) => (
+            {Array.from({ length: (currentSeries?.targetWins || 2) * 2 - 1 }, (_, index) => index + 1).map((value) => (
               <option key={value} value={value}>
                 G{value}
               </option>
@@ -5400,6 +5440,7 @@ function normalizePlayoff(playoff) {
     ...DEFAULT_PLAYOFF,
     ...source,
     teams: Array.isArray(source.teams) ? source.teams.slice().sort((a, b) => Number(a.seed || 0) - Number(b.seed || 0)) : [],
+    series: Array.isArray(source.series) ? source.series.slice().sort((a, b) => Number(a.order || 0) - Number(b.order || 0)) : [],
     games: Array.isArray(source.games) ? source.games.slice().sort((a, b) => String(a.seriesKey).localeCompare(String(b.seriesKey)) || Number(a.gameNumber) - Number(b.gameNumber)) : [],
   };
 }
@@ -5407,7 +5448,8 @@ function normalizePlayoff(playoff) {
 function summarizePlayoff(playoff) {
   const state = normalizePlayoff(playoff);
   const series = {};
-  Object.values(PLAYOFF_SERIES).forEach((definition) => {
+  const definitions = state.series.length ? state.series : Object.values(PLAYOFF_SERIES);
+  definitions.forEach((definition) => {
     const games = state.games.filter((game) => game.seriesKey === definition.key).sort((a, b) => Number(a.gameNumber) - Number(b.gameNumber));
     const scoreByTeam = {};
     games.forEach((game) => {
@@ -5415,15 +5457,17 @@ function summarizePlayoff(playoff) {
       scoreByTeam[game.winnerTeamId] = (scoreByTeam[game.winnerTeamId] || 0) + 1;
     });
     let defaultTeams = [];
-    if (definition.key === "semiA") defaultTeams = [playoffTeamBySeed(state.teams, 1), playoffTeamBySeed(state.teams, 4)].filter(Boolean);
-    if (definition.key === "semiB") defaultTeams = [playoffTeamBySeed(state.teams, 2), playoffTeamBySeed(state.teams, 3)].filter(Boolean);
+    if (!state.series.length && definition.key === "semiA") defaultTeams = [playoffTeamBySeed(state.teams, 1), playoffTeamBySeed(state.teams, 4)].filter(Boolean);
+    if (!state.series.length && definition.key === "semiB") defaultTeams = [playoffTeamBySeed(state.teams, 2), playoffTeamBySeed(state.teams, 3)].filter(Boolean);
+    if (state.series.length) defaultTeams = [definition.teamAId, definition.teamBId].map((id) => state.teams.find((team) => team.id === id)).filter(Boolean);
     const usedTeamIds = Array.from(new Set(games.flatMap((game) => [game.radiantTeamId, game.direTeamId]).filter(Boolean)));
     const teams = usedTeamIds.length ? usedTeamIds.map((teamId) => state.teams.find((team) => team.id === teamId)).filter(Boolean) : defaultTeams;
     const winnerTeamId = Object.entries(scoreByTeam).find(([, score]) => score >= definition.targetWins)?.[0] || "";
     series[definition.key] = { ...definition, games, scoreByTeam, teams, winnerTeamId };
   });
-  const championTeamId = series.final?.winnerTeamId || "";
-  const runnerUpTeamId = championTeamId ? Object.keys(series.final?.scoreByTeam || {}).find((teamId) => teamId !== championTeamId) || "" : "";
+  const finalSeries = Object.values(series).find((item) => item.isFinal) || series.final || Object.values(series).at(-1);
+  const championTeamId = finalSeries?.winnerTeamId || "";
+  const runnerUpTeamId = championTeamId ? Object.keys(finalSeries?.scoreByTeam || {}).find((teamId) => teamId !== championTeamId) || "" : "";
   return {
     ...state,
     series,
@@ -5917,12 +5961,17 @@ function PlayoffTeamManager({ players, captains, playoff = DEFAULT_PLAYOFF, onSa
   );
 }
 
-function PlayoffView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, onResetPlayoff, onClearGame, clearing = false, isAdmin = false }) {
+function PlayoffView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, onResetPlayoff, onSaveSchedule, onClearGame, clearing = false, isAdmin = false }) {
   const savedSummary = summarizePlayoff(playoff);
   const summary = savedSummary;
   const hasSavedTeams = savedSummary.teams.length >= 4;
   const champion = summary.teams.find((team) => team.id === summary.championTeamId);
   const runnerUp = summary.teams.find((team) => team.id === summary.runnerUpTeamId);
+  const [scheduleRows, setScheduleRows] = useState(() => normalizePlayoff(playoff).series);
+
+  useEffect(() => {
+    setScheduleRows(normalizePlayoff(playoff).series);
+  }, [playoff]);
 
   function renderSeries(seriesKey) {
     const series = summary.series?.[seriesKey];
@@ -5931,7 +5980,7 @@ function PlayoffView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams
       <section className="playoff-series-panel" key={seriesKey}>
         <div className="playoff-series-head">
           <div>
-            <h3>{PLAYOFF_SERIES[seriesKey].label}</h3>
+            <h3>{series?.label || PLAYOFF_SERIES[seriesKey]?.label || seriesKey}</h3>
             <span>BO3 · 先到 2 胜晋级</span>
           </div>
           <strong>{series?.winnerTeamId ? `${teamName(summary, series.winnerTeamId)} 晋级` : "待完成"}</strong>
@@ -5952,7 +6001,7 @@ function PlayoffView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams
           )}
         </div>
         <div className="series-game-list">
-          {[1, 2, 3].map((gameNumber) => {
+          {Array.from({ length: (series?.targetWins || 2) * 2 - 1 }, (_, index) => index + 1).map((gameNumber) => {
             const game = series?.games?.find((item) => Number(item.gameNumber) === gameNumber);
             return (
               <article className={`series-game-chip ${game ? "filled" : ""}`} key={`${seriesKey}-${gameNumber}`}>
@@ -5994,15 +6043,25 @@ function PlayoffView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams
           saving={clearing}
           isAdmin={isAdmin}
         />
+        {isAdmin && (
+          <section className="playoff-team-manager">
+            <div className="playoff-team-manager-head">
+              <div><h3>赛程与对阵</h3><span>队伍数量由上方队伍管理决定；这里可自由安排每一组对阵与 BO1/BO3/BO5。</span></div>
+              <div className="panel-action-group">
+                <button className="ghost-button compact-button" type="button" onClick={() => setScheduleRows((current) => [...current, { key: `series-${Date.now()}`, label: `第 ${current.length + 1} 轮`, shortLabel: `第 ${current.length + 1} 轮`, targetWins: 2, teamAId: "", teamBId: "", order: current.length + 1, isFinal: false }])}><Plus size={14} />新增对阵</button>
+                <button className="primary-button compact-button" type="button" onClick={() => onSaveSchedule?.(scheduleRows)} disabled={clearing || !scheduleRows.length}><Database size={14} />保存赛程</button>
+              </div>
+            </div>
+            {scheduleRows.length > 0 && <div className="playoff-team-grid editable">{scheduleRows.map((row, index) => <article className="playoff-team-card editable" key={`${row.key}-${index}`}><div className="playoff-team-editor-head"><label><span>轮次名称</span><input value={row.label || ""} onChange={(event) => setScheduleRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, label: event.target.value, shortLabel: event.target.value } : item))} /></label><label><span>赛制</span><select value={row.targetWins || 2} onChange={(event) => setScheduleRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, targetWins: Number(event.target.value) } : item))}><option value={1}>BO1</option><option value={2}>BO3</option><option value={3}>BO5</option></select></label><button className="danger-button compact-button" type="button" onClick={() => setScheduleRows((current) => current.filter((_, itemIndex) => itemIndex !== index))}><X size={14} />删除</button></div><div className="playoff-team-editor-head"><label><span>队伍 A</span><select value={row.teamAId || ""} onChange={(event) => setScheduleRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, teamAId: event.target.value } : item))}><option value="">选择队伍</option>{summary.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label><label><span>队伍 B</span><select value={row.teamBId || ""} onChange={(event) => setScheduleRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, teamBId: event.target.value } : item))}><option value="">选择队伍</option>{summary.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select></label><label><span>决赛</span><input type="checkbox" checked={Boolean(row.isFinal)} onChange={(event) => setScheduleRows((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, isFinal: event.target.checked } : item))} /></label></div></article>)}</div>}
+          </section>
+        )}
         <div className="playoff-status-strip">
           <span>半决赛默认：1 队 vs 4 队、2 队 vs 3 队</span>
           <span>比赛详情页绑定 Match ID 后自动更新大比分</span>
           {!hasSavedTeams && <strong>请先在上方管理端保存至少 4 支队伍；少于 4 队时也可以手动绑定已有系列。</strong>}
         </div>
         <div className="playoff-board">
-          {renderSeries("semiA")}
-          {renderSeries("semiB")}
-          {renderSeries("final")}
+          {Object.keys(summary.series || {}).map(renderSeries)}
           <div className="champion-card">
             <Trophy size={34} />
             <span>冠军</span>
@@ -7247,6 +7306,49 @@ export function App() {
     ]);
   }
 
+  function exportSeasonSettlement() {
+    const exportedAt = new Date().toISOString();
+    const stamp = exportedAt.slice(0, 10);
+    const safeSeasonName = String(selectedSeason.name || selectedSeason.id || "season").replace(/[\\/:*?"<>|]/g, "-");
+    const settlement = {
+      exportedAt,
+      type: "dota2-inhouse-season-settlement",
+      season: selectedSeason,
+      rules: {
+        winPoints: seasonSettings.winPoints,
+        lossPoints: seasonSettings.lossPoints,
+        minRegisteredPlayers: seasonSettings.minRegisteredPlayers,
+      },
+      summary: {
+        scoredMatches: seasonMatches.filter((match) => match.status === "已入库").length,
+        recordedMatches: seasonMatches.length,
+        rankedPlayers: rankedPlayers.length,
+        championTeamId: playoff.championTeamId || "",
+        runnerUpTeamId: playoff.runnerUpTeamId || "",
+      },
+      standings: rankedPlayers,
+      scoreEntries,
+      matches: seasonMatches,
+      playoff,
+      auditLogs: seasonAuditLogs,
+    };
+    downloadTextFile(`dota2-${safeSeasonName}-结算包-${stamp}.json`, JSON.stringify(settlement, null, 2), "application/json;charset=utf-8");
+    downloadTextFile(`dota2-${safeSeasonName}-积分榜-${stamp}.csv`, `\uFEFF${buildStandingsCsv(rankedPlayers)}`, "text/csv;charset=utf-8");
+    downloadTextFile(`dota2-${safeSeasonName}-比赛台账-${stamp}.csv`, `\uFEFF${buildMatchLedgerCsv(seasonMatches)}`, "text/csv;charset=utf-8");
+    downloadTextFile(`dota2-${safeSeasonName}-计分流水-${stamp}.csv`, `\uFEFF${buildScoreLedgerCsv(scoreEntries)}`, "text/csv;charset=utf-8");
+    setNotifications((current) => [
+      {
+        id: `settlement-export-${Date.now()}`,
+        title: "赛季结算包已导出",
+        body: `已生成 ${selectedSeason.name} 的 JSON 归档、积分榜、比赛台账和计分流水；导出只读，不会改动赛季数据。`,
+        time: "刚刚",
+        read: false,
+        action: "leaderboard",
+      },
+      ...current.slice(0, 5),
+    ]);
+  }
+
   function exportPlayersCsv() {
     const exportedAt = new Date().toISOString();
     downloadTextFile(`dota2-player-roster-${exportedAt.slice(0, 10)}.csv`, `\uFEFF${buildPlayersCsv(players)}`, "text/csv;charset=utf-8");
@@ -7501,6 +7603,20 @@ export function App() {
         ...current.slice(0, 5),
       ]);
       throw error;
+    } finally {
+      setPlayoffSaving(false);
+    }
+  }
+
+  async function savePlayoffSchedule(series) {
+    const ok = confirmAdminAction(`确认保存 ${series.length} 组淘汰赛对阵？\n\n这只会更新淘汰赛赛程，不会修改已有比赛、积分或玩家数据。`);
+    if (!ok) return null;
+    setPlayoffSaving(true);
+    try {
+      const data = await apiRequest("/api/playoff", { method: "PUT", admin: true, body: { action: "save_schedule", series } });
+      applyServerState(data);
+      setLastSync("淘汰赛赛程已保存");
+      return data;
     } finally {
       setPlayoffSaving(false);
     }
@@ -8369,6 +8485,10 @@ export function App() {
                   <Download size={16} />
                   导出数据
                 </button>
+                <button className="ghost-button" type="button" onClick={exportSeasonSettlement}>
+                  <FileDown size={16} />
+                  赛季结算
+                </button>
                 <button
                   className={`icon-button notification-button ${showNotifications ? "active" : ""}`}
                   type="button"
@@ -8497,6 +8617,7 @@ export function App() {
             captains={captains}
             playoff={playoff}
             onSaveTeams={savePlayoffTeams}
+            onSaveSchedule={savePlayoffSchedule}
             onResetPlayoff={resetPlayoff}
             onClearGame={clearPlayoffGame}
             clearing={playoffSaving}
