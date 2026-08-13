@@ -11,6 +11,7 @@ import {
   requireAdmin,
   resetPlayoffState,
   updatePlayoffDraftConfig,
+  updatePlayoffFormat,
   updatePlayoffSchedule,
   updatePlayoffTeams,
   withLeague,
@@ -48,6 +49,11 @@ export async function onRequestPut({ request, env }) {
       auditAction = "save_playoff_teams";
       summary = `保存淘汰赛分队：${playoff.teams.length} 支队伍`;
       details = { teams: playoff.teams.map((team) => ({ id: team.id, seed: team.seed, name: team.name, size: team.players.length })) };
+    } else if (action === "save_format") {
+      playoff = await updatePlayoffFormat(scopedEnv, body.bracketFormat);
+      auditAction = "save_playoff_format";
+      summary = `保存淘汰赛赛制：${playoff.bracketFormat === "double_elimination" ? "双败淘汰" : "单败淘汰"}`;
+      details = { bracketFormat: playoff.bracketFormat };
     } else if (action === "save_draft_config") {
       playoff = await updatePlayoffDraftConfig(scopedEnv, body.draft || {});
       auditAction = "save_playoff_draft_config";

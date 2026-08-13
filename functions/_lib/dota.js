@@ -55,12 +55,17 @@ export const DEFAULT_PLAYOFF_STATE = {
   status: "drafting",
   teams: [],
   draft: { teamCount: 4, playersPerTeam: 5, captainIds: [], pickOrder: [] },
+  bracketFormat: "single_elimination",
   series: [],
   games: [],
   championTeamId: "",
   runnerUpTeamId: "",
   updatedAt: "",
 };
+
+function normalizeBracketFormat(value) {
+  return value === "double_elimination" ? "double_elimination" : "single_elimination";
+}
 
 function normalizePlayoffDraft(draft) {
   const source = draft && typeof draft === "object" ? draft : {};
@@ -942,6 +947,7 @@ function normalizePlayoffState(rawState) {
     version: 1,
     teams,
     draft: normalizePlayoffDraft(source.draft),
+    bracketFormat: normalizeBracketFormat(source.bracketFormat),
     series,
     games,
     championTeamId: String(source.championTeamId || ""),
@@ -1034,6 +1040,7 @@ async function savePlayoffState(env, state) {
     status: summarized.status,
     teams: summarized.teams,
     draft: summarized.draft,
+    bracketFormat: summarized.bracketFormat,
     series: summarized.series,
     games: summarized.games,
     championTeamId: summarized.championTeamId,
@@ -1046,6 +1053,11 @@ async function savePlayoffState(env, state) {
     .bind(leagueSlug, key, JSON.stringify(stored))
     .run();
   return getPlayoffState(env);
+}
+
+export async function updatePlayoffFormat(env, bracketFormat) {
+  const current = await getPlayoffState(env);
+  return savePlayoffState(env, { ...current, bracketFormat: normalizeBracketFormat(bracketFormat) });
 }
 
 export async function updatePlayoffDraftConfig(env, draft = {}) {

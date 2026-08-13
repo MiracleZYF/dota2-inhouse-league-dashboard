@@ -3611,6 +3611,45 @@ input[type="range"] {
   accent-color: var(--teal);
 }
 
+.bracket-format-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: stretch;
+  padding: 14px;
+  border-bottom: 1px solid var(--line-soft);
+  background: rgba(7, 16, 24, 0.28);
+}
+
+.bracket-format-picker > button:not(.ghost-button) {
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  background: rgba(3, 9, 15, 0.56);
+  text-align: left;
+}
+
+.bracket-format-picker > button:not(.ghost-button):hover,
+.bracket-format-picker > button.active {
+  border-color: rgba(52, 215, 181, 0.58);
+  color: var(--text);
+  background: rgba(52, 215, 181, 0.13);
+}
+
+.bracket-format-picker > button > span {
+  display: grid;
+  gap: 3px;
+}
+
+.bracket-format-picker strong { font-size: 14px; }
+.bracket-format-picker small { color: var(--muted); font-size: 11px; line-height: 1.35; }
+.bracket-format-picker .ghost-button { align-self: center; }
+
 .playoff-board {
   min-height: 0;
   grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));

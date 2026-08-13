@@ -90,6 +90,7 @@ const DEFAULT_PLAYOFF = {
   status: "drafting",
   teams: [],
   draft: { teamCount: 4, playersPerTeam: 5, captainIds: [], pickOrder: [] },
+  bracketFormat: "single_elimination",
   series: [],
   games: [],
   championTeamId: "",
@@ -5481,6 +5482,7 @@ function normalizePlayoff(playoff) {
       captainIds: Array.from(new Set((Array.isArray(rawDraft.captainIds) ? rawDraft.captainIds : []).map((id) => String(id || "")).filter(Boolean))),
       pickOrder: (Array.isArray(rawDraft.pickOrder) ? rawDraft.pickOrder : []).map((id) => String(id || "")).filter(Boolean),
     },
+    bracketFormat: source.bracketFormat === "double_elimination" ? "double_elimination" : "single_elimination",
     series: Array.isArray(source.series) ? source.series.slice().sort((a, b) => Number(a.order || 0) - Number(b.order || 0)) : [],
     games: Array.isArray(source.games) ? source.games.slice().sort((a, b) => String(a.seriesKey).localeCompare(String(b.seriesKey)) || Number(a.gameNumber) - Number(b.gameNumber)) : [],
   };
@@ -6069,16 +6071,18 @@ function PlayoffTeamManager({ players, captains, playoff = DEFAULT_PLAYOFF, onSa
   );
 }
 
-function PlayoffView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, onResetPlayoff, onSaveSchedule, onClearGame, clearing = false, isAdmin = false }) {
+function PlayoffView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, onResetPlayoff, onSaveSchedule, onSaveFormat, onClearGame, clearing = false, isAdmin = false }) {
   const savedSummary = summarizePlayoff(playoff);
   const summary = savedSummary;
   const hasSavedTeams = savedSummary.teams.length >= 4;
   const champion = summary.teams.find((team) => team.id === summary.championTeamId);
   const runnerUp = summary.teams.find((team) => team.id === summary.runnerUpTeamId);
+  const [bracketFormat, setBracketFormat] = useState(() => normalizePlayoff(playoff).bracketFormat);
   const [scheduleRows, setScheduleRows] = useState(() => normalizePlayoff(playoff).series);
 
   useEffect(() => {
     setScheduleRows(normalizePlayoff(playoff).series);
+    setBracketFormat(normalizePlayoff(playoff).bracketFormat);
   }, [playoff]);
 
   function renderSeries(seriesKey) {
@@ -6154,11 +6158,16 @@ function PlayoffView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams
         {isAdmin && (
           <section className="playoff-team-manager schedule-manager">
             <div className="playoff-team-manager-head">
-              <div><h3>赛程与对阵</h3><span>队伍数量由上方队伍管理决定；这里可自由安排每一组对阵与 BO1/BO3/BO5。</span></div>
+              <div><h3>赛制、赛程与对阵</h3><span>先确定单败或双败，再安排每一组对阵与 BO1/BO3/BO5；双败可在胜负产生后继续补充败者组对阵。</span></div>
               <div className="panel-action-group">
                 <button className="ghost-button compact-button" type="button" onClick={() => setScheduleRows((current) => [...current, { key: `series-${Date.now()}`, label: `第 ${current.length + 1} 轮`, shortLabel: `第 ${current.length + 1} 轮`, targetWins: 2, teamAId: "", teamBId: "", order: current.length + 1, isFinal: false }])}><Plus size={14} />新增对阵</button>
                 <button className="primary-button compact-button" type="button" onClick={() => onSaveSchedule?.(scheduleRows)} disabled={clearing || !scheduleRows.length}><Database size={14} />保存赛程</button>
               </div>
+            </div>
+            <div className="bracket-format-picker">
+              <button className={bracketFormat === "single_elimination" ? "active" : ""} type="button" onClick={() => setBracketFormat("single_elimination")}><Swords size={18} /><span><strong>单败淘汰</strong><small>输掉一场即结束本期淘汰赛</small></span></button>
+              <button className={bracketFormat === "double_elimination" ? "active" : ""} type="button" onClick={() => setBracketFormat("double_elimination")}><RotateCcw size={18} /><span><strong>双败淘汰</strong><small>首败进入败者组，第二次失利出局</small></span></button>
+              <button className="ghost-button compact-button" type="button" onClick={() => onSaveFormat?.(bracketFormat)} disabled={clearing}><Database size={14} />保存赛制</button>
             </div>
             {scheduleRows.length > 0 && (
               <div className="playoff-team-grid editable schedule-grid">
@@ -7774,6 +7783,21 @@ export function App() {
     }
   }
 
+  async function savePlayoffFormat(bracketFormat) {
+    const label = bracketFormat === "double_elimination" ? "双败淘汰" : "单败淘汰";
+    const ok = confirmAdminAction(`确认保存为${label}？\n\n这只会更新本赛季淘汰赛的赛制标识，不会修改既有队伍、赛程或已收录比赛。`);
+    if (!ok) return null;
+    setPlayoffSaving(true);
+    try {
+      const data = await apiRequest("/api/playoff", { method: "PUT", admin: true, body: { action: "save_format", bracketFormat, seasonId: selectedSeason.id } });
+      applyServerState(data);
+      setLastSync(`淘汰赛赛制已保存为${label}`);
+      return data;
+    } finally {
+      setPlayoffSaving(false);
+    }
+  }
+
   async function savePlayoffDraftConfig(draft) {
     const ok = confirmAdminAction(`确认保存队长选人规则？\n\n将保存 ${draft.teamCount} 支队伍、每队 ${draft.playersPerTeam} 人，以及当前队长和选人顺序。不会改动已经保存的比赛与积分。`);
     if (!ok) return null;
@@ -8784,6 +8808,7 @@ export function App() {
             playoff={playoff}
             onSaveTeams={savePlayoffTeams}
             onSaveSchedule={savePlayoffSchedule}
+            onSaveFormat={savePlayoffFormat}
             onResetPlayoff={resetPlayoff}
             onClearGame={clearPlayoffGame}
             clearing={playoffSaving}
