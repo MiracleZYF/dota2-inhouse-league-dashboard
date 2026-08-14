@@ -5714,6 +5714,7 @@ function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, 
   const [cursor, setCursor] = useState(initialCursor);
   const [selected, setSelected] = useState(null);
   const [savingPick, setSavingPick] = useState(false);
+  const [draftSaveError, setDraftSaveError] = useState("");
   const serializedTeams = useMemo(() => serializeDraftTeams(configuredCaptains, players, teams), [configuredCaptains, players, teams]);
   const allTeamsReady = serializedTeams.length === configuredCaptains.length && serializedTeams.every((team) => team.players.length >= draftConfig.playersPerTeam);
 
@@ -5721,6 +5722,7 @@ function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, 
     setTeams(initialTeams);
     setCursor(initialCursor);
     setSelected(null);
+    setDraftSaveError("");
   }, [initialCursor, initialTeams]);
 
   useEffect(() => setDraftConfig(savedDraft), [playoff]);
@@ -5737,12 +5739,18 @@ function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, 
     setTeams(nextTeams);
     setSelected(null);
     setCursor(nextCursor);
+    setDraftSaveError("");
     setSavingPick(true);
     try {
       await onSaveDraftProgress?.({
         teamsByCaptain: Object.fromEntries(Object.entries(nextTeams).map(([captainId, memberIds]) => [String(captainId), memberIds.map(String)])),
         cursor: nextCursor,
       });
+    } catch (error) {
+      setTeams(teams);
+      setCursor(cursor);
+      setSelected(selected);
+      setDraftSaveError(error instanceof Error ? error.message : "选人进度保存失败，已恢复上一轮");
     } finally {
       setSavingPick(false);
     }
@@ -5813,6 +5821,7 @@ function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, 
         )}
         <div className="draft-topline">
           <span className="status-pill status-warning">蛇形选人</span>
+          {draftSaveError && <span className="status-pill status-warning">{draftSaveError}</span>}
           <strong>当前轮：{activeCaptain?.name || "TBD"}</strong>
           <span>规则：积分榜前 4 为队长，低排名队长先选。</span>
           <span>已保存队伍：{normalizePlayoff(playoff).teams.length || 0} 支</span>
