@@ -1045,10 +1045,11 @@ async function savePlayoffState(env, state) {
   const leagueSlug = currentLeagueSlug(env);
   const seasonId = String(env.__playoffSeasonId || "").trim();
   const key = seasonId ? `season:${seasonId}` : "current";
-  const summarized = summarizePlayoffState({
+  const normalized = normalizePlayoffState({
     ...state,
     updatedAt: new Date().toISOString(),
   });
+  const summarized = summarizePlayoffState(normalized);
   const stored = {
     version: summarized.version,
     status: summarized.status,
@@ -1056,8 +1057,9 @@ async function savePlayoffState(env, state) {
     draft: summarized.draft,
     draftProgress: summarized.draftProgress,
     bracketFormat: summarized.bracketFormat,
-    series: summarized.series,
-    games: summarized.games,
+    // summarizePlayoffState turns series into a display map; retain arrays in D1.
+    series: normalized.series,
+    games: normalized.games,
     championTeamId: summarized.championTeamId,
     runnerUpTeamId: summarized.runnerUpTeamId,
     updatedAt: summarized.updatedAt,
