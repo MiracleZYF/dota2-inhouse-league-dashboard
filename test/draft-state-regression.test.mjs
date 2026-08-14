@@ -19,6 +19,11 @@ test("选人顺位从已保存的赛季进度恢复，而非固定归零", () =>
   assert.match(draftView, /await onSaveDraftProgress\?\.\(/);
 });
 
+test("重复保存相同选人规则不会清空已保存顺位", () => {
+  assert.match(backendSource, /const draftChanged = JSON\.stringify\(current\.draft\) !== JSON\.stringify\(nextDraft\);/);
+  assert.match(backendSource, /draftProgress: draftChanged \? DEFAULT_PLAYOFF_STATE\.draftProgress : current\.draftProgress,/);
+});
+
 test("保存选人进度不会把自定义赛程序列化成展示对象", () => {
   assert.match(backendSource, /series: normalized\.series,/);
   assert.match(backendSource, /games: normalized\.games,/);

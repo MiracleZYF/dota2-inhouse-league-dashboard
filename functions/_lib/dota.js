@@ -1086,7 +1086,13 @@ export async function updatePlayoffDraftConfig(env, draft = {}) {
   if (nextDraft.pickOrder.some((id) => !nextDraft.captainIds.includes(id))) {
     throw new Error("选人顺序中存在未被选为队长的玩家");
   }
-  return savePlayoffState(env, { ...current, draft: nextDraft, draftProgress: DEFAULT_PLAYOFF_STATE.draftProgress });
+  const draftChanged = JSON.stringify(current.draft) !== JSON.stringify(nextDraft);
+  return savePlayoffState(env, {
+    ...current,
+    draft: nextDraft,
+    // Saving an unchanged rule must not rewind an in-progress draft.
+    draftProgress: draftChanged ? DEFAULT_PLAYOFF_STATE.draftProgress : current.draftProgress,
+  });
 }
 
 export async function updatePlayoffDraftProgress(env, progress = {}) {
