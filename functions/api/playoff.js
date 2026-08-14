@@ -11,6 +11,7 @@ import {
   requireAdmin,
   resetPlayoffState,
   updatePlayoffDraftConfig,
+  updatePlayoffDraftProgress,
   updatePlayoffFormat,
   updatePlayoffSchedule,
   updatePlayoffTeams,
@@ -59,6 +60,11 @@ export async function onRequestPut({ request, env }) {
       auditAction = "save_playoff_draft_config";
       summary = `保存队长选人规则：${playoff.draft.teamCount} 队，每队 ${playoff.draft.playersPerTeam} 人`;
       details = { draft: playoff.draft };
+    } else if (action === "save_draft_progress") {
+      playoff = await updatePlayoffDraftProgress(scopedEnv, body.draftProgress || {});
+      auditAction = "save_playoff_draft_progress";
+      summary = `保存队长选人进度：第 ${playoff.draftProgress.cursor + 1} 顺位`;
+      details = { draftProgress: playoff.draftProgress };
     } else if (action === "save_schedule") {
       playoff = await updatePlayoffSchedule(scopedEnv, body.series || []);
       auditAction = "save_playoff_schedule";

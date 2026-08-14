@@ -55,6 +55,7 @@ export const DEFAULT_PLAYOFF_STATE = {
   status: "drafting",
   teams: [],
   draft: { teamCount: 4, playersPerTeam: 5, captainIds: [], pickOrder: [] },
+  draftProgress: { teamsByCaptain: {}, cursor: 0 },
   bracketFormat: "single_elimination",
   series: [],
   games: [],
@@ -74,6 +75,18 @@ function normalizePlayoffDraft(draft) {
   const captainIds = Array.from(new Set((Array.isArray(source.captainIds) ? source.captainIds : []).map((id) => String(id || "").trim()).filter(Boolean))).slice(0, teamCount);
   const pickOrder = (Array.isArray(source.pickOrder) ? source.pickOrder : []).map((id) => String(id || "").trim()).filter(Boolean);
   return { teamCount, playersPerTeam, captainIds, pickOrder };
+}
+
+function normalizePlayoffDraftProgress(progress) {
+  const source = progress && typeof progress === "object" ? progress : {};
+  const rawTeams = source.teamsByCaptain && typeof source.teamsByCaptain === "object" ? source.teamsByCaptain : {};
+  const teamsByCaptain = Object.fromEntries(
+    Object.entries(rawTeams).map(([captainId, memberIds]) => [
+      String(captainId || "").trim(),
+      Array.from(new Set((Array.isArray(memberIds) ? memberIds : []).map((id) => String(id || "").trim()).filter(Boolean))),
+    ]).filter(([captainId]) => captainId),
+  );
+  return { teamsByCaptain, cursor: Math.max(0, Number(source.cursor) || 0) };
 }
 
 const INITIAL_PLAYERS = [
@@ -947,6 +960,7 @@ function normalizePlayoffState(rawState) {
     version: 1,
     teams,
     draft: normalizePlayoffDraft(source.draft),
+    draftProgress: normalizePlayoffDraftProgress(source.draftProgress),
     bracketFormat: normalizeBracketFormat(source.bracketFormat),
     series,
     games,
@@ -1040,6 +1054,7 @@ async function savePlayoffState(env, state) {
     status: summarized.status,
     teams: summarized.teams,
     draft: summarized.draft,
+    draftProgress: summarized.draftProgress,
     bracketFormat: summarized.bracketFormat,
     series: summarized.series,
     games: summarized.games,
@@ -1069,7 +1084,24 @@ export async function updatePlayoffDraftConfig(env, draft = {}) {
   if (nextDraft.pickOrder.some((id) => !nextDraft.captainIds.includes(id))) {
     throw new Error("选人顺序中存在未被选为队长的玩家");
   }
-  return savePlayoffState(env, { ...current, draft: nextDraft });
+  return savePlayoffState(env, { ...current, draft: nextDraft, draftProgress: DEFAULT_PLAYOFF_STATE.draftProgress });
+}
+
+export async function updatePlayoffDraftProgress(env, progress = {}) {
+  const current = await getPlayoffState(env);
+  const nextProgress = normalizePlayoffDraftProgress(progress);
+  const captainIds = new Set(current.draft.captainIds.map(String));
+  const seenPlayerIds = new Set();
+  for (const [captainId, memberIds] of Object.entries(nextProgress.teamsByCaptain)) {
+    if (captainIds.size && !captainIds.has(captainId)) throw new Error("选人进度包含不在当前规则中的队长");
+    if (memberIds[0] !== captainId) throw new Error("每支队伍的第一位必须是对应队长");
+    if (memberIds.length > current.draft.playersPerTeam) throw new Error("队伍人数不能超过每队人数设置");
+    memberIds.forEach((playerId) => {
+      if (seenPlayerIds.has(playerId)) throw new Error("同一名玩家不能被重复选入不同队伍");
+      seenPlayerIds.add(playerId);
+    });
+  }
+  return savePlayoffState(env, { ...current, draftProgress: nextProgress });
 }
 
 export async function updatePlayoffSchedule(env, series = []) {

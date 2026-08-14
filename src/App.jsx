@@ -90,6 +90,7 @@ const DEFAULT_PLAYOFF = {
   status: "drafting",
   teams: [],
   draft: { teamCount: 4, playersPerTeam: 5, captainIds: [], pickOrder: [] },
+  draftProgress: { teamsByCaptain: {}, cursor: 0 },
   bracketFormat: "single_elimination",
   series: [],
   games: [],
@@ -5472,6 +5473,8 @@ function playoffTeamBySeed(teams = [], seed) {
 function normalizePlayoff(playoff) {
   const source = playoff && typeof playoff === "object" ? playoff : DEFAULT_PLAYOFF;
   const rawDraft = source.draft && typeof source.draft === "object" ? source.draft : {};
+  const rawProgress = source.draftProgress && typeof source.draftProgress === "object" ? source.draftProgress : {};
+  const rawProgressTeams = rawProgress.teamsByCaptain && typeof rawProgress.teamsByCaptain === "object" ? rawProgress.teamsByCaptain : {};
   return {
     ...DEFAULT_PLAYOFF,
     ...source,
@@ -5481,6 +5484,10 @@ function normalizePlayoff(playoff) {
       playersPerTeam: Math.min(Math.max(Number(rawDraft.playersPerTeam) || 5, 1), 10),
       captainIds: Array.from(new Set((Array.isArray(rawDraft.captainIds) ? rawDraft.captainIds : []).map((id) => String(id || "")).filter(Boolean))),
       pickOrder: (Array.isArray(rawDraft.pickOrder) ? rawDraft.pickOrder : []).map((id) => String(id || "")).filter(Boolean),
+    },
+    draftProgress: {
+      teamsByCaptain: Object.fromEntries(Object.entries(rawProgressTeams).map(([captainId, memberIds]) => [String(captainId), Array.from(new Set((Array.isArray(memberIds) ? memberIds : []).map((id) => String(id)).filter(Boolean)))])),
+      cursor: Math.max(0, Number(rawProgress.cursor) || 0),
     },
     bracketFormat: source.bracketFormat === "double_elimination" ? "double_elimination" : "single_elimination",
     series: Array.isArray(source.series) ? source.series.slice().sort((a, b) => Number(a.order || 0) - Number(b.order || 0)) : [],
@@ -5623,21 +5630,23 @@ function serializeEditablePlayoffTeams(teams = [], players = []) {
 }
 
 function buildDraftTeamMap(captains = [], playoff = DEFAULT_PLAYOFF) {
-  const saved = normalizePlayoff(playoff).teams;
+  const state = normalizePlayoff(playoff);
+  const saved = state.teams;
+  const progress = state.draftProgress.teamsByCaptain;
   return Object.fromEntries(
     captains.map((captain) => {
       const team = saved.find((item) => String(item.captainId) === String(captain.id) || String(item.captainDotaId) === String(captain.dotaId));
-      const ids = team?.players?.map((player) => player.id).filter(Boolean);
-      return [captain.id, ids?.length ? ids : [captain.id]];
+      const ids = progress[String(captain.id)] || team?.players?.map((player) => player.id).filter(Boolean);
+      return [captain.id, ids?.length ? ids.map(String) : [String(captain.id)]];
     }),
   );
 }
 
 function serializeDraftTeams(captains = [], players = [], teamsByCaptain = {}) {
-  const playerById = new Map(players.map((player) => [player.id, player]));
+  const playerById = new Map(players.map((player) => [String(player.id), player]));
   return captains.map((captain, index) => {
     const memberIds = teamsByCaptain[captain.id] || [captain.id];
-    const members = memberIds.map((id) => playerById.get(id)).filter(Boolean);
+    const members = memberIds.map((id) => playerById.get(String(id))).filter(Boolean);
     return {
       id: `team-${captain.id}`,
       seed: index + 1,
@@ -5691,7 +5700,7 @@ function teamName(playoff, teamId) {
   return normalizePlayoff(playoff).teams.find((team) => team.id === teamId)?.name || "TBD";
 }
 
-function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, onSaveDraftConfig, onOpenPlayoff, saving = false, isAdmin = false }) {
+function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, onSaveDraftConfig, onSaveDraftProgress, onOpenPlayoff, saving = false, isAdmin = false }) {
   const savedDraft = normalizePlayoff(playoff).draft;
   const [draftConfig, setDraftConfig] = useState(savedDraft);
   const availableCaptains = players.filter((player) => player.played >= 1);
@@ -5700,33 +5709,43 @@ function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, 
   const orderedCaptains = configuredCaptains;
   const draftOrder = draftConfig.pickOrder.length ? draftConfig.pickOrder.map((id) => configuredCaptains.find((captain) => String(captain.id) === String(id))).filter(Boolean) : makeSnakeDraftOrder(orderedCaptains, draftConfig.playersPerTeam);
   const initialTeams = useMemo(() => buildDraftTeamMap(configuredCaptains, playoff), [configuredCaptains, playoff]);
+  const initialCursor = Math.min(Math.max(normalizePlayoff(playoff).draftProgress.cursor, 0), draftOrder.length);
   const [teams, setTeams] = useState(initialTeams);
-  const [cursor, setCursor] = useState(0);
+  const [cursor, setCursor] = useState(initialCursor);
   const [selected, setSelected] = useState(null);
+  const [savingPick, setSavingPick] = useState(false);
   const serializedTeams = useMemo(() => serializeDraftTeams(configuredCaptains, players, teams), [configuredCaptains, players, teams]);
   const allTeamsReady = serializedTeams.length === configuredCaptains.length && serializedTeams.every((team) => team.players.length >= draftConfig.playersPerTeam);
 
   useEffect(() => {
     setTeams(initialTeams);
-    setCursor(0);
+    setCursor(initialCursor);
     setSelected(null);
-  }, [initialTeams]);
+  }, [initialCursor, initialTeams]);
 
   useEffect(() => setDraftConfig(savedDraft), [playoff]);
 
-  const draftedIds = new Set(Object.values(teams).flat());
-  const pool = players.filter((player) => !draftedIds.has(player.id) && player.played >= 1);
+  const draftedIds = new Set(Object.values(teams).flat().map(String));
+  const pool = players.filter((player) => !draftedIds.has(String(player.id)) && player.played >= 1);
   const activeCaptain = draftOrder[cursor] || null;
 
-  function pickPlayer() {
+  async function pickPlayer() {
     if (!selected || !activeCaptain) return;
     if ((teams[activeCaptain.id] || []).length >= draftConfig.playersPerTeam) return;
-    setTeams((current) => ({
-      ...current,
-      [activeCaptain.id]: [...(current[activeCaptain.id] || [activeCaptain.id]), selected],
-    }));
+    const nextTeams = { ...teams, [activeCaptain.id]: [...(teams[activeCaptain.id] || [String(activeCaptain.id)]), String(selected)] };
+    const nextCursor = cursor + 1;
+    setTeams(nextTeams);
     setSelected(null);
-    setCursor((value) => value + 1);
+    setCursor(nextCursor);
+    setSavingPick(true);
+    try {
+      await onSaveDraftProgress?.({
+        teamsByCaptain: Object.fromEntries(Object.entries(nextTeams).map(([captainId, memberIds]) => [String(captainId), memberIds.map(String)])),
+        cursor: nextCursor,
+      });
+    } finally {
+      setSavingPick(false);
+    }
   }
 
   async function saveTeams(openPlayoff = false) {
@@ -5763,7 +5782,7 @@ function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, 
                 <Trophy size={16} />
                 生成淘汰赛队伍
               </button>
-              <button className="primary-button" type="button" onClick={pickPlayer} disabled={!selected}>
+              <button className="primary-button" type="button" onClick={pickPlayer} disabled={!selected || savingPick}>
                 <ShieldCheck size={16} />
                 为当前轮选人
               </button>
@@ -5830,7 +5849,7 @@ function DraftView({ players, captains, playoff = DEFAULT_PLAYOFF, onSaveTeams, 
           </div>
           <div className="team-columns">
             {configuredCaptains.map((captain, index) => {
-              const roster = (teams[captain.id] || [captain.id]).map((id) => players.find((player) => player.id === id)).filter(Boolean);
+              const roster = (teams[captain.id] || [String(captain.id)]).map((id) => players.find((player) => String(player.id) === String(id))).filter(Boolean);
               return (
                 <article className="team-column" key={captain.id}>
                   <div className="team-head">
@@ -7288,7 +7307,7 @@ export function App() {
         if (Array.isArray(data.auditLogs)) setAuditLogs(data.auditLogs);
         if (data.settings) setSettings((current) => ({ ...current, ...data.settings }));
         if (data.playoffs) setPlayoffsBySeason(data.playoffs);
-        if (data.playoff) setPlayoff(data.playoff);
+        if (data.playoff && !data.playoffs) setPlayoff(data.playoff);
         if (data.leagueSpace) setLeagueSpace(data.leagueSpace);
         if (Array.isArray(data.leagues)) setLeagues(data.leagues);
         if (data.meta) setRuntimeMeta(data.meta);
@@ -7321,7 +7340,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (!backendReady) return undefined;
+    if (!backendReady || activeView === "draft" || activeView === "playoff") return undefined;
     const intervalId = window.setInterval(async () => {
       if (typeof document !== "undefined" && document.hidden) return;
       try {
@@ -7329,7 +7348,6 @@ export function App() {
         if (Array.isArray(data.players)) setPlayers(data.players);
         applyServerState(data);
         if (data.settings) setSettings((current) => ({ ...current, ...data.settings }));
-        if (data.playoff) setPlayoff(data.playoff);
         if (data.leagueSpace) setLeagueSpace(data.leagueSpace);
         if (Array.isArray(data.leagues)) setLeagues(data.leagues);
         if (data.meta) setRuntimeMeta(data.meta);
@@ -7339,7 +7357,7 @@ export function App() {
       }
     }, 120000);
     return () => window.clearInterval(intervalId);
-  }, [backendReady]);
+  }, [activeView, backendReady]);
 
   useEffect(() => {
     if (!seasons.some((season) => season.id === selectedSeasonId)) {
@@ -7392,8 +7410,12 @@ export function App() {
     if (Array.isArray(data?.matches)) setMatches(data.matches);
     if (Array.isArray(data?.syncRuns)) setSyncRuns(data.syncRuns);
     if (Array.isArray(data?.auditLogs)) setAuditLogs(data.auditLogs);
-    if (data?.playoffs) setPlayoffsBySeason(data.playoffs);
-    if (data?.playoff) {
+    if (data?.playoffs) {
+      setPlayoffsBySeason(data.playoffs);
+      const selectedPlayoff = data.playoffs[selectedSeason.id];
+      if (selectedPlayoff) setPlayoff(selectedPlayoff);
+    }
+    if (data?.playoff && !data?.playoffs) {
       setPlayoff(data.playoff);
       const seasonId = data.seasonId || selectedSeason.id;
       setPlayoffsBySeason((current) => ({ ...current, [seasonId]: data.playoff }));
@@ -7411,7 +7433,6 @@ export function App() {
       if (Array.isArray(data.players)) setPlayers(data.players);
       applyServerState(data);
       if (data.settings) setSettings((current) => ({ ...current, ...data.settings }));
-      if (data.playoff) setPlayoff(data.playoff);
       if (data.leagueSpace) setLeagueSpace(data.leagueSpace);
       if (Array.isArray(data.leagues)) setLeagues(data.leagues);
       if (data.meta) setRuntimeMeta(data.meta);
@@ -7810,6 +7831,17 @@ export function App() {
     } finally {
       setPlayoffSaving(false);
     }
+  }
+
+  async function savePlayoffDraftProgress(draftProgress) {
+    const data = await apiRequest("/api/playoff", {
+      method: "PUT",
+      admin: true,
+      body: { action: "save_draft_progress", draftProgress, seasonId: selectedSeason.id },
+    });
+    applyServerState(data);
+    setLastSync("选人进度已自动保存");
+    return data;
   }
 
   async function resetPlayoff() {
@@ -8800,7 +8832,7 @@ export function App() {
         {!isSetupLeagueSpace && activeView === "insights" && (
           <HeroInsightsView players={players} matches={seasonMatches} scoreEntries={scoreEntries} heroNames={heroNames} heroMeta={heroMeta} onOpenMatch={openMatch} />
         )}
-        {!isSetupLeagueSpace && activeView === "draft" && <DraftView players={rankedPlayers} captains={captains} playoff={playoff} onSaveTeams={savePlayoffTeams} onSaveDraftConfig={savePlayoffDraftConfig} onOpenPlayoff={() => setActiveView("playoff")} saving={playoffSaving} isAdmin={isAdmin} />}
+        {!isSetupLeagueSpace && activeView === "draft" && <DraftView players={rankedPlayers} captains={captains} playoff={playoff} onSaveTeams={savePlayoffTeams} onSaveDraftConfig={savePlayoffDraftConfig} onSaveDraftProgress={savePlayoffDraftProgress} onOpenPlayoff={() => setActiveView("playoff")} saving={playoffSaving} isAdmin={isAdmin} />}
         {!isSetupLeagueSpace && activeView === "playoff" && (
           <PlayoffView
             players={rankedPlayers}
